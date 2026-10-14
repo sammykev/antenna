@@ -8,6 +8,8 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <Platforms>x64;ARM64</Platforms>
     <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <!-- So "dotnet run -p:Platform=x64" (or ARM64) picks the matching runtime without -r. -->
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' and '$(Platform)' != '' and '$(Platform)' != 'AnyCPU'">win-$(Platform.ToLowerInvariant())</RuntimeIdentifier>
     <UseWinUI>true</UseWinUI>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>

@@ -35,7 +35,7 @@ public sealed partial class SearchPage : Page
             _ => null,
         };
         var hits = AppServices.Library.Search(_query, kind);
-        Results.ItemsSource = hits.Select(h => new ItemViewModel(h)).ToList();
+        Results.ItemsSource = GuideService.WithNowPlaying(hits);
         NoResults.Visibility = hits.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

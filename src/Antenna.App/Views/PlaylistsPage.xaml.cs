@@ -67,8 +67,11 @@ public sealed partial class PlaylistsPage : Page
         Status.IsOpen = false;
         try
         {
-            var count = await AppServices.RefreshSourceAsync(source);
-            Show(InfoBarSeverity.Success, $"{source.Name}: loaded {count:N0} items.");
+            var result = await AppServices.RefreshSourceAsync(source);
+            if (result.GuideError is { } guideError)
+                Show(InfoBarSeverity.Warning, $"{source.Name}: loaded {result.Items:N0} items, but the guide failed: {guideError}");
+            else
+                Show(InfoBarSeverity.Success, $"{source.Name}: loaded {result.Items:N0} items and {result.Programmes:N0} guide entries.");
         }
         catch (Exception ex)
         {

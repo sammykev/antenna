@@ -7,7 +7,7 @@
 
     <!-- A channel/movie/series tile. The coloured bar and glyph show which playlist it came from. -->
     <DataTemplate x:Key="ItemTileTemplate" x:DataType="vm:ItemViewModel">
-        <Grid Width="200" Height="176" CornerRadius="8"
+        <Grid Width="200" Height="192" CornerRadius="8"
               Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
               BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
             <Grid.RowDefinitions>
@@ -32,6 +32,7 @@
                     <TextBlock Text="{x:Bind SourceName}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
                 <TextBlock Text="{x:Bind Badge}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.6" />
+                <TextBlock Text="{x:Bind NowText}" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" TextTrimming="CharacterEllipsis" />
             </StackPanel>
         </Grid>
     </DataTemplate>

@@ -1,9 +1,12 @@
 using System.Net;
 using Antenna.Core;
+using Antenna.Core.Epg;
 using Antenna.Core.Library;
 using Antenna.Core.Playlists;
 
 namespace Antenna.App.Services;
+
+public sealed record RefreshResult(int Items, int Programmes, string? GuideError);
 
 /// <summary>App-wide singletons. Small enough that a DI container would be overkill.</summary>
 public static class AppServices
@@ -14,14 +17,29 @@ public static class AppServices
 
     public static PlaylistImporter Importer { get; } = new(Http);
 
-    /// <summary>Imports a source's catalogue and stores it, off the UI thread. Returns the item count.</summary>
-    public static Task<int> RefreshSourceAsync(PlaylistSource source, CancellationToken ct = default) =>
+    public static EpgImporter Guide { get; } = new(Http, Library);
+
+    /// <summary>
+    /// Re-imports a source's catalogue and then its guide, off the UI thread.
+    /// A guide failure doesn't undo the catalogue; it's reported in <see cref="RefreshResult.GuideError"/>.
+    /// </summary>
+    public static Task<RefreshResult> RefreshSourceAsync(PlaylistSource source, CancellationToken ct = default) =>
         Task.Run(async () =>
         {
             var result = await Importer.ImportAsync(source, ct);
-            Library.SaveSource(source with { EpgUrl = result.EpgUrl, LastRefreshed = DateTimeOffset.Now });
+            var updated = source with { EpgUrl = result.EpgUrl, LastRefreshed = DateTimeOffset.Now };
+            Library.SaveSource(updated);
             Library.ReplaceItems(source.Id, result.Items);
-            return result.Items.Count;
+
+            try
+            {
+                var programmes = await Guide.ImportAsync(updated, result.Items, ct);
+                return new RefreshResult(result.Items.Count, programmes, null);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                return new RefreshResult(result.Items.Count, 0, ex.Message);
+            }
         }, ct);
 
     private static HttpClient CreateHttpClient()

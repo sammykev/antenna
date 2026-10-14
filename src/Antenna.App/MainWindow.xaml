@@ -32,6 +32,11 @@
                     <FontIcon Glyph="&#xE7F4;" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="Guide" Tag="guide">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE787;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="Movies" Tag="movies">
                 <NavigationViewItem.Icon>
                     <FontIcon Glyph="&#xE8B2;" />

@@ -42,6 +42,7 @@ public sealed partial class MainWindow : Window
         switch (tag)
         {
             case "live": Navigate(typeof(BrowsePage), MediaKind.Live); break;
+            case "guide": Navigate(typeof(GuidePage), null); break;
             case "movies": Navigate(typeof(BrowsePage), MediaKind.Movie); break;
             case "series": Navigate(typeof(BrowsePage), MediaKind.Series); break;
             case "playlists": Navigate(typeof(PlaylistsPage), null); break;
@@ -74,6 +75,7 @@ public sealed partial class MainWindow : Window
     {
         // Keep the pane selection in sync when navigating back.
         var tag = e.SourcePageType == typeof(PlaylistsPage) ? "playlists"
+            : e.SourcePageType == typeof(GuidePage) ? "guide"
             : e.SourcePageType == typeof(BrowsePage) && e.Parameter is MediaKind k ? k switch
             {
                 MediaKind.Live => "live",

@@ -12,11 +12,13 @@ namespace Antenna.Core.Library;
 public sealed class LibraryStore : IDisposable
 {
     private readonly SqliteConnection _db;
+    private readonly string _connectionString;
     private readonly Lock _gate = new();
 
     public LibraryStore(string databasePath)
     {
-        _db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = databasePath }.ToString());
+        _connectionString = new SqliteConnectionStringBuilder { DataSource = databasePath }.ToString();
+        _db = new SqliteConnection(_connectionString);
         _db.Open();
         Exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
         Migrate();
@@ -63,7 +65,27 @@ public sealed class LibraryStore : IDisposable
             CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
                 title, grp, tokenize = 'unicode61 remove_diacritics 2'
             );
+            CREATE TABLE IF NOT EXISTS programmes (
+                source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
+                channel_id TEXT NOT NULL,
+                start INTEGER NOT NULL,
+                stop INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT
+            );
+            CREATE INDEX IF NOT EXISTS programmes_channel ON programmes(source_id, channel_id, start);
+            CREATE INDEX IF NOT EXISTS programmes_time ON programmes(start, stop);
             """);
+        AddColumnIfMissing("items", "catchup_mode", "TEXT");
+        AddColumnIfMissing("items", "catchup_source", "TEXT");
+    }
+
+    private void AddColumnIfMissing(string table, string column, string type)
+    {
+        using var cmd = Command($"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = $col");
+        cmd.Parameters.AddWithValue("$col", column);
+        if ((long)cmd.ExecuteScalar()! == 0)
+            Exec($"ALTER TABLE {table} ADD COLUMN {column} {type}");
     }
 
     public void SaveSource(PlaylistSource source)
@@ -142,8 +164,8 @@ public sealed class LibraryStore : IDisposable
             DeleteItems(sourceId, tx);
 
             using var insert = Command("""
-                INSERT INTO items (source_id, external_id, kind, title, grp, logo, stream_url, epg_id, catchup_days, sort_index)
-                VALUES ($source, $ext, $kind, $title, $grp, $logo, $url, $epg, $catchup, $sort)
+                INSERT INTO items (source_id, external_id, kind, title, grp, logo, stream_url, epg_id, catchup_days, catchup_mode, catchup_source, sort_index)
+                VALUES ($source, $ext, $kind, $title, $grp, $logo, $url, $epg, $catchup, $cmode, $csource, $sort)
                 RETURNING rowid;
                 """, tx);
             var pSource = insert.Parameters.Add("$source", SqliteType.Text);
@@ -155,6 +177,8 @@ public sealed class LibraryStore : IDisposable
             var pUrl = insert.Parameters.Add("$url", SqliteType.Text);
             var pEpg = insert.Parameters.Add("$epg", SqliteType.Text);
             var pCatchup = insert.Parameters.Add("$catchup", SqliteType.Integer);
+            var pCatchupMode = insert.Parameters.Add("$cmode", SqliteType.Text);
+            var pCatchupSource = insert.Parameters.Add("$csource", SqliteType.Text);
             var pSort = insert.Parameters.Add("$sort", SqliteType.Integer);
 
             using var fts = Command("INSERT INTO items_fts (rowid, title, grp) VALUES ($rowid, $title, $grp)", tx);
@@ -173,6 +197,8 @@ public sealed class LibraryStore : IDisposable
                 pUrl.Value = (object?)item.StreamUrl ?? DBNull.Value;
                 pEpg.Value = (object?)item.EpgChannelId ?? DBNull.Value;
                 pCatchup.Value = item.CatchupDays;
+                pCatchupMode.Value = (object?)item.CatchupMode ?? DBNull.Value;
+                pCatchupSource.Value = (object?)item.CatchupSource ?? DBNull.Value;
                 pSort.Value = item.SortIndex;
                 var rowid = (long)insert.ExecuteScalar()!;
 
@@ -250,6 +276,61 @@ public sealed class LibraryStore : IDisposable
         }
     }
 
+    /// <summary>
+    /// Starts replacing a source's guide. The writer has its own connection, so a large
+    /// import doesn't block reads on this store (WAL lets readers see the old guide until commit).
+    /// </summary>
+    public ProgrammeWriter BeginGuideImport(string sourceId) => new(_connectionString, sourceId);
+
+    /// <summary>Programmes for one channel overlapping [from, to), in time order.</summary>
+    public IReadOnlyList<Programme> GetProgrammes(string sourceId, string channelId, DateTimeOffset from, DateTimeOffset to)
+    {
+        lock (_gate)
+        {
+            using var cmd = Command("""
+                SELECT channel_id, start, stop, title, description FROM programmes
+                WHERE source_id = $source AND channel_id = $channel AND stop > $from AND start < $to
+                ORDER BY start
+                """);
+            cmd.Parameters.AddWithValue("$source", sourceId);
+            cmd.Parameters.AddWithValue("$channel", channelId);
+            cmd.Parameters.AddWithValue("$from", from.ToUnixTimeSeconds());
+            cmd.Parameters.AddWithValue("$to", to.ToUnixTimeSeconds());
+            using var r = cmd.ExecuteReader();
+            var list = new List<Programme>();
+            while (r.Read())
+                list.Add(ReadProgramme(r, 0));
+            return list;
+        }
+    }
+
+    /// <summary>What's on at <paramref name="at"/> on every channel, keyed by (source id, channel id).</summary>
+    public Dictionary<(string SourceId, string ChannelId), Programme> GetNowPlaying(DateTimeOffset at)
+    {
+        lock (_gate)
+        {
+            using var cmd = Command("""
+                SELECT source_id, channel_id, start, stop, title, description FROM programmes
+                WHERE start <= $at AND stop > $at
+                """);
+            cmd.Parameters.AddWithValue("$at", at.ToUnixTimeSeconds());
+            using var r = cmd.ExecuteReader();
+            var map = new Dictionary<(string, string), Programme>();
+            while (r.Read())
+                map[(r.GetString(0), r.GetString(1))] = ReadProgramme(r, 1);
+            return map;
+        }
+    }
+
+    private static Programme ReadProgramme(SqliteDataReader r, int first) => new()
+    {
+        ChannelId = r.GetString(first),
+        Start = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(first + 1)),
+        Stop = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(first + 2)),
+        Title = r.GetString(first + 3),
+        Description = r.IsDBNull(first + 4) ? null : r.GetString(first + 4),
+    };
+
     /// <summary>Turns free text into an FTS5 expression of quoted prefix terms, so user input can't inject syntax.</summary>
     internal static string? BuildMatchExpression(string query)
     {
@@ -275,7 +356,7 @@ public sealed class LibraryStore : IDisposable
 
     private const string SelectEntries = """
         SELECT i.source_id, i.external_id, i.kind, i.title, i.grp, i.logo, i.stream_url, i.epg_id, i.catchup_days, i.sort_index,
-               s.name, s.color, s.icon
+               s.name, s.color, s.icon, i.catchup_mode, i.catchup_source
         FROM items i JOIN sources s ON s.id = i.source_id
         """;
 
@@ -297,6 +378,8 @@ public sealed class LibraryStore : IDisposable
                 EpgChannelId = r.IsDBNull(7) ? null : r.GetString(7),
                 CatchupDays = r.GetInt32(8),
                 SortIndex = r.GetInt32(9),
+                CatchupMode = r.IsDBNull(13) ? null : r.GetString(13),
+                CatchupSource = r.IsDBNull(14) ? null : r.GetString(14),
             };
             list.Add(new LibraryEntry(item, r.GetString(10), r.GetString(11), r.GetString(12)));
         }
@@ -308,6 +391,7 @@ public sealed class LibraryStore : IDisposable
         using var cmd = Command("""
             DELETE FROM items_fts WHERE rowid IN (SELECT rowid FROM items WHERE source_id = $id);
             DELETE FROM items WHERE source_id = $id;
+            DELETE FROM programmes WHERE source_id = $id;
             """, tx);
         cmd.Parameters.AddWithValue("$id", sourceId);
         cmd.ExecuteNonQuery();

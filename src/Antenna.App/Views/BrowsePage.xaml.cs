@@ -59,7 +59,7 @@ public sealed partial class BrowsePage : Page
         var group = Groups.SelectedItem as string;
         var filter = group is null or AllGroups ? null : group == "Uncategorised" ? "" : group;
         var entries = AppServices.Library.GetItems(_kind, SelectedSourceId, filter);
-        Items.ItemsSource = entries.Select(e => new ItemViewModel(e)).ToList();
+        Items.ItemsSource = GuideService.WithNowPlaying(entries);
         EmptyState.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 

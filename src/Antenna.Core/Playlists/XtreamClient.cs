@@ -3,7 +3,8 @@ using System.Text.Json;
 
 namespace Antenna.Core.Playlists;
 
-public sealed record XtreamAccount(string Status, DateTimeOffset? ExpiresAt, int MaxConnections, int ActiveConnections);
+/// <param name="ServerUtcOffset">Offset of the panel's clock from UTC; timeshift URLs use server-local time.</param>
+public sealed record XtreamAccount(string Status, DateTimeOffset? ExpiresAt, int MaxConnections, int ActiveConnections, TimeSpan ServerUtcOffset);
 
 public sealed class XtreamException(string message, Exception? inner = null) : Exception(message, inner);
 
@@ -52,6 +53,10 @@ public sealed class XtreamClient
 
     public string EpisodeUrl(string episodeId, string extension) => $"{_base}/series/{Esc(_user)}/{Esc(_pass)}/{episodeId}.{extension}";
 
+    /// <summary>Catch-up URL for a programme, converting its start into the server's local time.</summary>
+    public string CatchupUrl(string streamId, DateTimeOffset start, TimeSpan duration, TimeSpan serverUtcOffset) =>
+        CatchupUrl(streamId, start.ToOffset(serverUtcOffset).DateTime, duration);
+
     /// <summary>Catch-up URL for a programme that started at <paramref name="start"/> (provider local time).</summary>
     public string CatchupUrl(string streamId, DateTime start, TimeSpan duration) =>
         $"{_base}/timeshift/{Esc(_user)}/{Esc(_pass)}/{(int)Math.Ceiling(duration.TotalMinutes)}/" +
@@ -67,11 +72,46 @@ public sealed class XtreamClient
             throw new XtreamException("The server rejected the username or password.");
 
         var exp = Long(info, "exp_date");
+        var server = doc.RootElement.TryGetProperty("server_info", out var si) ? si : default;
         return new XtreamAccount(
             Str(info, "status") ?? "Unknown",
             exp > 0 ? DateTimeOffset.FromUnixTimeSeconds(exp) : null,
             Int(info, "max_connections"),
-            Int(info, "active_cons"));
+            Int(info, "active_cons"),
+            ServerOffset(server));
+    }
+
+    /// <summary>
+    /// Works out the panel's UTC offset. Comparing its local "time_now" with the
+    /// "timestamp_now" epoch is the most reliable; the timezone name is the fallback.
+    /// </summary>
+    internal static TimeSpan ServerOffset(JsonElement serverInfo)
+    {
+        if (serverInfo.ValueKind != JsonValueKind.Object)
+            return TimeSpan.Zero;
+
+        var epoch = Long(serverInfo, "timestamp_now");
+        if (epoch > 0 && DateTime.TryParseExact(Str(serverInfo, "time_now"), "yyyy-MM-dd HH:mm:ss",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out var local))
+        {
+            var diff = local - DateTimeOffset.FromUnixTimeSeconds(epoch).UtcDateTime;
+            // Round to the nearest 15 minutes to absorb the gap between the two fields.
+            var quarters = Math.Round(diff.TotalMinutes / 15);
+            if (Math.Abs(quarters) <= 14 * 4)
+                return TimeSpan.FromMinutes(quarters * 15);
+        }
+
+        if (Str(serverInfo, "timezone") is { Length: > 0 } tz)
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(tz).GetUtcOffset(DateTimeOffset.UtcNow);
+            }
+            catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
+            {
+            }
+        }
+        return TimeSpan.Zero;
     }
 
     /// <summary>Downloads the full live, VOD and series catalogue as library items.</summary>

@@ -46,6 +46,11 @@ public sealed class ItemViewModel(LibraryEntry entry)
         _ => "",
     };
 
+    /// <summary>What's on now, for live channels with a guide.</summary>
+    internal Programme? Now { get; set; }
+
+    public string NowText => Now is { } p ? $"Now: {p.Title}" : "";
+
     public string Initials => string.Concat(Title.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(w => char.ToUpperInvariant(w[0])));
 
     /// <summary>Created on first use so long virtualized lists only fetch logos for visible tiles.</summary>
@@ -80,6 +85,27 @@ public sealed class EpisodeViewModel(Episode episode)
     internal Episode Episode { get; } = episode;
     public string Title => $"S{Episode.Season:00}E{Episode.Number:00} · {Episode.Title}";
     public string Plot => Episode.Plot ?? "";
+}
+
+/// <summary>One row in the guide's programme list.</summary>
+public sealed class ProgrammeViewModel
+{
+    internal ProgrammeViewModel(Programme programme, bool isLive, bool canReplay)
+    {
+        Programme = programme;
+        IsLive = isLive;
+        CanReplay = canReplay;
+    }
+
+    internal Programme Programme { get; }
+    internal bool IsLive { get; }
+    internal bool CanReplay { get; }
+
+    public string Time => $"{Programme.Start.LocalDateTime:HH:mm} – {Programme.Stop.LocalDateTime:HH:mm}";
+    public string Title => Programme.Title;
+    public string Description => Programme.Description ?? "";
+    public string State => IsLive ? "● LIVE" : CanReplay ? "▶ Catch-up" : "";
+    public double Opacity => IsLive || CanReplay || Programme.Start > DateTimeOffset.Now ? 1.0 : 0.5;
 }
 
 /// <summary>Navigation parameter for the player.</summary>

@@ -59,6 +59,12 @@ public sealed record MediaItem
     /// <summary>Days of catch-up archive the provider keeps. 0 = no catch-up.</summary>
     public int CatchupDays { get; init; }
 
+    /// <summary>M3U catch-up style (default, append, shift, flussonic, xc). Null = infer.</summary>
+    public string? CatchupMode { get; init; }
+
+    /// <summary>M3U catch-up URL template, e.g. "?utc={utc}&amp;lutc={lutc}".</summary>
+    public string? CatchupSource { get; init; }
+
     /// <summary>Position in the source playlist, used to keep the provider's ordering.</summary>
     public int SortIndex { get; init; }
 }
@@ -72,6 +78,21 @@ public sealed record Episode
     public required string StreamUrl { get; init; }
     public string? Plot { get; init; }
     public string? ImageUrl { get; init; }
+}
+
+/// <summary>One programme from the XMLTV guide.</summary>
+public sealed record Programme
+{
+    /// <summary>XMLTV channel id, matched against <see cref="MediaItem.EpgChannelId"/>.</summary>
+    public required string ChannelId { get; init; }
+    public required DateTimeOffset Start { get; init; }
+    public required DateTimeOffset Stop { get; init; }
+    public required string Title { get; init; }
+    public string? Description { get; init; }
+
+    public TimeSpan Duration => Stop - Start;
+
+    public bool IsOnAt(DateTimeOffset time) => Start <= time && time < Stop;
 }
 
 /// <summary>A search hit or browse result, joined with the source it came from.</summary>

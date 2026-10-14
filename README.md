@@ -19,8 +19,11 @@ Xtream Codes login). It doesn't include or find any content itself.
 | Multiple audio tracks and embedded subtitles | ✅ |
 | Load subtitle files (.srt/.ass/.vtt) | ✅ |
 | Auto-reconnect when the stream drops (VOD resumes in place) | ✅ |
-| EPG (XMLTV) guide | ⏳ next |
-| Catch-up (Xtream timeshift) | ⏳ URL builder done, UI next |
+| EPG guide (XMLTV, .xml or .xml.gz; auto-detected from url-tvg / Xtream) | ✅ |
+| "Now playing" on Live TV tiles and in search | ✅ |
+| Guide channel matching by tvg-id, then by name ("UK: BBC One HD" ↔ "BBC One") | ✅ |
+| Catch-up: Xtream timeshift (server time-zone aware) | ✅ |
+| Catch-up: M3U `catchup` modes default / append / shift / flussonic / xc | ✅ |
 | Favourites and recently watched | ⏳ |
 | OpenSubtitles.com search | ⏳ needs an API key |
 | PIN parental controls by category | ⏳ |
@@ -37,7 +40,41 @@ antenna/
   tests/Antenna.Core.Tests xUnit tests for the core library
 ```
 
-## Build and run (Windows)
+## Run it on your PC
+
+### Option A: download a ready-made build (no tools needed)
+
+1. Open the repository's **Actions** tab on GitHub and select the latest green **Antenna** run.
+2. Under **Artifacts**, download **Antenna-win-x64** (you must be signed in to GitHub) and unzip it.
+3. Double-click `Antenna.App.exe`. It's self-contained: no .NET or Windows App SDK install needed.
+   If SmartScreen warns about an unknown publisher, choose **More info → Run anyway** (the build is unsigned).
+
+### Option B: build from source
+
+1. Install the .NET 10 SDK: `winget install Microsoft.DotNet.SDK.10` (or download it from dot.net).
+2. Get the code and switch to the branch:
+   ```powershell
+   git clone https://github.com/sammykev/miva-notes.git
+   cd miva-notes
+   git checkout sammykev/zen-ptolemy-3t0ch1
+   cd antenna
+   ```
+3. Run it:
+   ```powershell
+   dotnet run --project src/Antenna.App -p:Platform=x64
+   ```
+   On an ARM PC (e.g. Snapdragon), use `-p:Platform=ARM64`.
+
+### First steps in the app
+
+1. **Playlists → Add playlist**: paste your provider's M3U URL, or choose **Xtream Codes** and enter
+   the server, username and password.
+2. Wait for "loaded N items and M guide entries".
+3. Browse **Live TV / Movies / Series**, search from the box at the top of the pane, or open the **Guide**.
+   In the guide, click what's on now to watch live, or a past programme marked **▶ Catch-up** to replay it.
+   Catch-up only appears for channels your provider archives.
+
+## Build and run (Windows), developer notes
 
 Requirements: Windows 10 1809+ or Windows 11, the [.NET 10 SDK](https://dotnet.microsoft.com/download),
 and optionally Visual Studio 2022/2026 with the "WinUI application development" workload.

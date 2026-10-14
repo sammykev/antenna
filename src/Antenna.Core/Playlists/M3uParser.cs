@@ -20,6 +20,8 @@ public static partial class M3uParser
 
         var items = new List<MediaItem>();
         string? epgUrl = null;
+        // Catch-up settings on the #EXTM3U line apply to every channel that doesn't override them.
+        var defaults = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         Dictionary<string, string>? attrs = null;
         string? title = null;
@@ -34,6 +36,9 @@ public static partial class M3uParser
             if (line.StartsWith("#EXTM3U", StringComparison.OrdinalIgnoreCase))
             {
                 var header = ParseAttributes(line);
+                foreach (var key in CatchupKeys)
+                    if (header.TryGetValue(key, out var v))
+                        defaults[key] = v;
                 epgUrl = header.GetValueOrDefault("url-tvg") ?? header.GetValueOrDefault("x-tvg-url");
                 // Some providers list several guides separated by commas; keep the first.
                 epgUrl = epgUrl?.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
@@ -54,7 +59,7 @@ public static partial class M3uParser
             }
             else if (attrs is not null)
             {
-                items.Add(BuildItem(sourceId, line, attrs, title, extGroup, items.Count));
+                items.Add(BuildItem(sourceId, line, WithDefaults(attrs, defaults), title, extGroup, items.Count));
                 attrs = null;
                 title = null;
                 extGroup = null;
@@ -62,11 +67,20 @@ public static partial class M3uParser
             else
             {
                 // Bare URL without #EXTINF: still playable.
-                items.Add(BuildItem(sourceId, line, new Dictionary<string, string>(), null, null, items.Count));
+                items.Add(BuildItem(sourceId, line, WithDefaults(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), defaults), null, null, items.Count));
             }
         }
 
         return new M3uPlaylist(items, epgUrl);
+    }
+
+    private static readonly string[] CatchupKeys = ["catchup", "catchup-type", "catchup-source", "catchup-days"];
+
+    private static Dictionary<string, string> WithDefaults(Dictionary<string, string> attrs, Dictionary<string, string> defaults)
+    {
+        foreach (var (key, value) in defaults)
+            attrs.TryAdd(key, value);
+        return attrs;
     }
 
     private static MediaItem BuildItem(
@@ -87,6 +101,8 @@ public static partial class M3uParser
             StreamUrl = url,
             EpgChannelId = FirstNonEmpty(attrs.GetValueOrDefault("tvg-id")),
             CatchupDays = Math.Max(0, catchupDays),
+            CatchupMode = FirstNonEmpty(attrs.GetValueOrDefault("catchup"), attrs.GetValueOrDefault("catchup-type"))?.ToLowerInvariant(),
+            CatchupSource = FirstNonEmpty(attrs.GetValueOrDefault("catchup-source")),
             SortIndex = index,
         };
     }
