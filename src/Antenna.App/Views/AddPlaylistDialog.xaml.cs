@@ -10,7 +10,7 @@ public sealed partial class AddPlaylistDialog : ContentDialog
 {
     private static readonly string[] Palette = ["#4F7CFF", "#E5484D", "#30A46C", "#F5A524", "#8E4EC6", "#12A594", "#E54D9E", "#6E6E6E"];
 
-    public PlaylistSource? Result { get; private set; }
+    internal PlaylistSource? Result { get; private set; }
 
     public AddPlaylistDialog()
     {
