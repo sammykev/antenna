@@ -29,8 +29,8 @@ public sealed class ItemViewModel(LibraryEntry entry)
     private ImageSource? _logo;
     private bool _logoLoaded;
 
-    public LibraryEntry Entry { get; } = entry;
-    public MediaItem Item => Entry.Item;
+    internal LibraryEntry Entry { get; } = entry;
+    internal MediaItem Item => Entry.Item;
     public string Title => Item.Title;
     public string Group => Item.Group;
     public string SourceName => Entry.SourceName;
@@ -65,7 +65,7 @@ public sealed class ItemViewModel(LibraryEntry entry)
 
 public sealed class SourceViewModel(PlaylistSource source)
 {
-    public PlaylistSource Source { get; } = source;
+    internal PlaylistSource Source { get; } = source;
     public string Name => Source.Name;
     public string Icon => Source.Icon;
     public SolidColorBrush Brush { get; } = Ui.Brush(source.Color);
@@ -77,7 +77,7 @@ public sealed class SourceViewModel(PlaylistSource source)
 
 public sealed class EpisodeViewModel(Episode episode)
 {
-    public Episode Episode { get; } = episode;
+    internal Episode Episode { get; } = episode;
     public string Title => $"S{Episode.Season:00}E{Episode.Number:00} · {Episode.Title}";
     public string Plot => Episode.Plot ?? "";
 }
