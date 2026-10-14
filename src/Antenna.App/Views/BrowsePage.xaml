@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Antenna.App.Views.BrowsePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:Antenna.App.Views">
+
+    <Page.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <views:ItemTemplates />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Page.Resources>
+
+    <Grid Padding="24,16,0,0" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="240" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16">
+            <TextBlock x:Name="Header" Style="{StaticResource TitleTextBlockStyle}" />
+            <ComboBox x:Name="SourceFilter" MinWidth="200" VerticalAlignment="Center"
+                      SelectionChanged="SourceFilter_SelectionChanged" />
+        </StackPanel>
+
+        <ListView x:Name="Groups" Grid.Row="1" SelectionMode="Single" SelectionChanged="Groups_SelectionChanged" />
+
+        <GridView x:Name="Items" Grid.Row="1" Grid.Column="1" Padding="8,0,16,16"
+                  IsItemClickEnabled="True" SelectionMode="None" ItemClick="Items_ItemClick"
+                  ItemTemplate="{StaticResource ItemTileTemplate}" />
+
+        <StackPanel x:Name="EmptyState" Grid.Row="1" Grid.Column="1" Visibility="Collapsed"
+                    HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+            <TextBlock Text="Nothing here yet" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+            <TextBlock Text="Add an M3U playlist or Xtream account in Playlists." Opacity="0.7" HorizontalAlignment="Center" />
+        </StackPanel>
+    </Grid>
+</Page>

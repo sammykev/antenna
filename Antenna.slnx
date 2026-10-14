@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Antenna.App/Antenna.App.csproj">
+      <Platform Project="x64" />
+    </Project>
+    <Project Path="src/Antenna.Core/Antenna.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Antenna.Core.Tests/Antenna.Core.Tests.csproj" />
+  </Folder>
+</Solution>

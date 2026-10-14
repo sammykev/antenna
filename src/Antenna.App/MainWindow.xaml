@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Antenna.App.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Title="Antenna">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <NavigationView
+        x:Name="NavView"
+        IsSettingsVisible="False"
+        IsBackButtonVisible="Auto"
+        IsBackEnabled="{x:Bind ContentFrame.CanGoBack, Mode=OneWay}"
+        BackRequested="NavView_BackRequested"
+        ItemInvoked="NavView_ItemInvoked"
+        PaneDisplayMode="Left">
+
+        <NavigationView.AutoSuggestBox>
+            <AutoSuggestBox
+                x:Name="SearchBox"
+                PlaceholderText="Search all playlists"
+                QueryIcon="Find"
+                QuerySubmitted="SearchBox_QuerySubmitted" />
+        </NavigationView.AutoSuggestBox>
+
+        <NavigationView.MenuItems>
+            <NavigationViewItem Content="Live TV" Tag="live">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE7F4;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="Movies" Tag="movies">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE8B2;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+            <NavigationViewItem Content="Series" Tag="series">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE7F7;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+        </NavigationView.MenuItems>
+
+        <NavigationView.FooterMenuItems>
+            <NavigationViewItem Content="Playlists" Tag="playlists">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE90B;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
+        </NavigationView.FooterMenuItems>
+
+        <Frame x:Name="ContentFrame" Navigated="ContentFrame_Navigated" />
+    </NavigationView>
+</Window>

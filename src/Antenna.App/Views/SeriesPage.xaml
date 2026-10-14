@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Antenna.App.Views.SeriesPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:Antenna.App.ViewModels">
+
+    <Grid Padding="24,16,16,0" RowSpacing="12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal" Spacing="16">
+            <TextBlock x:Name="Header" Style="{StaticResource TitleTextBlockStyle}" />
+            <ProgressRing x:Name="Busy" IsActive="False" Width="24" Height="24" />
+        </StackPanel>
+
+        <ListView x:Name="Episodes" Grid.Row="1" IsItemClickEnabled="True" SelectionMode="None" ItemClick="Episodes_ItemClick">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="vm:EpisodeViewModel">
+                    <StackPanel Padding="0,8" Spacing="2">
+                        <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" />
+                        <TextBlock Text="{x:Bind Plot}" Opacity="0.7" TextWrapping="Wrap" MaxLines="2" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <InfoBar x:Name="Error" Grid.Row="1" VerticalAlignment="Top" Severity="Error" IsClosable="False" />
+    </Grid>
+</Page>
