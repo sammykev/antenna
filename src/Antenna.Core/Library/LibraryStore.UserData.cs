@@ -277,7 +277,12 @@ public sealed partial class LibraryStore
         }
     }
 
-    private static string FlagName(GroupFlag flag) => flag == GroupFlag.Hidden ? "hidden" : "locked";
+    private static string FlagName(GroupFlag flag) => flag switch
+    {
+        GroupFlag.Hidden => "hidden",
+        GroupFlag.Locked => "locked",
+        _ => "pinned",
+    };
 
     // ---- Recordings ----
 

@@ -13,6 +13,8 @@ public sealed class ProgrammeWriter : IDisposable
     private readonly SqliteTransaction _tx;
     private readonly SqliteCommand _insert;
     private readonly SqliteCommand _setEpgId;
+    private readonly SqliteCommand _ftsInsert;
+    private readonly SqliteParameter _ftsRow, _ftsTitle, _ftsDesc;
     private readonly SqliteParameter _channel, _start, _stop, _title, _desc, _epgId, _externalId;
     private readonly string _sourceId;
 
@@ -33,7 +35,10 @@ public sealed class ProgrammeWriter : IDisposable
         using (var delete = _db.CreateCommand())
         {
             delete.Transaction = _tx;
-            delete.CommandText = "DELETE FROM programmes WHERE source_id = $source";
+            delete.CommandText = """
+                DELETE FROM programmes_fts WHERE rowid IN (SELECT rowid FROM programmes WHERE source_id = $source);
+                DELETE FROM programmes WHERE source_id = $source;
+                """;
             delete.Parameters.AddWithValue("$source", sourceId);
             delete.ExecuteNonQuery();
         }
@@ -43,6 +48,7 @@ public sealed class ProgrammeWriter : IDisposable
         _insert.CommandText = """
             INSERT INTO programmes (source_id, channel_id, start, stop, title, description)
             VALUES ($source, $channel, $start, $stop, $title, $desc)
+            RETURNING rowid;
             """;
         _insert.Parameters.AddWithValue("$source", sourceId);
         _channel = _insert.Parameters.Add("$channel", SqliteType.Text);
@@ -50,6 +56,13 @@ public sealed class ProgrammeWriter : IDisposable
         _stop = _insert.Parameters.Add("$stop", SqliteType.Integer);
         _title = _insert.Parameters.Add("$title", SqliteType.Text);
         _desc = _insert.Parameters.Add("$desc", SqliteType.Text);
+
+        _ftsInsert = _db.CreateCommand();
+        _ftsInsert.Transaction = _tx;
+        _ftsInsert.CommandText = "INSERT INTO programmes_fts (rowid, title, description) VALUES ($rowid, $title, $desc)";
+        _ftsRow = _ftsInsert.Parameters.Add("$rowid", SqliteType.Integer);
+        _ftsTitle = _ftsInsert.Parameters.Add("$title", SqliteType.Text);
+        _ftsDesc = _ftsInsert.Parameters.Add("$desc", SqliteType.Text);
 
         _setEpgId = _db.CreateCommand();
         _setEpgId.Transaction = _tx;
@@ -67,7 +80,13 @@ public sealed class ProgrammeWriter : IDisposable
         _stop.Value = p.Stop.ToUnixTimeSeconds();
         _title.Value = p.Title;
         _desc.Value = (object?)p.Description ?? DBNull.Value;
-        _insert.ExecuteNonQuery();
+        var rowid = (long)_insert.ExecuteScalar()!;
+
+        // Indexed so live events ("man utd v city", "NBA") can be searched across the guide.
+        _ftsRow.Value = rowid;
+        _ftsTitle.Value = p.Title;
+        _ftsDesc.Value = p.Description ?? "";
+        _ftsInsert.ExecuteNonQuery();
         Count++;
     }
 
@@ -84,6 +103,7 @@ public sealed class ProgrammeWriter : IDisposable
     public void Dispose()
     {
         _insert.Dispose();
+        _ftsInsert.Dispose();
         _setEpgId.Dispose();
         _tx.Dispose();
         _db.Dispose();

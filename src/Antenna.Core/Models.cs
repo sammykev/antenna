@@ -129,6 +129,9 @@ public enum GroupFlag
 {
     Hidden,
     Locked,
+
+    /// <summary>Shown first in the category list.</summary>
+    Pinned,
 }
 
 public enum RecordingStatus

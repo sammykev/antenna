@@ -98,6 +98,15 @@ public sealed partial class LibraryStore : IDisposable
             );
             CREATE INDEX IF NOT EXISTS programmes_channel ON programmes(source_id, channel_id, start);
             CREATE INDEX IF NOT EXISTS programmes_time ON programmes(start, stop);
+            CREATE VIRTUAL TABLE IF NOT EXISTS programmes_fts USING fts5(
+                title, description, tokenize = 'unicode61 remove_diacritics 2'
+            );
+            """);
+        // Guides imported before programme search existed: index them once.
+        Exec("""
+            INSERT INTO programmes_fts (rowid, title, description)
+            SELECT rowid, title, COALESCE(description, '') FROM programmes
+            WHERE NOT EXISTS (SELECT 1 FROM programmes_fts LIMIT 1);
             """);
         AddColumnIfMissing("items", "catchup_mode", "TEXT");
         AddColumnIfMissing("items", "catchup_source", "TEXT");
@@ -182,6 +191,7 @@ public sealed partial class LibraryStore : IDisposable
             using var tx = _db.BeginTransaction();
             DeleteItems(sourceId, tx);
             using var cmd = Command("""
+                DELETE FROM programmes_fts WHERE rowid IN (SELECT rowid FROM programmes WHERE source_id = $id);
                 DELETE FROM programmes WHERE source_id = $id;
                 DELETE FROM favourites WHERE source_id = $id;
                 DELETE FROM history WHERE source_id = $id;
@@ -353,7 +363,7 @@ public sealed partial class LibraryStore : IDisposable
 
     private void AddVisibility(SqliteCommand cmd) => cmd.Parameters.AddWithValue("$locked", ParentalLockActive ? 1 : 0);
 
-    /// <summary>Groups (categories) in provider order, minus hidden ones. Pass null to span every source.</summary>
+    /// <summary>Groups (categories): pinned first, then provider order, minus hidden ones. Pass null to span every source.</summary>
     public IReadOnlyList<string> GetGroups(MediaKind kind, string? sourceId = null)
     {
         lock (_gate)
@@ -362,7 +372,9 @@ public sealed partial class LibraryStore : IDisposable
                 SELECT grp FROM items i
                 WHERE kind = $kind AND ($source IS NULL OR source_id = $source)
                   AND NOT EXISTS (SELECT 1 FROM group_flags gf WHERE gf.kind = i.kind AND gf.grp = i.grp AND gf.flag = 'hidden')
-                GROUP BY grp ORDER BY MIN(sort_index)
+                GROUP BY grp
+                ORDER BY EXISTS (SELECT 1 FROM group_flags gp WHERE gp.kind = $kind AND gp.grp = i.grp AND gp.flag = 'pinned') DESC,
+                         MIN(sort_index)
                 """);
             cmd.Parameters.AddWithValue("$kind", (int)kind);
             cmd.Parameters.AddWithValue("$source", (object?)sourceId ?? DBNull.Value);

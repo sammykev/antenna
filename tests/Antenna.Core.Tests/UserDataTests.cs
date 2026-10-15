@@ -67,9 +67,8 @@ public sealed class UserDataTests : IDisposable
     {
         using (var plain = new LibraryStore(_path + ".legacy"))
             plain.SaveSource(Xtream());
-        using var upgraded = new LibraryStore(_path + ".legacy", new FakeProtector());
-
-        Assert.Equal("p@ss", upgraded.GetSources()[0].Password);
+        using (var upgraded = new LibraryStore(_path + ".legacy", new FakeProtector()))
+            Assert.Equal("p@ss", upgraded.GetSources()[0].Password);
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
         foreach (var f in new[] { "", "-wal", "-shm" })
             File.Delete(_path + ".legacy" + f);
