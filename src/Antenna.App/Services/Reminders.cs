@@ -136,7 +136,6 @@ internal static class Reminders
             App.Window.ShowNotice(Microsoft.UI.Xaml.Controls.InfoBarSeverity.Warning, "That channel is no longer in your playlists.");
             return;
         }
-        App.Window.DismissSplash();
         Playback.Play(PlayRequest.ForItem(entry.Item));
     }
 }

@@ -51,7 +51,7 @@ Xtream Codes login). It doesn't include or find any content itself.
 **Speed and looks**
 - Lists load page by page off the UI thread; logos and posters are cached on disk
 - Poster tiles and details pages (plot, cast, rating, backdrop) for movies and series; with a free TMDB key (Settings), missing posters and details are filled in from themoviedb.org
-- Start-up screen with how many live channels, movies and series you have; click one to go straight there (switch off in Settings)
+- Home page: how many live channels, movies and series you have (click one to go there), continue watching, favourite channels with what's on now, recently watched
 - Light/dark/system theme, custom title bar, Mica
 
 **Security**

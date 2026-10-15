@@ -14,6 +14,7 @@ public sealed partial class MainWindow : Window
 {
     private static readonly Dictionary<string, (Type Page, object? Parameter)> Pages = new()
     {
+        ["home"] = (typeof(HomePage), null),
         ["live"] = (typeof(BrowsePage), MediaKind.Live),
         ["guide"] = (typeof(GuidePage), null),
         ["events"] = (typeof(EventsPage), null),
@@ -46,13 +47,11 @@ public sealed partial class MainWindow : Window
 
         AutoRefresh.Refreshed += OnBackgroundRefresh;
 
-        // First run goes straight to adding a playlist; otherwise the chosen start page.
-        var start = AppServices.Library.GetSources().Count > 0 ? AppSettings.StartPage : "playlists";
-        start = Pages.ContainsKey(start) ? start : "live";
-        NavigateTo(start);
-
-        if (AppSettings.ShowSplash)
-            _ = ShowSplashAsync(start);
+        // First run goes straight to adding a playlist; otherwise Home (if on) or the chosen start page.
+        var start = AppServices.Library.GetSources().Count == 0 ? "playlists"
+            : AppSettings.ShowSplash ? "home"
+            : AppSettings.StartPage;
+        NavigateTo(Pages.ContainsKey(start) ? start : "live");
     }
 
     public Frame Frame => ContentFrame;
@@ -183,6 +182,9 @@ public sealed partial class MainWindow : Window
         if (args.InvokedItemContainer is NavigationViewItem { Tag: string tag })
             NavigateTo(tag);
     }
+
+    /// <summary>Opens a page by its pane tag ("live", "movies", …).</summary>
+    public void Open(string tag) => NavigateTo(tag);
 
     private void NavigateTo(string tag)
     {
