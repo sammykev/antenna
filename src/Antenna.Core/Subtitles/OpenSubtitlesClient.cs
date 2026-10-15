@@ -38,8 +38,8 @@ public sealed class OpenSubtitlesClient(HttpClient http, string apiKey)
             ["languages"] = languages.ToLowerInvariant(),
             ["query"] = query.Trim().ToLowerInvariant(),
         };
-        if (season is > 0) parameters["season_number"] = season.Value.ToString();
-        if (episode is > 0) parameters["episode_number"] = episode.Value.ToString();
+        if (season is > 0) parameters["season_number"] = season.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (episode is > 0) parameters["episode_number"] = episode.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
         var qs = string.Join('&', parameters.Select(p => $"{p.Key}={Uri.EscapeDataString(p.Value)}"));
 
         using var request = Request(HttpMethod.Get, "/subtitles?" + qs);

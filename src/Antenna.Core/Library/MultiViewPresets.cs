@@ -37,8 +37,8 @@ public static class MultiViewPresets
 
     /// <summary>Adds the preset, replacing one with the same name (ignoring case).</summary>
     public static IReadOnlyList<MultiViewPreset> Save(IReadOnlyList<MultiViewPreset> presets, MultiViewPreset preset) =>
-        [.. presets.Where(p => !string.Equals(p.Name, preset.Name, StringComparison.CurrentCultureIgnoreCase)), preset];
+        [.. presets.Where(p => !string.Equals(p.Name, preset.Name, StringComparison.OrdinalIgnoreCase)), preset];
 
     public static IReadOnlyList<MultiViewPreset> Delete(IReadOnlyList<MultiViewPreset> presets, string name) =>
-        [.. presets.Where(p => !string.Equals(p.Name, name, StringComparison.CurrentCultureIgnoreCase))];
+        [.. presets.Where(p => !string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))];
 }

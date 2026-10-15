@@ -1,0 +1,10 @@
+root = true
+
+[*.cs]
+indent_style = space
+indent_size = 4
+
+# GroupFlag is a set of category flags (hidden/locked/pinned); the name is right here.
+dotnet_diagnostic.CA1711.severity = none
+# Returning IReadOnlyList from private helpers is deliberate; the saving is negligible.
+dotnet_diagnostic.CA1859.severity = none

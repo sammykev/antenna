@@ -465,7 +465,7 @@ public sealed partial class LibraryStore : IDisposable
                 }
             }
             using var sources = Command(db, "SELECT COUNT(*) FROM sources");
-            var playlists = Convert.ToInt32(sources.ExecuteScalar());
+            var playlists = Convert.ToInt32(sources.ExecuteScalar(), CultureInfo.InvariantCulture);
             return new LibraryCounts(counts[(int)MediaKind.Live], counts[(int)MediaKind.Movie], counts[(int)MediaKind.Series], playlists);
         });
 

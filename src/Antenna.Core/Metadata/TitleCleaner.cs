@@ -47,7 +47,7 @@ public static partial class TitleCleaner
         }
         if (match.Success)
         {
-            year = int.Parse(match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value);
+            year = int.Parse(match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture);
             s = s.Remove(match.Index, match.Length);
         }
 

@@ -82,10 +82,9 @@ Current release: **v0.1.8** (search inside types and categories, Home page, TMDB
 
 ## 6. Housekeeping
 
-- [ ] Dependabot (or Renovate) for NuGet and GitHub Actions; actions/checkout and setup-dotnet run on
-  deprecated Node 20, bump them.
+- [x] GitHub Actions moved to Node 24 versions (checkout v7, setup-dotnet v6, upload-artifact v6). *(Dependabot deliberately not used: its PRs would add `dependabot[bot]` as a contributor. Update versions by hand.)*
 - [ ] Unit tests for app-side logic that doesn't need UI (move it into `Antenna.Core` where possible).
-- [ ] Turn on .NET analyzers and treat new warnings as errors.
+- [x] .NET analyzers (latest-recommended) on for `Antenna.Core` with warnings as errors; exceptions in `.editorconfig`. *(App project not yet: XAML-generated code makes it noisy.)*
 
 ---
 
