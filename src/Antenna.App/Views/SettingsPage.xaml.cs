@@ -43,6 +43,8 @@ public sealed partial class SettingsPage : Page
         SubsUserBox.Text = AppSettings.OpenSubtitlesUser ?? "";
         SubsPassBox.Password = AppSettings.OpenSubtitlesPassword ?? "";
         FolderBox.Text = AppSettings.RecordingsFolder;
+        AutoUpdateSwitch.IsOn = AppSettings.AutoUpdate;
+        ShowUpdateState();
 
         _loading = false;
         RefreshLists();
@@ -55,10 +57,63 @@ public sealed partial class SettingsPage : Page
         var cacheMb = await Task.Run(() => ImageCache.SizeBytes() / 1024.0 / 1024.0);
         ClearImagesButton.Content = $"Clear image cache ({cacheMb:0} MB)";
         AboutLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Logo-256.png")));
-        var version = typeof(App).Assembly.GetName().Version;
-        AboutText.Text = $"Antenna {version}\nData: {Path.GetDirectoryName(LibraryStore.DefaultPath())}\n" +
+        AboutText.Text = $"Antenna {Updater.CurrentVersion}\nData: {Path.GetDirectoryName(LibraryStore.DefaultPath())}\n" +
                          "Video playback by LibVLC (VideoLAN, LGPL-2.1-or-later).";
     }
+
+    // ---- Updates ----
+
+    private void ShowUpdateState()
+    {
+        var installed = Updater.IsInstalled;
+        AutoUpdateSwitch.IsEnabled = installed;
+        CheckUpdatesButton.IsEnabled = installed;
+        RestartUpdateButton.Visibility = Updater.Ready is null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateText.Text = !installed
+            ? $"Version {Updater.CurrentVersion}. Updates work when Antenna is installed with Setup.exe from {Updater.RepositoryUrl}/releases."
+            : Updater.Ready is { } ready
+                ? $"Version {Updater.CurrentVersion}. Version {ready.TargetFullRelease.Version} is downloaded and installs when you restart."
+                : $"Version {Updater.CurrentVersion}.";
+    }
+
+    private void AutoUpdate_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            AppSettings.AutoUpdate = AutoUpdateSwitch.IsOn;
+    }
+
+    private async void CheckUpdates_Click(object sender, RoutedEventArgs e)
+    {
+        CheckUpdatesButton.IsEnabled = false;
+        try
+        {
+            UpdateText.Text = "Checking…";
+            if (await Updater.CheckAsync() is not { } update)
+            {
+                ShowUpdateState();
+                UpdateText.Text += " You have the latest version.";
+                return;
+            }
+            UpdateText.Text = $"Downloading version {update.TargetFullRelease.Version}…";
+            UpdateProgress.Value = 0;
+            UpdateProgress.Visibility = Visibility.Visible;
+            await Updater.DownloadAsync(update, percent => DispatcherQueue.TryEnqueue(() => UpdateProgress.Value = percent));
+            ShowUpdateState();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "updates: manual check");
+            ShowUpdateState();
+            Show(InfoBarSeverity.Warning, $"Couldn't check for updates: {ex.Message}");
+        }
+        finally
+        {
+            UpdateProgress.Visibility = Visibility.Collapsed;
+            CheckUpdatesButton.IsEnabled = Updater.IsInstalled;
+        }
+    }
+
+    private void RestartUpdate_Click(object sender, RoutedEventArgs e) => Updater.RestartToUpdate();
 
     private void Show(InfoBarSeverity severity, string message)
     {

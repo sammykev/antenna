@@ -29,6 +29,9 @@ internal static class AppSettings
     /// <summary>Stream buffer. Lower starts faster; higher survives a shaky connection.</summary>
     public static int NetworkCachingMs { get => Math.Clamp(GetInt("player.caching", 1500), 300, 20000); set => SetInt("player.caching", value); }
 
+    /// <summary>Download new versions in the background and offer a restart (installed copies only).</summary>
+    public static bool AutoUpdate { get => Get("app.autoupdate") != "0"; set => Set("app.autoupdate", value ? "1" : "0"); }
+
     public static bool HardwareDecoding { get => Get("player.hw") != "0"; set => Set("player.hw", value ? "1" : "0"); }
 
     /// <summary>0 = off.</summary>

@@ -20,6 +20,14 @@
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
     <!-- Lets the solution restore on non-Windows machines; building still requires Windows. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- Program.cs starts the app so Velopack runs first. -->
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+
+    <!-- The release workflow sets the version from the tag (v1.2.3 -> 1.2.3). -->
+    <Version>0.1.0</Version>
+    <Product>Antenna</Product>
+    <Company>Okechukwu Nkwocha</Company>
+    <Copyright>© Okechukwu Nkwocha</Copyright>
   </PropertyGroup>
 
   <!-- Precompiled release builds start noticeably faster. -->
@@ -33,6 +41,7 @@
     <PackageReference Include="LibVLCSharp.WinUI" Version="3.10.2" />
     <PackageReference Include="VideoLAN.LibVLC.Windows" Version="3.0.24" />
     <PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.13" />
+    <PackageReference Include="Velopack" Version="1.2.161" />
   </ItemGroup>
 
   <ItemGroup>

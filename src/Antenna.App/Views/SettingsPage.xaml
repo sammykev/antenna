@@ -102,6 +102,18 @@
             </StackPanel>
 
             <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="Updates" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock x:Name="UpdateText" TextWrapping="Wrap" />
+                <ToggleSwitch x:Name="AutoUpdateSwitch" Header="Download updates automatically" Toggled="AutoUpdate_Toggled" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="CheckUpdatesButton" Content="Check for updates" Click="CheckUpdates_Click" />
+                    <Button x:Name="RestartUpdateButton" Content="Restart to update" Click="RestartUpdate_Click"
+                            Style="{StaticResource AccentButtonStyle}" Visibility="Collapsed" />
+                </StackPanel>
+                <ProgressBar x:Name="UpdateProgress" Maximum="100" Visibility="Collapsed" />
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource SectionStyle}">
                 <TextBlock Text="About" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <StackPanel Orientation="Horizontal" Spacing="16">
                     <Image x:Name="AboutLogo" Width="64" Height="64" VerticalAlignment="Top" />

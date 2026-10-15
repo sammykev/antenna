@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Test core library
+        run: dotnet test tests/Antenna.Core.Tests
+
+      - name: Build the way the README says (Debug, Platform only)
+        run: dotnet build src/Antenna.App -p:Platform=x64
+
+      - name: Publish Windows app
+        run: dotnet publish src/Antenna.App -c Release -p:Platform=x64 -r win-x64 --self-contained -o publish
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Antenna-win-x64
+          path: publish

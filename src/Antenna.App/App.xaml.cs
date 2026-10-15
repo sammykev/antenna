@@ -39,7 +39,7 @@ public partial class App : Application
 
     protected override void OnLaunched(LaunchActivatedEventArgs args)
     {
-        Log.Info($"Starting Antenna {typeof(App).Assembly.GetName().Version} on {Environment.OSVersion}, {(Environment.Is64BitProcess ? "x64" : "x86")}");
+        Log.Info($"Starting Antenna {Updater.CurrentVersion} on {Environment.OSVersion}, {(Environment.Is64BitProcess ? "x64" : "x86")}");
 
         // Loads the native libvlc shipped by the VideoLAN.LibVLC.Windows package.
         Step("LibVLC", () => LibVLCSharp.Shared.Core.Initialize());
@@ -55,6 +55,11 @@ public partial class App : Application
 
         Step("auto refresh", () => AutoRefresh.Start(Window.DispatcherQueue));
         Step("recorder", () => Recorder.Start(Window.DispatcherQueue));
+        Step("updates", () =>
+        {
+            Updater.UpdateReady += update => Window.ShowUpdateReady(update.TargetFullRelease.Version.ToString());
+            Updater.Start(Window.DispatcherQueue);
+        });
         _ = Task.Run(ImageCache.Trim);
         Log.Info("Started");
     }

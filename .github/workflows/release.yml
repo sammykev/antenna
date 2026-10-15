@@ -1,0 +1,92 @@
+name: Release
+
+# Push a tag like v0.2.0 to build, sign, package and publish an installer plus update files to
+# GitHub Releases. Installed copies of Antenna pick the new version up from there.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 0.2.0"
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  VPK_VERSION: 1.2.161
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          $v = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.version }}" } else { "${{ github.ref_name }}" }
+          $v = $v.TrimStart("v")
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Version '$v' must look like 1.2.3" }
+          "value=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Test core library
+        run: dotnet test tests/Antenna.Core.Tests
+
+      - name: Publish Windows app
+        run: dotnet publish src/Antenna.App -c Release -p:Platform=x64 -r win-x64 --self-contained -p:Version=${{ steps.version.outputs.value }} -o publish
+
+      - name: Install Velopack
+        run: dotnet tool install -g vpk --version ${{ env.VPK_VERSION }}
+
+      # Lets vpk build a small delta update from the previous release.
+      - name: Download previous release
+        continue-on-error: true
+        run: vpk download github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
+
+      # Signs when the SIGNING_CERT_PFX (base64 .pfx) and SIGNING_CERT_PASSWORD secrets exist;
+      # otherwise the release is unsigned. See scripts/New-SigningCert.ps1.
+      - name: Prepare signing certificate
+        id: sign
+        shell: pwsh
+        env:
+          PFX: ${{ secrets.SIGNING_CERT_PFX }}
+          PFX_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          if (-not $env:PFX) { Write-Host "No signing certificate secret: building unsigned."; "params=" >> $env:GITHUB_OUTPUT; exit 0 }
+          $path = Join-Path $env:RUNNER_TEMP "antenna-signing.pfx"
+          [IO.File]::WriteAllBytes($path, [Convert]::FromBase64String($env:PFX))
+          "params=/fd sha256 /f `"$path`" /p `"$env:PFX_PASSWORD`" /tr http://timestamp.digicert.com /td sha256" >> $env:GITHUB_OUTPUT
+
+      - name: Package installer and update
+        shell: pwsh
+        env:
+          SIGN_PARAMS: ${{ steps.sign.outputs.params }}
+        run: |
+          $args = @(
+            "pack",
+            "--packId", "Antenna",
+            "--packVersion", "${{ steps.version.outputs.value }}",
+            "--packDir", "publish",
+            "--mainExe", "Antenna.App.exe",
+            "--packTitle", "Antenna",
+            "--packAuthors", "Okechukwu Nkwocha",
+            "--icon", "src/Antenna.App/Assets/Antenna.ico"
+          )
+          if ($env:SIGN_PARAMS) { $args += @("--signParams", $env:SIGN_PARAMS) }
+          vpk @args
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publish GitHub release
+        run: vpk upload github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --publish --releaseName "Antenna ${{ steps.version.outputs.value }}" --tag v${{ steps.version.outputs.value }}
+
+      - name: Remove signing certificate
+        if: always()
+        shell: pwsh
+        run: Remove-Item (Join-Path $env:RUNNER_TEMP "antenna-signing.pfx") -ErrorAction SilentlyContinue

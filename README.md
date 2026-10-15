@@ -62,30 +62,34 @@ antenna/
   tests/Antenna.Core.Tests xUnit tests for the core library
 ```
 
-## Run it on your PC
+## Install
 
-### Option A: download a ready-made build (no tools needed)
+1. Open **[Releases](https://github.com/sammykev/antenna/releases/latest)** and download **Antenna-win-Setup.exe**.
+2. Run it. Antenna installs for your Windows account only (no administrator rights needed), adds Start menu
+   and desktop shortcuts, and opens.
+   Releases are signed with a self-signed certificate, so Windows SmartScreen may say "Windows protected your PC":
+   choose **More info → Run anyway**, or trust the certificate first (see [Signing](#signing)).
+3. Uninstall from **Settings → Apps → Installed apps → Antenna**. Your library stays in `%LOCALAPPDATA%\Antenna`.
 
-1. Open the repository's **Actions** tab on GitHub and select the latest green **Antenna** run.
-2. Under **Artifacts**, download **Antenna-win-x64** (you must be signed in to GitHub) and unzip it.
-3. Double-click `Antenna.App.exe`. It's self-contained: no .NET or Windows App SDK install needed.
-   If SmartScreen warns about an unknown publisher, choose **More info → Run anyway** (the build is unsigned).
+### Updates
 
-### Option B: build from source
+Installed copies check GitHub Releases shortly after start and then every 6 hours, download the new
+version in the background (only the changed files when possible), and show **Restart to update**.
+If you don't restart, the update installs the next time you open Antenna.
+**Settings → Updates** shows your version, has **Check for updates**, and can turn automatic downloads off.
+Copies run from a folder or with `dotnet run` don't update themselves.
+
+### Build from source
 
 1. Install the .NET 10 SDK: `winget install Microsoft.DotNet.SDK.10` (or download it from dot.net).
-2. Get the code and switch to the branch:
+2. Get the code and run it:
    ```powershell
-   git clone https://github.com/sammykev/miva-notes.git
-   cd miva-notes
-   git checkout sammykev/zen-ptolemy-3t0ch1
+   git clone https://github.com/sammykev/antenna.git
    cd antenna
-   ```
-3. Run it:
-   ```powershell
    dotnet run --project src/Antenna.App -p:Platform=x64
    ```
    On an ARM PC (e.g. Snapdragon), use `-p:Platform=ARM64`.
+3. To update a source checkout later: `git pull`, then the same `dotnet run` command.
 
 ### First steps in the app
 
@@ -102,7 +106,6 @@ Requirements: Windows 10 1809+ or Windows 11, the [.NET 10 SDK](https://dotnet.m
 and optionally Visual Studio 2022/2026 with the "WinUI application development" workload.
 
 ```powershell
-cd antenna
 dotnet test tests/Antenna.Core.Tests
 dotnet run --project src/Antenna.App -p:Platform=x64
 ```
@@ -112,8 +115,45 @@ and press F5. The app is unpackaged, so no certificate or MSIX install is needed
 
 Data lives in `%LOCALAPPDATA%\Antenna\library.db`.
 
-CI (`.github/workflows/antenna.yml`) tests the core, builds the app on `windows-latest`,
+CI (`.github/workflows/build.yml`) tests the core, builds the app on `windows-latest`,
 and uploads a self-contained `Antenna-win-x64` build as an artifact.
+
+## Releasing a new version
+
+1. Commit your changes and push them.
+2. Tag the version and push the tag:
+   ```powershell
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+   (or run the **Release** workflow from the Actions tab and type the version).
+3. `.github/workflows/release.yml` tests, publishes, signs, and packages the app with
+   [Velopack](https://velopack.io), then creates a GitHub release with `Antenna-win-Setup.exe`, a portable zip
+   and the update packages. Installed copies offer the update within a few hours, or straight away
+   via **Check for updates**.
+
+Versions must go up (`0.2.0` → `0.2.1` → `0.3.0`); installed copies ignore older ones.
+
+## Signing
+
+Releases are signed when two repository secrets exist (**Settings → Secrets and variables → Actions**);
+without them, releases are built unsigned.
+
+1. On your PC, in PowerShell in the repo folder:
+   ```powershell
+   .\scripts\New-SigningCert.ps1 -Trust
+   ```
+   It asks for a password and creates `antenna-signing.pfx` (keep it private and backed up),
+   `antenna-signing.cer` (public) and `antenna-signing.pfx.txt`. `-Trust` makes this PC trust it (admin prompt).
+   If PowerShell blocks the script, run `Set-ExecutionPolicy -Scope Process Bypass` first.
+2. Add the secrets: `SIGNING_CERT_PFX` = the contents of `antenna-signing.pfx.txt`, and
+   `SIGNING_CERT_PASSWORD` = the password.
+3. On any other PC that should trust Antenna, double-click `antenna-signing.cer` → **Install Certificate** →
+   **Local Machine** → put it in **Trusted Root Certification Authorities**, then repeat for **Trusted Publishers**.
+
+A self-signed certificate proves releases come from you, but SmartScreen only stops warning on PCs that trust it.
+To remove the warning for everyone, switch to a public certificate (e.g. Azure Trusted Signing): only the
+"Prepare signing certificate" step of the release workflow changes.
 
 ## Keyboard shortcuts (player)
 

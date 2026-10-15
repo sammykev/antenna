@@ -1,6 +1,11 @@
 bin/
 obj/
+publish/
+Releases/
 *.user
 .vs/
 TestResults/
 AppPackages/
+# Signing certificate files from scripts/New-SigningCert.ps1: never commit these.
+*.pfx
+*.pfx.txt

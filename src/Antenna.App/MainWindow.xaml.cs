@@ -92,8 +92,22 @@ public sealed partial class MainWindow : Window
 
     public void ShowNotice(InfoBarSeverity severity, string message)
     {
+        Notice.ActionButton = null;
+        Notice.Title = "";
         Notice.Severity = severity;
         Notice.Message = message;
+        Notice.IsOpen = true;
+    }
+
+    /// <summary>A downloaded update: offer to restart now (otherwise it installs at the next start).</summary>
+    public void ShowUpdateReady(string version)
+    {
+        var restart = new Button { Content = "Restart to update" };
+        restart.Click += (_, _) => Updater.RestartToUpdate();
+        Notice.Severity = InfoBarSeverity.Success;
+        Notice.Title = "Update ready";
+        Notice.Message = $"Antenna {version} is ready. Restart now, or it will install the next time you open Antenna.";
+        Notice.ActionButton = restart;
         Notice.IsOpen = true;
     }
 
