@@ -64,7 +64,7 @@ Current release: **v0.1.8** (search inside types and categories, Home page, TMDB
 - [ ] **Better channel logos.** Fill missing logos from a public logo set matched by normalised name.
 - [x] **Home page.** *(v0.1.8: `Views/HomePage` replaces the start-up overlay: count tiles, Continue watching, favourites on now, Recently watched. Upcoming events and recently added still to do.)* Grow the start-up overview into a real home: Continue watching, Live now on favourites,
   Upcoming events today, Recently added movies/series. Keep the three count tiles at the top.
-- [ ] **TV / 10-foot mode.** Large layout for remote or gamepad: bigger tiles, focus visuals, D-pad
+- [x] **TV / 10-foot mode.** *(v0.1.9: Settings → TV mode: 1.5× scale via a Viewbox around the NavigationView, maximised, XY focus with arrows/D-pad, Gamepad B = back; `MainWindow.TvMode.cs`; covered by the smoke test.)* Large layout for remote or gamepad: bigger tiles, focus visuals, D-pad
   navigation everywhere (gamepad keys already handled in the player via `AddKey`).
 
 ## 4. Speed

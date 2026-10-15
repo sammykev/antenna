@@ -31,6 +31,22 @@ public sealed partial class MainWindow
             }
         }
 
+        // TV mode moves the navigation view into a scaler and back: make sure that holds together.
+        try
+        {
+            ApplyTvMode(true);
+            ContentFrame.Navigate(Pages["home"].Page);
+            await Task.Delay(PageSettle);
+            ApplyTvMode(false);
+            await Task.Delay(PageSettle);
+            Log.Info("smoke test: TV mode on and off");
+        }
+        catch (Exception ex)
+        {
+            failed.Add("tv mode");
+            Log.Error(ex, "smoke test: TV mode");
+        }
+
         Log.Info(failed.Count == 0 ? "Smoke test passed" : $"Smoke test failed: {string.Join(", ", failed)}");
         Environment.Exit(failed.Count == 0 ? 0 : 1);
     }

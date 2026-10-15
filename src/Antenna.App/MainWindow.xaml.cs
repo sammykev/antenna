@@ -39,6 +39,8 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         TitleLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Logo-64.png")));
         ApplyTheme();
+        if (AppSettings.TvMode)
+            RootGrid.Loaded += (_, _) => ApplyTvMode(true);
 
         _suggestTimer = DispatcherQueue.CreateTimer();
         _suggestTimer.Interval = TimeSpan.FromMilliseconds(250);
@@ -88,6 +90,8 @@ public sealed partial class MainWindow : Window
 
     private void SetChromeVisible(bool visible)
     {
+        // The title bar comes and goes with full screen; TV mode's scaled area follows it.
+        DispatcherQueue.TryEnqueue(SizeTvContentIfOn);
         NavView.IsPaneVisible = visible;
         NavView.IsBackButtonVisible = visible ? NavigationViewBackButtonVisible.Auto : NavigationViewBackButtonVisible.Collapsed;
         AppTitleBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;

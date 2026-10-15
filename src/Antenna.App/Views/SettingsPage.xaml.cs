@@ -34,6 +34,7 @@ public sealed partial class SettingsPage : Page
         StartPageChoice.ItemsSource = StartPages.Select(p => p.Label).ToList();
         StartPageChoice.SelectedIndex = Math.Max(0, Array.FindIndex(StartPages, p => p.Tag == AppSettings.StartPage));
         SplashToggle.IsOn = AppSettings.ShowSplash;
+        TvToggle.IsOn = AppSettings.TvMode;
         CachingBox.Value = AppSettings.NetworkCachingMs;
         HardwareToggle.IsOn = AppSettings.HardwareDecoding;
         TimeshiftToggle.IsOn = AppSettings.Timeshift;
@@ -134,6 +135,14 @@ public sealed partial class SettingsPage : Page
             return;
         AppSettings.Theme = ThemeChoice.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
         App.Window.ApplyTheme();
+    }
+
+    private void Tv_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (_loading)
+            return;
+        AppSettings.TvMode = TvToggle.IsOn;
+        App.Window.ApplyTvMode(TvToggle.IsOn);
     }
 
     private void Splash_Toggled(object sender, RoutedEventArgs e)

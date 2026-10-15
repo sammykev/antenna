@@ -54,6 +54,7 @@ Xtream Codes login). It doesn't include or find any content itself.
 - Poster tiles and details pages (plot, cast, rating, backdrop) for movies and series; with a free TMDB key (Settings), missing posters and details are filled in from themoviedb.org
 - Home page: how many live channels, movies and series you have (click one to go there), continue watching, favourite channels with what's on now, recently watched
 - Light/dark/system theme, custom title bar, Mica
+- **TV mode** (Settings): everything 1.5× bigger for a PC on the TV, arrow keys or a controller to move around, B to go back
 
 **Security**
 - Playlist passwords are encrypted with Windows DPAPI (only your Windows account can read them)
