@@ -44,6 +44,8 @@
             </StackPanel>
         </Grid>
         <Grid x:Name="Slots" Grid.Row="1" RowSpacing="3" ColumnSpacing="3" />
+        <InfoBar x:Name="LimitBar" Grid.Row="1" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="16"
+                 Severity="Warning" IsClosable="True" Title="Connection limit" />
     </Grid>
 
     <Page.KeyboardAccelerators>

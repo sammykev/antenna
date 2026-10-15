@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
+using Antenna.Core.Playlists;
 using Antenna.App.Services;
 using Antenna.Core;
 using LibVLCSharp.Platforms.Windows;
@@ -36,9 +38,19 @@ public sealed partial class MultiViewPage : Page
     private static readonly SolidColorBrush Selected = new(Colors.DodgerBlue);
     private static readonly SolidColorBrush Unselected = new(Colors.Transparent);
 
+    /// <summary>Simultaneous streams each Xtream account allows, cached for a few minutes.</summary>
+    private static readonly Dictionary<string, (int Max, DateTimeOffset At)> StreamLimits = [];
+
     private readonly Slot[] _slots = new Slot[SlotCount];
     private readonly DispatcherQueueTimer _audioGuard;
     private bool _leaving;
+
+    /// <summary>Tiles that would exceed the provider's stream limit: they stay stopped instead of kicking the others off.</summary>
+    private HashSet<int> _blocked = [];
+
+    /// <summary>Until the provider's limit is known only the main screen starts, so extra tiles can't steal its connection.</summary>
+    private bool _limitsChecked;
+    private int _limitCheckVersion;
 
     private sealed class Slot
     {
@@ -57,6 +69,8 @@ public sealed partial class MultiViewPage : Page
         public MediaPlayer? Player;
         public int Retry;
         public int PlayVersion;
+        public bool IsPlaying;
+        public int LoggedErrors;
 
         /// <summary>Last mute state sent to libvlc, so routine updates only talk to it when something changed.</summary>
         public bool? SentMute;
@@ -70,6 +84,7 @@ public sealed partial class MultiViewPage : Page
         foreach (var item in LayoutChoice.Items)
             item.IsSelected = (item.Tag as string) == _layout;
         ApplyLayout();
+        _ = CheckLimitsAsync();
 
         // libvlc forgets a mute set before its audio output opens and can unmute on track changes,
         // so the "only the main screen has sound" rule is re-checked every second (off the UI thread).
@@ -220,7 +235,13 @@ public sealed partial class MultiViewPage : Page
             var (vlc, player) = await Task.Run(() =>
             {
                 var v = new LibVLC(enableDebugLogs: false, options);
-                return (v, new MediaPlayer(v) { Mute = true });
+                // Stream errors go to the app log (credentials stripped) so failures can be diagnosed.
+                v.Log += (_, l) =>
+                {
+                    if (l.Level == LogLevel.Error && slot.LoggedErrors++ < 25)
+                        Log.Info($"multi-view tile {index + 1} libvlc {l.Module}: {Redact(l.Message)}");
+                };
+                return (v, new MediaPlayer(v));
             });
             if (_leaving)
             {
@@ -253,6 +274,7 @@ public sealed partial class MultiViewPage : Page
             Chosen[index] = null;
             Play(slot);
             ApplyLayout();
+            _ = CheckLimitsAsync();
         };
         return slot;
     }
@@ -315,13 +337,27 @@ public sealed partial class MultiViewPage : Page
             if (slot.Player is not { } player || (!force && slot.SentMute == mute))
                 continue;
             slot.SentMute = mute;
-            Worker.Run(() =>
-            {
-                if (player.Mute != mute)
-                    player.Mute = mute;
-            }, "multi-view mute");
+            Worker.Run(() => SetSound(player, mute), "multi-view mute");
         }
     }
+
+    /// <summary>
+    /// Silences or restores a tile. Mute and volume are both set: libvlc ignores either while a
+    /// stream's audio output isn't open yet, which is why this is re-applied on events and a timer.
+    /// </summary>
+    private static void SetSound(MediaPlayer player, bool silent)
+    {
+        if (player.Mute != silent)
+            player.Mute = silent;
+        var volume = silent ? 0 : 100;
+        if (player.Volume != volume)
+            player.Volume = volume;
+    }
+
+    private static string Redact(string message) => UrlPath().Replace(message, "$1/…");
+
+    [GeneratedRegex(@"(\w+://[^/\s]+)/\S*")]
+    private static partial Regex UrlPath();
 
     private void SelectMain(int index)
     {
@@ -340,13 +376,26 @@ public sealed partial class MultiViewPage : Page
         var version = ++slot.PlayVersion;
         if (slot.Player is not { } player || slot.Vlc is not { } vlc)
             return;
-        if (request is null)
+        slot.IsPlaying = false;
+        if (request is null || _blocked.Contains(slot.Index))
         {
             slot.Busy.IsActive = false;
             Worker.Run(() => player.Stop(), "multi-view stop");
+            if (request is not null)
+            {
+                Set(slot.Status, "Not playing: your provider's stream limit is reached.\nRemove a tile or pick a channel from another playlist.");
+                SetVisible(slot.Status, true);
+            }
+            return;
+        }
+        if (!_limitsChecked && !IsMain(slot))
+        {
+            // Started once the provider's limit is known (see CheckLimitsAsync).
+            slot.Busy.IsActive = true;
             return;
         }
 
+        Log.Info($"multi-view tile {slot.Index + 1}: opening '{request.Title}'{(IsMain(slot) ? " (main)" : "")}");
         slot.Busy.IsActive = true;
         SetVisible(slot.Status, false);
         var mute = !IsMain(slot);
@@ -364,13 +413,15 @@ public sealed partial class MultiViewPage : Page
             if (version != slot.PlayVersion)
                 return; // Superseded before it started (fast channel changes).
             using var media = new Media(vlc, request.Url, FromType.FromLocation, [.. options]);
-            player.Mute = mute;
             player.Play(media);
+            SetSound(player, mute);
         }, "multi-view play");
     }
 
     private void OnPlaying(Slot slot)
     {
+        Log.Info($"multi-view tile {slot.Index + 1}: playing");
+        slot.IsPlaying = true;
         slot.Retry = 0;
         slot.Busy.IsActive = false;
         SetVisible(slot.Status, false);
@@ -380,12 +431,21 @@ public sealed partial class MultiViewPage : Page
     /// <summary>Live streams that drop or end are retried with backoff.</summary>
     private async void OnFailed(Slot slot)
     {
-        if (Chosen[slot.Index] is null)
+        if (Chosen[slot.Index] is not { } request || _blocked.Contains(slot.Index))
             return;
+        slot.IsPlaying = false;
         slot.Busy.IsActive = false;
-        if (slot.Retry >= RetryDelays.Length)
+        Log.Info($"multi-view tile {slot.Index + 1}: stream failed or ended (attempt {slot.Retry + 1})");
+
+        // If another tile from the same provider is playing, this is most likely its connection
+        // limit: retrying would keep knocking that tile off, so give up quickly and say why.
+        var sameProviderPlaying = _slots.Any(s => s != slot && s.IsPlaying && Chosen[s.Index]?.SourceId == request.SourceId);
+        var maxRetries = sameProviderPlaying ? 1 : RetryDelays.Length;
+        if (slot.Retry >= maxRetries)
         {
-            Set(slot.Status, "Stream unavailable");
+            Set(slot.Status, sameProviderPlaying
+                ? "Couldn't open this stream while another tile from the same provider is playing.\nYour provider probably allows only one stream at a time."
+                : "Stream unavailable");
             SetVisible(slot.Status, true);
             return;
         }
@@ -408,6 +468,82 @@ public sealed partial class MultiViewPage : Page
         Chosen[_mainSlot] = ForTile(request.WithChannel(request.ChannelIndex + delta));
         slot.Retry = 0;
         Play(slot);
+        _ = CheckLimitsAsync();
+    }
+
+    // ---- Provider stream limits ----
+
+    /// <summary>
+    /// Asks each Xtream account in use how many streams it allows at once. Tiles beyond that
+    /// (keeping the main screen) stay stopped with an explanation instead of fighting over the connection.
+    /// </summary>
+    private async Task CheckLimitsAsync()
+    {
+        var version = ++_limitCheckVersion;
+        var blocked = new HashSet<int>();
+        var messages = new List<string>();
+        try
+        {
+            var sources = AppServices.Library.GetSources().ToDictionary(s => s.Id);
+            var groups = _slots
+                .Where(s => Chosen[s.Index]?.SourceId is { } id && sources.TryGetValue(id, out var src) && src.Kind == SourceKind.Xtream)
+                .GroupBy(s => Chosen[s.Index]!.SourceId!);
+            foreach (var group in groups)
+            {
+                var source = sources[group.Key];
+                var max = await StreamLimitAsync(source);
+                var tiles = group.OrderByDescending(IsMain).ThenBy(s => s.Index).ToList();
+                if (max <= 0 || tiles.Count <= max)
+                    continue;
+                foreach (var extra in tiles.Skip(max))
+                    blocked.Add(extra.Index);
+                messages.Add($"{source.Name} allows {max} stream{(max == 1 ? "" : "s")} at once, so {tiles.Count - max} tile{(tiles.Count - max == 1 ? "" : "s")} can't play.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "multi-view limit check");
+        }
+
+        if (_leaving || version != _limitCheckVersion)
+            return;
+        var firstCheck = !_limitsChecked;
+        _limitsChecked = true;
+        var changed = _slots.Where(s => blocked.Contains(s.Index) != _blocked.Contains(s.Index)).ToList();
+        _blocked = blocked;
+
+        LimitBar.Message = string.Join(" ", messages) + (messages.Count > 0 ? " Ask your provider for more connections, or use channels from another playlist." : "");
+        LimitBar.IsOpen = messages.Count > 0;
+        if (messages.Count > 0)
+            Log.Info($"multi-view: {string.Join(" ", messages)}");
+
+        // Start the tiles that were waiting for this check, stop newly blocked ones, restart unblocked ones.
+        foreach (var slot in _slots)
+        {
+            if (changed.Contains(slot) || (firstCheck && !IsMain(slot)))
+            {
+                slot.Retry = 0;
+                Play(slot);
+            }
+        }
+    }
+
+    private static async Task<int> StreamLimitAsync(PlaylistSource source)
+    {
+        if (StreamLimits.TryGetValue(source.Id, out var cached) && DateTimeOffset.Now - cached.At < TimeSpan.FromMinutes(10))
+            return cached.Max;
+        try
+        {
+            var account = await XtreamClient.For(AppServices.Http, source).AuthenticateAsync();
+            StreamLimits[source.Id] = (account.MaxConnections, DateTimeOffset.Now);
+            Log.Info($"multi-view: {source.Name} allows {account.MaxConnections} connection(s), {account.ActiveConnections} active");
+            return account.MaxConnections;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "multi-view stream limit");
+            return 0; // Unknown: don't block anything.
+        }
     }
 
     // ---- Layout ----
@@ -605,6 +741,7 @@ public sealed partial class MultiViewPage : Page
             flyout.Hide();
             Play(slot);
             ApplyLayout();
+            _ = CheckLimitsAsync();
         }
 
         list.ItemClick += (_, e) =>
