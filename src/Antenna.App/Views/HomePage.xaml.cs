@@ -46,10 +46,12 @@ public sealed partial class HomePage : Page
             var favourites = await Task.Run(() => AppServices.Library.GetFavourites(MediaKind.Live));
             _onNow = (await GuideService.ToViewModelsAsync(favourites.Take(RowLimit * 2).ToList())).ToList();
 
+            var reminders = await Task.Run(AppServices.Library.GetReminders);
+            Show(ComingUpSection, ComingUpList, reminders.Take(RowLimit).Select(r => new ReminderRow(r)).ToList());
             Show(ContinueSection, ContinueList, resumable);
             Show(OnNowSection, OnNowList, _onNow);
             Show(RecentSection, RecentList, recent);
-            EmptySection.Visibility = counts.Playlists > 0 && resumable.Count == 0 && _onNow.Count == 0 && recent.Count == 0
+            EmptySection.Visibility = counts.Playlists > 0 && resumable.Count == 0 && _onNow.Count == 0 && recent.Count == 0 && reminders.Count == 0
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
@@ -89,6 +91,45 @@ public sealed partial class HomePage : Page
     {
         if (e.ClickedItem is ItemViewModel vm)
             Playback.Open(vm, _onNow);
+    }
+
+    /// <summary>A reminder in the Coming up list; ToString is what the list shows.</summary>
+    private sealed record ReminderRow(Reminder Reminder)
+    {
+        public override string ToString()
+        {
+            var start = Reminder.Start.LocalDateTime;
+            var day = start.Date == DateTime.Today ? "Today" : start.Date == DateTime.Today.AddDays(1) ? "Tomorrow" : start.ToString("ddd d MMM", CultureInfo.CurrentCulture);
+            return $"🔔  {day} {start:HH:mm}  ·  {Reminder.Title}  ·  {Reminder.ChannelTitle}";
+        }
+    }
+
+    /// <summary>Clicking a reminder offers to watch the channel (if it's on) or cancel the reminder.</summary>
+    private async void ComingUp_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is not ReminderRow { Reminder: var r })
+            return;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = r.Title,
+            Content = $"{r.ChannelTitle}, {r.Start.LocalDateTime:ddd d MMM HH:mm}",
+            PrimaryButtonText = "Watch the channel",
+            SecondaryButtonText = "Cancel reminder",
+            CloseButtonText = "Close",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        switch (await dialog.ShowAsync())
+        {
+            case ContentDialogResult.Primary when AppServices.Library.GetItem(r.SourceId, r.ChannelId, MediaKind.Live) is { } entry:
+                Playback.Play(PlayRequest.ForItem(entry.Item));
+                break;
+            case ContentDialogResult.Secondary:
+                AppServices.Library.DeleteReminder(r.Id);
+                ComingUpList.ItemsSource = AppServices.Library.GetReminders().Take(RowLimit).Select(x => new ReminderRow(x)).ToList();
+                ComingUpSection.Visibility = ComingUpList.Items.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+                break;
+        }
     }
 
     private void Channel_RightTapped(object sender, RightTappedRoutedEventArgs e) => ItemMenu.OnRightTapped(sender, e, _onNow);

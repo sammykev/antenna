@@ -57,6 +57,11 @@
                 </Button>
             </StackPanel>
 
+            <StackPanel x:Name="ComingUpSection" Spacing="8" Visibility="Collapsed">
+                <TextBlock Text="Coming up (your reminders)" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ListView x:Name="ComingUpList" SelectionMode="None" IsItemClickEnabled="True" ItemClick="ComingUp_ItemClick" MaxHeight="260" />
+            </StackPanel>
+
             <StackPanel x:Name="ContinueSection" Spacing="8" Visibility="Collapsed">
                 <TextBlock Text="Continue watching" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <GridView x:Name="ContinueList" IsItemClickEnabled="True" SelectionMode="None" ItemClick="Watch_ItemClick"
