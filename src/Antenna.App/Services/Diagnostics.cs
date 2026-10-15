@@ -17,6 +17,20 @@ internal static class Log
 
     public static void Info(string message) => Write("INFO", message);
 
+    /// <summary>The last lines of the log, for crash details. Empty when there's no log yet.</summary>
+    public static string Tail(int lines = 200)
+    {
+        try
+        {
+            lock (Gate)
+                return File.Exists(FilePath) ? string.Join(Environment.NewLine, File.ReadLines(FilePath).TakeLast(lines)) : "";
+        }
+        catch (Exception)
+        {
+            return "";
+        }
+    }
+
     public static void Error(Exception ex, string where) => Write("ERROR", $"{where}: {ex}");
 
     private static void Write(string level, string message)

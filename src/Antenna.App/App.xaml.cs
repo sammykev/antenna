@@ -23,7 +23,7 @@ public partial class App : Application
             e.Handled = true;
             try
             {
-                Window?.ShowNotice(InfoBarSeverity.Error, $"Something went wrong: {e.Exception.Message} (details in Settings → About → Open log)");
+                Window?.ShowError($"Something went wrong: {e.Exception.Message}", CrashReport.Details(e.Exception, "UI"));
             }
             catch (Exception)
             {
@@ -32,7 +32,10 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             if (e.ExceptionObject is Exception ex)
+            {
                 Log.Error(ex, "fatal");
+                CrashReport.ShowFatal(ex, "keep running and had to close");
+            }
         };
         TaskScheduler.UnobservedTaskException += (_, e) =>
         {
@@ -83,7 +86,10 @@ public partial class App : Application
         {
             Log.Error(ex, $"start-up: {name}");
             if (name is "window" or "LibVLC" or "library")
+            {
+                CrashReport.ShowFatal(ex, $"start ({name} failed)");
                 throw;
+            }
         }
     }
 }

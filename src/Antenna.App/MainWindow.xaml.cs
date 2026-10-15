@@ -103,6 +103,29 @@ public sealed partial class MainWindow : Window
         Notice.IsOpen = true;
     }
 
+    /// <summary>An error the app survived, with a button that copies the details for a bug report.</summary>
+    public void ShowError(string message, string details)
+    {
+        var copy = new Button { Content = "Copy details" };
+        copy.Click += (_, _) =>
+        {
+            try
+            {
+                CrashReport.Copy(details);
+                copy.Content = "Copied";
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "copy crash details");
+            }
+        };
+        Notice.Severity = InfoBarSeverity.Error;
+        Notice.Title = "";
+        Notice.Message = message;
+        Notice.ActionButton = copy;
+        Notice.IsOpen = true;
+    }
+
     /// <summary>A downloaded update: offer to restart now (otherwise it installs at the next start).</summary>
     public void ShowUpdateReady(string version)
     {

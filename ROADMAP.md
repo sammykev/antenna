@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.4** (launch test in CI; multi-view connection-limit handling).
+Current release: **v0.1.4** (launch test in CI; multi-view connection-limit handling; crash reporting).
 
 ---
 
@@ -30,7 +30,7 @@ Current release: **v0.1.4** (launch test in CI; multi-view connection-limit hand
     `CheckLimitsAsync`, `StreamLimits`). The provider's reported limit is advisory only; earlier we
     blocked tiles on it and the user said both used to play, so never block up front.
 
-- [ ] **Crash reporting the user can act on.**
+- [x] **Crash reporting the user can act on.** *(v0.1.4: `Services/CrashReport.cs`; message box for fatal errors, "Copy details" on the error notice)*
   On an unhandled or start-up failure, show a small window ("Antenna hit a problem") with the error
   summary, **Copy details** (last ~200 log lines) and **Open log folder**, instead of only writing the log.
   Hooks already exist in `App.xaml.cs` (`UnhandledException`, `Step(...)`). Fatal start-up steps should
