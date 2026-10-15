@@ -103,6 +103,22 @@ public sealed partial class MainWindow : Window
         Notice.IsOpen = true;
     }
 
+    /// <summary>Once the window has loaded (dialogs need its XamlRoot), shows What's new if Antenna was just updated.</summary>
+    public void ShowWhatsNewWhenReady()
+    {
+        if (RootGrid.IsLoaded)
+        {
+            _ = WhatsNew.ShowIfUpdatedAsync(RootGrid.XamlRoot);
+            return;
+        }
+        void OnLoaded(object sender, RoutedEventArgs e)
+        {
+            RootGrid.Loaded -= OnLoaded;
+            _ = WhatsNew.ShowIfUpdatedAsync(RootGrid.XamlRoot);
+        }
+        RootGrid.Loaded += OnLoaded;
+    }
+
     /// <summary>An error the app survived, with a button that copies the details for a bug report.</summary>
     public void ShowError(string message, string details)
     {

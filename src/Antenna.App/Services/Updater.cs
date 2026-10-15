@@ -103,6 +103,8 @@ internal static class Updater
         // Called from the UI thread, so the event below is raised back on it.
         await Task.Run(() => manager.DownloadUpdatesAsync(update, progress));
         Log.Info($"updates: {update.TargetFullRelease.Version} downloaded");
+        if (update.TargetFullRelease.NotesMarkdown is { Length: > 0 } notes)
+            AppSettings.PendingNotes = $"{update.TargetFullRelease.Version}\n{notes}";
         Ready = update;
         UpdateReady?.Invoke(update);
     }

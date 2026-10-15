@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.4** (launch test in CI; multi-view connection-limit handling; crash reporting).
+Current release: **v0.1.4** (launch test in CI; multi-view connection-limit handling; crash reporting; What's new).
 
 ---
 
@@ -36,7 +36,7 @@ Current release: **v0.1.4** (launch test in CI; multi-view connection-limit hand
   Hooks already exist in `App.xaml.cs` (`UnhandledException`, `Step(...)`). Fatal start-up steps should
   still show it before exiting.
 
-- [ ] **"What's new" after an update.**
+- [x] **"What's new" after an update.** *(v0.1.4: notes from commit subjects via `vpk pack --releaseNotes`; `Services/WhatsNew.cs` shows them once after updating, first visible when updating from 0.1.4)*
   - Release notes: generate from commit subjects since the previous tag and pass them to
     `vpk upload github` (`--releaseNotes <file>`), so each GitHub release has notes.
   - In the app: after a restart-to-update (Velopack's `OnRestarted` / version change since last run,

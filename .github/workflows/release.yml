@@ -26,6 +26,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags and history, for the release notes
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -66,6 +68,18 @@ jobs:
           if (-not $failed -and -not (Select-String -Path $log -Pattern "Smoke test passed" -Quiet)) { $failed = "it never reported 'Smoke test passed'" }
           if (-not $failed -and (Select-String -Path $log -Pattern " ERROR " -Quiet)) { $failed = "errors were logged" }
           if ($failed) { throw "Smoke test failed: $failed." }
+
+      - name: Write release notes
+        shell: pwsh
+        run: |
+          $v = "${{ steps.version.outputs.value }}"
+          $previous = git describe --tags --abbrev=0 2>$null
+          $range = if ($previous) { "$previous..HEAD" } else { "HEAD" }
+          # Commit subjects, minus housekeeping that means nothing to someone using the app.
+          $lines = git log $range --no-merges --format="- %s" | Where-Object { $_ -notmatch '^- (Release|Roadmap|Build|CI)\b' }
+          if (-not $lines) { $lines = @("- Fixes and improvements") }
+          (@("## What's new in Antenna $v", "") + $lines) -join "`n" | Set-Content -Encoding utf8 release-notes.md
+          Get-Content release-notes.md
 
       - name: Install Velopack
         run: dotnet tool install -g vpk --version ${{ env.VPK_VERSION }}
@@ -125,7 +139,8 @@ jobs:
             "--packTitle", "Antenna",
             "--packAuthors", "Okechukwu Nkwocha",
             "--icon", "src/Antenna.App/Assets/Antenna.ico",
-            "--runtime", "win-x64"
+            "--runtime", "win-x64",
+            "--releaseNotes", "release-notes.md"
           )
           if ($env:SIGN_PARAMS) { $vpkArgs += @("--signParams", $env:SIGN_PARAMS) }
           vpk @vpkArgs

@@ -73,6 +73,8 @@ public partial class App : Application
         Log.Info("Started");
         if (SmokeTest)
             _ = Window.RunSmokeTestAsync();
+        else
+            Window.ShowWhatsNewWhenReady();
     }
 
     /// <summary>Runs a start-up step, logging where it failed. Window and LibVLC failures are fatal.</summary>
