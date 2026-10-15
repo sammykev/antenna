@@ -214,6 +214,12 @@ public sealed partial class SettingsPage : Page
         }
     }
 
+    private void OpenLog_Click(object sender, RoutedEventArgs e)
+    {
+        Directory.CreateDirectory(Log.Folder);
+        System.Diagnostics.Process.Start("explorer.exe", $"\"{Log.Folder}\"");
+    }
+
     // ---- Backup ----
 
     private async void Export_Click(object sender, RoutedEventArgs e)

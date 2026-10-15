@@ -142,7 +142,7 @@ internal static class Recorder
         job.Cancel?.Cancel();
         if (job.Player is { } player)
         {
-            ThreadPool.QueueUserWorkItem(_ =>
+            Background.Run(() =>
             {
                 player.Stop();
                 player.Dispose();
@@ -203,11 +203,11 @@ internal static class Recorder
         {
             if (Active.TryRemove(rec.Id, out var failed))
             {
-                ThreadPool.QueueUserWorkItem(_ => failed.Player?.Dispose());
+                Background.Run(() => failed.Player?.Dispose());
                 Finish(failed.Recording, RecordingStatus.Failed, "The stream couldn't be opened or dropped.");
             }
         });
-        ThreadPool.QueueUserWorkItem(_ =>
+        Background.Run(() =>
         {
             using var media = new Media(Vlc.Value, rec.Url, FromType.FromLocation, [.. options]);
             player.Play(media);

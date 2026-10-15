@@ -35,6 +35,7 @@ public sealed partial class MultiViewPage : Page
         public required Border Frame;
         public required Button Pick;
         public required Button Close;
+        public required VideoView Video;
         public LibVLC? Vlc;
         public MediaPlayer? Player;
     }
@@ -111,7 +112,7 @@ public sealed partial class MultiViewPage : Page
         root.Children.Add(frame);
         Slots.Children.Add(root);
 
-        var slot = new Slot { Index = index, Root = root, Title = title, Frame = frame, Pick = pick, Close = close };
+        var slot = new Slot { Index = index, Root = root, Title = title, Frame = frame, Pick = pick, Close = close, Video = video };
         video.Initialized += (_, e) =>
         {
             slot.Vlc = new LibVLC(enableDebugLogs: false, e.SwapChainOptions);
@@ -148,7 +149,7 @@ public sealed partial class MultiViewPage : Page
             return;
         if (request is null)
         {
-            ThreadPool.QueueUserWorkItem(_ => player.Stop());
+            Background.Run(() => player.Stop());
             return;
         }
 
@@ -159,7 +160,7 @@ public sealed partial class MultiViewPage : Page
             AppSettings.HardwareDecoding ? ":avcodec-hw=any" : ":avcodec-hw=none",
         };
         options.AddRange(request.Options);
-        ThreadPool.QueueUserWorkItem(_ =>
+        Background.Run(() =>
         {
             using var media = new Media(vlc, request.Url, FromType.FromLocation, [.. options]);
             player.Play(media);
@@ -305,6 +306,7 @@ public sealed partial class MultiViewPage : Page
     {
         var player = slot.Player;
         var vlc = slot.Vlc;
+        slot.Video.MediaPlayer = null;
         slot.Player = null;
         slot.Vlc = null;
         _ = Task.Run(() =>

@@ -107,6 +107,7 @@
                     <Image x:Name="AboutLogo" Width="64" Height="64" VerticalAlignment="Top" />
                     <TextBlock x:Name="AboutText" TextWrapping="Wrap" IsTextSelectionEnabled="True" VerticalAlignment="Center" />
                 </StackPanel>
+                <Button Content="Open log folder" Click="OpenLog_Click" />
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

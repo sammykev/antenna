@@ -136,7 +136,7 @@ internal sealed class PipWindow : Window
         if (!request.IsLive && request.StartAtMs > 0)
             options.Add($":start-time={request.StartAtMs / 1000}");
         options.AddRange(request.Options);
-        ThreadPool.QueueUserWorkItem(_ =>
+        Background.Run(() =>
         {
             using var media = new Media(vlc, request.Url, FromType.FromLocation, [.. options]);
             player.Play(media);
@@ -189,6 +189,7 @@ internal sealed class PipWindow : Window
 
         var player = _player;
         var vlc = _vlc;
+        _video.MediaPlayer = null;
         _player = null;
         _vlc = null;
         _ = Task.Run(() =>
