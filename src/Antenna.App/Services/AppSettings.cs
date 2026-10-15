@@ -47,6 +47,9 @@ internal static class AppSettings
     /// <summary>Buffer live TV to disk so it can be paused and rewound.</summary>
     public static bool Timeshift { get => Get("player.timeshift") != "0"; set => Set("player.timeshift", value ? "1" : "0"); }
 
+    /// <summary>Buffer the next channel in the background so Ch+/Ch− is near instant (uses a second connection).</summary>
+    public static bool PreloadNextChannel { get => Get("player.preload") == "1"; set => Set("player.preload", value ? "1" : "0"); }
+
     /// <summary>How far back live TV can be rewound.</summary>
     public static int TimeshiftMinutes { get => Math.Clamp(GetInt("player.timeshift.minutes", 30), 5, 120); set => SetInt("player.timeshift.minutes", value); }
 

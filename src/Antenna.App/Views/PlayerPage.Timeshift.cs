@@ -30,6 +30,10 @@ public sealed partial class PlayerPage
     }
 
     private Timeshift? _timeshift;
+
+    /// <summary>The next channel, already buffering, for near-instant Ch+/Ch− (see Settings).</summary>
+    private Timeshift? _warm;
+    private int _zapDirection = 1;
     private string? _directOnlyUrl;
     private DispatcherQueueTimer? _behindTimer;
 
@@ -56,22 +60,19 @@ public sealed partial class PlayerPage
     private async void StartTimeshifted(PlayRequest request, MediaPlayer player, LibVLC vlc, IReadOnlyList<string> options)
     {
         var ts = _timeshift;
+        // Zapping onto the channel that was buffering in the background: use it straight away.
+        if (_warm is { } warm && warm.Url == request.Url && !warm.Buffer.IsCompleted && (ts is null || ts.Url != request.Url))
+        {
+            _warm = null;
+            StopTimeshift();
+            _timeshift = ts = warm;
+            Log.Info($"timeshift: '{request.Title}' was already buffering, switching instantly");
+        }
         // A buffer whose download has ended (provider gave up) can't be resumed: start a fresh one.
         if (ts is null || ts.Url != request.Url || ts.Buffer.IsCompleted)
         {
             StopTimeshift();
-            var buffer = new TimeshiftBuffer(Path.Combine(TimeshiftRoot, Guid.NewGuid().ToString("N")), TimeSpan.FromMinutes(AppSettings.TimeshiftMinutes));
-            ts = new Timeshift
-            {
-                Url = request.Url,
-                Buffer = buffer,
-                Capture = new LiveCapture(AppServices.Http, request.Url, request.Options, buffer),
-                Cancel = new CancellationTokenSource(),
-            };
-            _timeshift = ts;
-            var capture = ts.Capture;
-            var cancel = ts.Cancel.Token;
-            _ = Task.Run(() => capture.RunAsync(cancel));
+            _timeshift = ts = NewTimeshift(request);
             Log.Info($"timeshift: buffering '{request.Title}'");
         }
 
@@ -131,6 +132,56 @@ public sealed partial class PlayerPage
     {
         if (_timeshift is { Input: not null } && _player is not null)
             TimeshiftSeek(TimeSpan.FromHours(24));
+    }
+
+    private Timeshift NewTimeshift(PlayRequest request)
+    {
+        var buffer = new TimeshiftBuffer(Path.Combine(TimeshiftRoot, Guid.NewGuid().ToString("N")), TimeSpan.FromMinutes(AppSettings.TimeshiftMinutes));
+        var ts = new Timeshift
+        {
+            Url = request.Url,
+            Buffer = buffer,
+            Capture = new LiveCapture(AppServices.Http, request.Url, request.Options, buffer),
+            Cancel = new CancellationTokenSource(),
+        };
+        var capture = ts.Capture;
+        var cancel = ts.Cancel.Token;
+        _ = Task.Run(() => capture.RunAsync(cancel));
+        return ts;
+    }
+
+    /// <summary>
+    /// Starts buffering the next channel in the direction of the last zap, when switched on and the
+    /// account allows a second stream. Once switched to, it becomes the normal pause/rewind buffer.
+    /// </summary>
+    private async Task PreloadNextAsync()
+    {
+        if (!AppSettings.PreloadNextChannel || _timeshift is null || _request is not { CanZap: true } request)
+        {
+            DropWarm();
+            return;
+        }
+        var next = request.WithChannel(request.ChannelIndex + _zapDirection);
+        if (_warm?.Url == next.Url || !LiveCapture.CanBuffer(next.Url))
+            return;
+        if (await ConnectionLimits.MaxAsync(request.SourceId) < 2 || !ReferenceEquals(request, _request) || _closing)
+            return;
+        DropWarm();
+        _warm = NewTimeshift(next);
+        Log.Info($"timeshift: buffering '{next.Title}' in the background for a faster switch");
+    }
+
+    private void DropWarm()
+    {
+        if (_warm is not { } warm)
+            return;
+        _warm = null;
+        warm.Cancel.Cancel();
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            warm.Buffer.Dispose();
+        });
     }
 
     private void StopTimeshift()

@@ -134,6 +134,7 @@ public sealed partial class PlayerPage : Page
             App.Window.SetMiniPlayer(false);
 
         StopTimeshift();
+        DropWarm();
         var player = _player;
         var vlc = _vlc;
         var discoverer = _discoverer;
@@ -252,6 +253,7 @@ public sealed partial class PlayerPage : Page
         StatusPanel.Visibility = Visibility.Collapsed;
         SetPlayIcon(playing: true);
         ApplySound();
+        _ = PreloadNextAsync();
         if (_aspect != 0 || _deinterlace)
             ApplyPicture();
 
@@ -392,7 +394,10 @@ public sealed partial class PlayerPage : Page
     private void Zap(int delta)
     {
         if (_request is { CanZap: true } r)
+        {
+            _zapDirection = Math.Sign(delta);
             Load(r.WithChannel(r.ChannelIndex + delta));
+        }
     }
 
     private void TypeDigit(int digit)

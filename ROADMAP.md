@@ -71,7 +71,7 @@ Current release: **v0.1.8** (search inside types and categories, Home page, TMDB
 
 - [x] **Staged playlist loading.** *(v0.1.9: Xtream live is fetched and saved first, then movies and series in parallel, each saved as it lands (`ReplaceItems(…, kind)`); pages refresh per part. M3U is one file, so it's still one step.)* For very large playlists (100k+ items) import Live first, then Movies and
   Series, and make each usable as soon as it lands.
-- [ ] **Faster zapping.** Pre-open the next/previous channel in a hidden player so Page Up/Down is near instant
+- [x] **Faster zapping.** *(v0.1.9: opt-in Settings → Faster channel switching: buffers the next channel (direction of the last zap) via the timeshift buffer; only on Xtream accounts allowing ≥ 2 streams; `ConnectionLimits` service.)* Pre-open the next/previous channel in a hidden player so Page Up/Down is near instant
   (respect the provider's connection limit; skip when it's 1).
 
 ## 5. Distribution
