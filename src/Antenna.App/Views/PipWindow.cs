@@ -104,6 +104,12 @@ internal sealed class PipWindow : Window
             _vlc = new LibVLC(enableDebugLogs: false, e.SwapChainOptions);
             _player = new MediaPlayer(_vlc);
             _player.TimeChanged += (_, a) => _lastTime = a.Time;
+            // Mute/volume are app-wide on Windows: start each stream audible unless muted here.
+            _player.Playing += (sender, _) =>
+            {
+                if (sender is MediaPlayer mp)
+                    Worker.Run(() => { if (mp.Mute != _muted) mp.Mute = _muted; }, "pip sound");
+            };
             _player.Playing += (_, _) => DispatcherQueue.TryEnqueue(() => _playIcon.Glyph = "");
             _player.Paused += (_, _) => DispatcherQueue.TryEnqueue(() => _playIcon.Glyph = "");
             _video.MediaPlayer = _player;
@@ -155,12 +161,16 @@ internal sealed class PipWindow : Window
             p.SetPause(p.IsPlaying);
     }
 
+    private bool _muted;
+
     private void ToggleMute()
     {
         if (_player is not { } p)
             return;
-        p.Mute = !p.Mute;
-        _muteIcon.Glyph = p.Mute ? "" : "";
+        _muted = !_muted;
+        var muted = _muted;
+        Worker.Run(() => p.Mute = muted);
+        _muteIcon.Glyph = muted ? "" : "";
     }
 
     /// <summary>Back to the full player in the main window, at the same point.</summary>

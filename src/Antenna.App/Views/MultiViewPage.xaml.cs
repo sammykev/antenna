@@ -69,6 +69,9 @@ public sealed partial class MultiViewPage : Page
 
         /// <summary>Last mute state sent to libvlc, so routine updates only talk to it when something changed.</summary>
         public bool? SentMute;
+
+        /// <summary>The audio track to restore when this tile becomes the main screen again.</summary>
+        public int? AudioTrack;
     }
 
     public MultiViewPage()
@@ -332,7 +335,7 @@ public sealed partial class MultiViewPage : Page
             if (slot.Player is not { } player || (!force && slot.SentMute == mute))
                 continue;
             slot.SentMute = mute;
-            Worker.Run(() => SetSound(player, mute), "multi-view mute");
+            Worker.Run(() => SetSound(slot, player, mute), "multi-view sound");
         }
     }
 
@@ -340,13 +343,35 @@ public sealed partial class MultiViewPage : Page
     /// Silences or restores a tile. Mute and volume are both set: libvlc ignores either while a
     /// stream's audio output isn't open yet, which is why this is re-applied on events and a timer.
     /// </summary>
-    private static void SetSound(MediaPlayer player, bool silent)
+    /// <remarks>
+    /// On Windows, libvlc's mute and volume act on the app's whole audio session, not one player, so
+    /// muting a silent tile also muted the main one. Instead each silent tile has its audio track
+    /// turned off (per player), and the main tile's track is turned on.
+    /// </remarks>
+    private static void SetSound(Slot slot, MediaPlayer player, bool silent)
     {
-        if (player.Mute != silent)
-            player.Mute = silent;
-        var volume = silent ? 0 : 100;
-        if (player.Volume != volume)
-            player.Volume = volume;
+        var current = player.AudioTrack;
+        if (silent)
+        {
+            if (current >= 0)
+            {
+                slot.AudioTrack = current; // Remember which language to bring back.
+                player.SetAudioTrack(-1);
+            }
+            return;
+        }
+
+        if (current < 0)
+        {
+            var tracks = player.AudioTrackDescription.Select(t => t.Id).Where(id => id >= 0).ToList();
+            if (tracks.Count > 0)
+                player.SetAudioTrack(slot.AudioTrack is { } remembered && tracks.Contains(remembered) ? remembered : tracks[0]);
+        }
+        // Undo any app-wide mute or volume left by older versions (Windows remembers it per app).
+        if (player.Mute)
+            player.Mute = false;
+        if (player.Volume is >= 0 and < 100)
+            player.Volume = 100;
     }
 
     private static string Redact(string message) => UrlPath().Replace(message, "$1/…");
@@ -398,7 +423,6 @@ public sealed partial class MultiViewPage : Page
                 return; // Superseded before it started (fast channel changes).
             using var media = new Media(vlc, request.Url, FromType.FromLocation, [.. options]);
             player.Play(media);
-            SetSound(player, mute);
         }, "multi-view play");
     }
 

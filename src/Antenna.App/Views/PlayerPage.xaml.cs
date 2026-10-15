@@ -231,6 +231,7 @@ public sealed partial class PlayerPage : Page
         BufferingRing.IsActive = false;
         StatusPanel.Visibility = Visibility.Collapsed;
         SetPlayIcon(playing: true);
+        ApplySound();
 
         if (_resumeAt > 0 && _player is { IsSeekable: true } p)
         {
@@ -452,12 +453,35 @@ public sealed partial class PlayerPage : Page
         ShowControls();
     }
 
+    private bool _muted;
+
+    /// <summary>
+    /// libvlc's mute and volume act on the whole app's audio session on Windows and Windows remembers
+    /// them, so a new stream re-applies what the controls show instead of inheriting a stale state.
+    /// </summary>
+    private void ApplySound()
+    {
+        if (_player is not { } p)
+            return;
+        var muted = _muted;
+        var volume = (int)VolumeSlider.Value;
+        Worker.Run(() =>
+        {
+            if (p.Mute != muted)
+                p.Mute = muted;
+            if (p.Volume != volume)
+                p.Volume = volume;
+        }, "player sound");
+    }
+
     private void ToggleMute()
     {
         if (_player is not { } p)
             return;
-        p.Mute = !p.Mute;
-        MuteIcon.Glyph = p.Mute ? "" : "";
+        _muted = !_muted;
+        var muted = _muted;
+        Worker.Run(() => p.Mute = muted);
+        MuteIcon.Glyph = muted ? "" : "";
     }
 
     private void ShowControls()
