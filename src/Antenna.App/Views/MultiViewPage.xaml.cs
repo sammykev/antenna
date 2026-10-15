@@ -1,8 +1,10 @@
+using System.Globalization;
 using Antenna.App.Services;
 using Antenna.Core;
 using LibVLCSharp.Platforms.Windows;
 using LibVLCSharp.Shared;
 using Microsoft.UI;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
@@ -12,24 +14,30 @@ using Microsoft.UI.Xaml.Navigation;
 namespace Antenna.App.Views;
 
 /// <summary>
-/// Up to four players at once, like UHF's multi-view. Each tile has its own LibVLC instance
-/// (one per video surface). Tiles keep their channels while the app runs.
+/// Up to four streams playing at once, like UHF's multi-view. The selected tile is the main
+/// screen: a little larger and the only one with sound. Every tile keeps playing.
+/// Each tile has its own LibVLC instance (one per video surface), created off the UI thread.
 /// </summary>
 public sealed partial class MultiViewPage : Page
 {
     private const int SlotCount = 4;
 
-    /// <summary>What's in each tile; survives leaving and returning to the page.</summary>
-    private static readonly PlayRequest?[] Chosen = new PlayRequest?[SlotCount];
-    private static int _audioSlot;
-    private static int _bigSlot;
-    private static string _layout = "grid";
+    /// <summary>How much larger the main screen's row and column are than the others.</summary>
+    private const double MainWeight = 1.45;
 
     private static readonly TimeSpan[] RetryDelays =
         [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30)];
 
+    /// <summary>What's in each tile; survives leaving and returning to the page.</summary>
+    private static readonly PlayRequest?[] Chosen = new PlayRequest?[SlotCount];
+    private static int _mainSlot;
+    private static string _layout = "spot";
+
+    private static readonly SolidColorBrush Selected = new(Colors.DodgerBlue);
+    private static readonly SolidColorBrush Unselected = new(Colors.Transparent);
+
     private readonly Slot[] _slots = new Slot[SlotCount];
-    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer _audioGuard;
+    private readonly DispatcherQueueTimer _audioGuard;
     private bool _leaving;
 
     private sealed class Slot
@@ -39,6 +47,7 @@ public sealed partial class MultiViewPage : Page
         public required TextBlock Title;
         public required Border Frame;
         public required Button Pick;
+        public required Button Change;
         public required Button Close;
         public required VideoView Video;
         public required ProgressRing Busy;
@@ -46,11 +55,11 @@ public sealed partial class MultiViewPage : Page
         public required Border SpeakerBadge;
         public LibVLC? Vlc;
         public MediaPlayer? Player;
-
-        /// <summary>Off-screen in the side-by-side layout: paused, silent, not resized to zero.</summary>
-        public bool Hidden;
         public int Retry;
         public int PlayVersion;
+
+        /// <summary>Last mute state sent to libvlc, so routine updates only talk to it when something changed.</summary>
+        public bool? SentMute;
     }
 
     public MultiViewPage()
@@ -62,15 +71,15 @@ public sealed partial class MultiViewPage : Page
             item.IsSelected = (item.Tag as string) == _layout;
         ApplyLayout();
 
-        // LibVLC forgets a mute set before its audio output opens and can unmute on track changes,
-        // so the "only the selected tile has sound" rule is re-applied on events and every second.
+        // libvlc forgets a mute set before its audio output opens and can unmute on track changes,
+        // so the "only the main screen has sound" rule is re-checked every second (off the UI thread).
         _audioGuard = DispatcherQueue.CreateTimer();
         _audioGuard.Interval = TimeSpan.FromSeconds(1);
         _audioGuard.IsRepeating = true;
-        _audioGuard.Tick += (_, _) => ApplyAudio();
+        _audioGuard.Tick += (_, _) => ApplyAudio(force: true);
         _audioGuard.Start();
 
-        // 1–4 choose which tile you hear.
+        // 1–4 choose the main screen.
         for (var i = 0; i < SlotCount; i++)
         {
             var index = i;
@@ -79,7 +88,7 @@ public sealed partial class MultiViewPage : Page
                 var accelerator = new KeyboardAccelerator { Key = key };
                 accelerator.Invoked += (_, a) =>
                 {
-                    SelectAudio(index);
+                    SelectMain(index);
                     a.Handled = true;
                 };
                 KeyboardAccelerators.Add(accelerator);
@@ -87,13 +96,13 @@ public sealed partial class MultiViewPage : Page
         }
     }
 
-    /// <summary>Puts a channel in the first free tile (or replaces the selected one) and opens multi-view.</summary>
+    /// <summary>Puts a channel in the first free tile (or replaces the main one), makes it the main screen, and opens multi-view.</summary>
     public static void Add(PlayRequest request)
     {
         var free = Array.FindIndex(Chosen, c => c is null);
-        var target = free >= 0 ? free : _audioSlot;
+        var target = free >= 0 ? free : _mainSlot;
         Chosen[target] = ForTile(request);
-        _audioSlot = target; // You hear what you just added.
+        _mainSlot = target;
         App.Window.Frame.Navigate(typeof(MultiViewPage));
     }
 
@@ -102,13 +111,11 @@ public sealed partial class MultiViewPage : Page
     {
         for (var i = 0; i < SlotCount; i++)
             Chosen[i] = i < requests.Count ? ForTile(requests[i]) : null;
-        _audioSlot = 0;
-        _bigSlot = 0;
-        _layout = requests.Count switch { 2 => "pair", _ => "grid" };
+        _mainSlot = 0;
         App.Window.Frame.Navigate(typeof(MultiViewPage));
     }
 
-    private static PlayRequest ForTile(PlayRequest r) => r with { Channels = [], ChannelIndex = -1, StartAtMs = 0 };
+    private static PlayRequest ForTile(PlayRequest r) => r with { StartAtMs = 0 };
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
@@ -121,34 +128,31 @@ public sealed partial class MultiViewPage : Page
             Release(slot);
     }
 
+    // ---- Tiles ----
+
     private Slot CreateSlot(int index)
     {
         var video = new VideoView();
-        var title = new TextBlock
-        {
-            Foreground = new SolidColorBrush(Colors.White),
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-        };
+        var title = new TextBlock { Foreground = new SolidColorBrush(Colors.White), VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
         var number = new TextBlock
         {
-            Text = (index + 1).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Text = (index + 1).ToString(CultureInfo.InvariantCulture),
             Foreground = new SolidColorBrush(Colors.White),
             Opacity = 0.7,
             VerticalAlignment = VerticalAlignment.Center,
         };
         var speaker = new Border
         {
-            Background = new SolidColorBrush(Colors.DodgerBlue),
+            Background = Selected,
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(6, 2, 6, 2),
-            Child = new FontIcon { Glyph = "\uE767", FontSize = 12, Foreground = new SolidColorBrush(Colors.White) },
+            Child = new FontIcon { Glyph = "", FontSize = 12, Foreground = new SolidColorBrush(Colors.White) },
             Visibility = Visibility.Collapsed,
         };
         var header = new Grid
         {
             VerticalAlignment = VerticalAlignment.Top,
-            Padding = new Thickness(10, 6, 48, 6),
+            Padding = new Thickness(10, 6, 88, 6),
             ColumnSpacing = 8,
             Background = new SolidColorBrush(ColorHelper.FromArgb(120, 0, 0, 0)),
             IsHitTestVisible = false,
@@ -162,7 +166,7 @@ public sealed partial class MultiViewPage : Page
         Grid.SetColumn(title, 2);
         header.Children.Add(title);
 
-        var frame = new Border { BorderThickness = new Thickness(3), BorderBrush = new SolidColorBrush(Colors.Transparent), IsHitTestVisible = false };
+        var frame = new Border { BorderThickness = new Thickness(3), BorderBrush = Unselected, IsHitTestVisible = false };
         var hit = new Grid { Background = new SolidColorBrush(Colors.Transparent) };
         var busy = new ProgressRing { Width = 40, Height = 40, IsActive = false, IsHitTestVisible = false };
         var status = new TextBlock
@@ -177,60 +181,79 @@ public sealed partial class MultiViewPage : Page
             Visibility = Visibility.Collapsed,
         };
         var pick = new Button { Content = "＋ Choose channel", HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, RequestedTheme = ElementTheme.Dark };
+        var change = new Button
+        {
+            Content = new FontIcon { Glyph = "", FontSize = 12 },
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(4, 4, 44, 4),
+            RequestedTheme = ElementTheme.Dark,
+        };
         var close = new Button
         {
-            Content = new FontIcon { Glyph = "\uE711", FontSize = 12 },
+            Content = new FontIcon { Glyph = "", FontSize = 12 },
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
             Margin = new Thickness(4),
             RequestedTheme = ElementTheme.Dark,
         };
+        ToolTipService.SetToolTip(change, "Change channel");
         ToolTipService.SetToolTip(close, "Remove");
-        ToolTipService.SetToolTip(hit, "Click to hear this tile · double-click to make it big");
 
         var root = new Grid { Background = new SolidColorBrush(ColorHelper.FromArgb(255, 16, 16, 20)) };
-        root.Children.Add(video);
-        root.Children.Add(hit);
-        root.Children.Add(busy);
-        root.Children.Add(status);
-        root.Children.Add(header);
-        root.Children.Add(pick);
-        root.Children.Add(close);
-        root.Children.Add(frame);
+        foreach (var child in new UIElement[] { video, hit, busy, status, header, pick, change, close, frame })
+            root.Children.Add(child);
         Slots.Children.Add(root);
 
         var slot = new Slot
         {
-            Index = index, Root = root, Title = title, Frame = frame, Pick = pick, Close = close, Video = video,
-            Busy = busy, Status = status, SpeakerBadge = speaker,
+            Index = index, Root = root, Title = title, Frame = frame, Pick = pick, Change = change, Close = close,
+            Video = video, Busy = busy, Status = status, SpeakerBadge = speaker,
         };
-        video.Initialized += (_, e) =>
+
+        video.Initialized += async (_, e) =>
         {
             if (_leaving)
                 return;
-            slot.Vlc = new LibVLC(enableDebugLogs: false, e.SwapChainOptions);
-            var player = new MediaPlayer(slot.Vlc) { Mute = true };
+            // Creating a LibVLC instance loads its plugins and takes a moment: keep it off the UI thread.
+            var options = e.SwapChainOptions;
+            var (vlc, player) = await Task.Run(() =>
+            {
+                var v = new LibVLC(enableDebugLogs: false, options);
+                return (v, new MediaPlayer(v) { Mute = true });
+            });
+            if (_leaving)
+            {
+                _ = Task.Run(() => { player.Dispose(); vlc.Dispose(); });
+                return;
+            }
             // Events arrive on libvlc threads: never call back into libvlc there, hop to the UI.
             player.Playing += (_, _) => OnUi(() => OnPlaying(slot));
-            player.ESAdded += (_, _) => OnUi(ApplyAudio);
-            player.Unmuted += (_, _) => OnUi(ApplyAudio);
+            player.ESAdded += (_, _) => OnUi(() => ApplyAudio(force: true));
+            player.Unmuted += (_, _) => OnUi(() => ApplyAudio(force: true));
             player.Buffering += (_, a) => OnUi(() => slot.Busy.IsActive = a.Cache < 100f && Chosen[slot.Index] is not null);
             player.EncounteredError += (_, _) => OnUi(() => OnFailed(slot));
             player.EndReached += (_, _) => OnUi(() => OnFailed(slot));
+            slot.Vlc = vlc;
             slot.Player = player;
             video.MediaPlayer = player;
             Play(slot);
         };
-        hit.Tapped += (_, _) => SelectAudio(index);
-        hit.DoubleTapped += (_, _) => MakeBig(index);
+        hit.Tapped += (_, _) => SelectMain(index);
+        hit.DoubleTapped += (_, _) =>
+        {
+            SelectMain(index);
+            if (_layout != "focus")
+                SetLayout("focus");
+        };
         pick.Click += (_, _) => ShowPicker(slot, pick);
+        change.Click += (_, _) => ShowPicker(slot, change);
         close.Click += (_, _) =>
         {
             Chosen[index] = null;
             Play(slot);
-            ApplyAudio();
+            ApplyLayout();
         };
-        UpdateChrome(slot);
         return slot;
     }
 
@@ -243,49 +266,72 @@ public sealed partial class MultiViewPage : Page
     private void UpdateChrome(Slot slot)
     {
         var request = Chosen[slot.Index];
-        var heard = IsHeard(slot);
-        slot.Title.Text = request?.Title ?? "";
-        slot.Pick.Visibility = request is null ? Visibility.Visible : Visibility.Collapsed;
-        slot.Close.Visibility = request is null ? Visibility.Collapsed : Visibility.Visible;
-        slot.SpeakerBadge.Visibility = heard ? Visibility.Visible : Visibility.Collapsed;
-        slot.Frame.BorderBrush = new SolidColorBrush(heard ? Colors.DodgerBlue : Colors.Transparent);
+        var main = IsMain(slot);
+        Set(slot.Title, request?.Title ?? "");
+        SetVisible(slot.Pick, request is null);
+        SetVisible(slot.Close, request is not null);
+        SetVisible(slot.Change, request is not null);
+        SetVisible(slot.SpeakerBadge, main);
+        var brush = main ? Selected : Unselected;
+        if (!ReferenceEquals(slot.Frame.BorderBrush, brush))
+            slot.Frame.BorderBrush = brush;
         if (request is null)
         {
             slot.Busy.IsActive = false;
-            slot.Status.Visibility = Visibility.Collapsed;
+            SetVisible(slot.Status, false);
         }
     }
 
-    private static bool IsHeard(Slot slot) => slot.Index == _audioSlot && Chosen[slot.Index] is not null && !slot.Hidden;
-
-    /// <summary>Exactly one tile, the selected one, has sound.</summary>
-    private void ApplyAudio()
+    private static void Set(TextBlock block, string text)
     {
-        var selected = _slots[_audioSlot];
-        if (Chosen[_audioSlot] is null || selected.Hidden)
-        {
-            // The selected tile is empty or off-screen: hand the sound to the first visible stream.
-            var fallback = _slots.FirstOrDefault(s => Chosen[s.Index] is not null && !s.Hidden);
-            if (fallback is not null)
-                _audioSlot = fallback.Index;
-        }
+        if (block.Text != text)
+            block.Text = text;
+    }
+
+    private static void SetVisible(UIElement element, bool visible)
+    {
+        var v = visible ? Visibility.Visible : Visibility.Collapsed;
+        if (element.Visibility != v)
+            element.Visibility = v;
+    }
+
+    private static bool IsMain(Slot slot) => slot.Index == _mainSlot && Chosen[slot.Index] is not null;
+
+    // ---- Sound ----
+
+    /// <summary>
+    /// Exactly one tile, the main screen, has sound; the others keep playing silently.
+    /// libvlc calls go to a worker thread so a busy stream can't stall the UI.
+    /// </summary>
+    private void ApplyAudio(bool force = false)
+    {
+        if (Chosen[_mainSlot] is null && _slots.FirstOrDefault(s => Chosen[s.Index] is not null) is { } fallback)
+            _mainSlot = fallback.Index;
 
         foreach (var slot in _slots)
         {
-            var mute = !IsHeard(slot);
-            if (slot.Player is { } p && p.Mute != mute)
-                p.Mute = mute;
             UpdateChrome(slot);
+            var mute = !IsMain(slot);
+            if (slot.Player is not { } player || (!force && slot.SentMute == mute))
+                continue;
+            slot.SentMute = mute;
+            Worker.Run(() =>
+            {
+                if (player.Mute != mute)
+                    player.Mute = mute;
+            }, "multi-view mute");
         }
     }
 
-    private void SelectAudio(int index)
+    private void SelectMain(int index)
     {
-        if (Chosen[index] is null)
+        if (Chosen[index] is null || index == _mainSlot)
             return;
-        _audioSlot = index;
-        ApplyAudio();
+        _mainSlot = index;
+        ApplyLayout();
     }
+
+    // ---- Playback ----
 
     private void Play(Slot slot)
     {
@@ -294,7 +340,7 @@ public sealed partial class MultiViewPage : Page
         var version = ++slot.PlayVersion;
         if (slot.Player is not { } player || slot.Vlc is not { } vlc)
             return;
-        if (request is null || slot.Hidden)
+        if (request is null)
         {
             slot.Busy.IsActive = false;
             Worker.Run(() => player.Stop(), "multi-view stop");
@@ -302,8 +348,9 @@ public sealed partial class MultiViewPage : Page
         }
 
         slot.Busy.IsActive = true;
-        slot.Status.Visibility = Visibility.Collapsed;
-        player.Mute = !IsHeard(slot);
+        SetVisible(slot.Status, false);
+        var mute = !IsMain(slot);
+        slot.SentMute = mute;
 
         var options = new List<string>
         {
@@ -315,8 +362,9 @@ public sealed partial class MultiViewPage : Page
         Worker.Run(() =>
         {
             if (version != slot.PlayVersion)
-                return; // Superseded before it started.
+                return; // Superseded before it started (fast channel changes).
             using var media = new Media(vlc, request.Url, FromType.FromLocation, [.. options]);
+            player.Mute = mute;
             player.Play(media);
         }, "multi-view play");
     }
@@ -325,109 +373,119 @@ public sealed partial class MultiViewPage : Page
     {
         slot.Retry = 0;
         slot.Busy.IsActive = false;
-        slot.Status.Visibility = Visibility.Collapsed;
-        ApplyAudio();
+        SetVisible(slot.Status, false);
+        ApplyAudio(force: true);
     }
 
     /// <summary>Live streams that drop or end are retried with backoff.</summary>
     private async void OnFailed(Slot slot)
     {
-        if (Chosen[slot.Index] is null || slot.Hidden)
+        if (Chosen[slot.Index] is null)
             return;
         slot.Busy.IsActive = false;
         if (slot.Retry >= RetryDelays.Length)
         {
-            slot.Status.Text = "Stream unavailable";
-            slot.Status.Visibility = Visibility.Visible;
+            Set(slot.Status, "Stream unavailable");
+            SetVisible(slot.Status, true);
             return;
         }
 
         var version = slot.PlayVersion;
         var delay = RetryDelays[slot.Retry++];
-        slot.Status.Text = $"Reconnecting ({slot.Retry}/{RetryDelays.Length})…";
-        slot.Status.Visibility = Visibility.Visible;
+        Set(slot.Status, $"Reconnecting ({slot.Retry}/{RetryDelays.Length})…");
+        SetVisible(slot.Status, true);
         await Task.Delay(delay);
         if (!_leaving && version == slot.PlayVersion)
             Play(slot);
     }
 
+    /// <summary>Ch+/Ch− on the main screen, through the list it was picked from.</summary>
+    private void Zap(int delta)
+    {
+        var slot = _slots[_mainSlot];
+        if (Chosen[_mainSlot] is not { CanZap: true } request)
+            return;
+        Chosen[_mainSlot] = ForTile(request.WithChannel(request.ChannelIndex + delta));
+        slot.Retry = 0;
+        Play(slot);
+    }
+
     // ---- Layout ----
 
+    /// <summary>
+    /// Places the tiles. Tiles keep their positions; choosing a main screen only resizes them, so
+    /// nothing jumps around. Empty tiles take no space unless there's room for an "add" tile.
+    /// </summary>
     private void ApplyLayout()
     {
         Slots.RowDefinitions.Clear();
         Slots.ColumnDefinitions.Clear();
         GridLength Star(double n = 1) => new(n, GridUnitType.Star);
-        var visible = new HashSet<int>();
 
-        switch (_layout)
+        var filled = _slots.Where(s => Chosen[s.Index] is not null).ToList();
+        var empty = _slots.Where(s => Chosen[s.Index] is null).ToList();
+        if (Chosen[_mainSlot] is null && filled.Count > 0)
+            _mainSlot = filled[0].Index;
+
+        // Which tiles are on screen, in reading order: 3 streams get a 2×2 with one "add" tile.
+        var shown = filled.Count switch
         {
-            case "focus":
-                // One big tile on the left, the other three stacked on the right.
-                Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star(3) });
-                Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star(1) });
-                for (var r = 0; r < 3; r++)
-                    Slots.RowDefinitions.Add(new RowDefinition { Height = Star() });
-                var small = 0;
-                foreach (var slot in _slots)
-                {
-                    visible.Add(slot.Index);
-                    if (slot.Index == _bigSlot)
-                        Place(slot, 0, 0, rowSpan: 3);
-                    else
-                        Place(slot, small++, 1);
-                }
-                break;
+            0 => _slots.ToList(),
+            1 or 2 => filled,
+            3 => filled.Concat(empty.Take(1)).ToList(),
+            _ => filled,
+        };
+        var mainPos = Math.Max(0, shown.FindIndex(s => s.Index == _mainSlot));
 
-            case "pair":
+        if (_layout == "focus" && filled.Count > 1)
+        {
+            // Main screen large on the left, the other streams stacked on the right.
+            shown = filled;
+            Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star(3) });
+            Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star(1) });
+            var others = filled.Where(s => s.Index != _mainSlot).ToList();
+            for (var r = 0; r < others.Count; r++)
                 Slots.RowDefinitions.Add(new RowDefinition { Height = Star() });
-                Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star() });
-                Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star() });
-                // The selected tile first, then the next tile with a stream.
-                var order = _slots
-                    .OrderByDescending(s => s.Index == _audioSlot && Chosen[s.Index] is not null)
-                    .ThenByDescending(s => Chosen[s.Index] is not null)
-                    .ThenBy(s => s.Index)
-                    .ToList();
-                for (var i = 0; i < order.Count; i++)
-                {
-                    if (i < 2)
-                    {
-                        visible.Add(order[i].Index);
-                        Place(order[i], 0, i);
-                    }
-                    else
-                    {
-                        // Parked behind the first tile: never resized to zero (that can crash the video surface).
-                        Place(order[i], 0, 0);
-                    }
-                }
-                break;
-
-            default:
-                Slots.RowDefinitions.Add(new RowDefinition { Height = Star() });
-                Slots.RowDefinitions.Add(new RowDefinition { Height = Star() });
-                Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star() });
-                Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star() });
-                foreach (var slot in _slots)
-                {
-                    visible.Add(slot.Index);
-                    Place(slot, slot.Index / 2, slot.Index % 2);
-                }
-                break;
+            Place(_slots[_mainSlot], 0, 0, rowSpan: others.Count);
+            for (var r = 0; r < others.Count; r++)
+                Place(others[r], r, 1);
+        }
+        else if (shown.Count <= 2)
+        {
+            // One stream fills the screen; two sit side by side, the main one a little wider.
+            Slots.RowDefinitions.Add(new RowDefinition { Height = Star() });
+            for (var c = 0; c < shown.Count; c++)
+            {
+                var weight = _layout == "spot" && shown.Count == 2 && c == mainPos ? MainWeight : 1;
+                Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star(weight) });
+                Place(shown[c], 0, c);
+            }
+        }
+        else
+        {
+            // 2×2. In "Main + others" the main screen's row and column are slightly larger.
+            var spot = _layout == "spot";
+            for (var r = 0; r < 2; r++)
+                Slots.RowDefinitions.Add(new RowDefinition { Height = Star(spot && r == mainPos / 2 ? MainWeight : 1) });
+            for (var c = 0; c < 2; c++)
+                Slots.ColumnDefinitions.Add(new ColumnDefinition { Width = Star(spot && c == mainPos % 2 ? MainWeight : 1) });
+            for (var i = 0; i < shown.Count; i++)
+                Place(shown[i], i / 2, i % 2);
         }
 
+        // Tiles not on screen are always empty ones: park them behind the first tile instead of
+        // collapsing them (a zero-size video surface can crash).
         foreach (var slot in _slots)
         {
-            var hidden = !visible.Contains(slot.Index);
-            var changed = hidden != slot.Hidden;
-            slot.Hidden = hidden;
-            slot.Root.Opacity = hidden ? 0 : 1;
-            slot.Root.IsHitTestVisible = !hidden;
-            Canvas.SetZIndex(slot.Root, hidden ? -1 : 0);
-            if (changed)
-                Play(slot); // Pauses tiles going off-screen, restarts ones coming back.
+            var visible = shown.Contains(slot);
+            slot.Root.Opacity = visible ? 1 : 0;
+            slot.Root.IsHitTestVisible = visible;
+            Canvas.SetZIndex(slot.Root, visible ? 0 : -1);
+            if (!visible)
+                Place(slot, 0, 0);
         }
+
+        SetVisible(AddButton, filled.Count < SlotCount);
         ApplyAudio();
     }
 
@@ -435,17 +493,14 @@ public sealed partial class MultiViewPage : Page
     {
         Grid.SetRow(slot.Root, row);
         Grid.SetColumn(slot.Root, column);
-        Grid.SetRowSpan(slot.Root, rowSpan);
+        Grid.SetRowSpan(slot.Root, Math.Max(1, rowSpan));
     }
 
-    private void MakeBig(int index)
+    private void SetLayout(string layout)
     {
-        _bigSlot = index;
-        if (Chosen[index] is not null)
-            _audioSlot = index;
-        _layout = "focus";
+        _layout = layout;
         foreach (var item in LayoutChoice.Items)
-            item.IsSelected = (item.Tag as string) == _layout;
+            item.IsSelected = (item.Tag as string) == layout;
         ApplyLayout();
     }
 
@@ -453,7 +508,7 @@ public sealed partial class MultiViewPage : Page
     {
         if (Slots is null || _slots[SlotCount - 1] is null)
             return; // Fires during InitializeComponent.
-        var layout = sender.SelectedItem?.Tag as string ?? "grid";
+        var layout = sender.SelectedItem?.Tag as string ?? "spot";
         if (layout == _layout && Slots.ColumnDefinitions.Count > 0)
             return;
         _layout = layout;
@@ -462,83 +517,127 @@ public sealed partial class MultiViewPage : Page
 
     // ---- Picking channels ----
 
+    /// <summary>A row in the channel picker; ToString is what the list shows.</summary>
+    private sealed class PickRow(LibraryEntry entry, string? now)
+    {
+        public LibraryEntry Entry { get; } = entry;
+
+        public override string ToString() =>
+            now is null ? $"{Entry.Item.Title}  ·  {Entry.SourceName}" : $"{Entry.Item.Title}  ·  Now: {now}";
+    }
+
+    /// <summary>
+    /// Full channel picker: every live channel when the box is empty, every match while typing
+    /// (channels showing a matching event first). The list scrolls through all of them.
+    /// </summary>
     private void ShowPicker(Slot slot, FrameworkElement anchor)
     {
-        var box = new AutoSuggestBox { PlaceholderText = "Search channels or events (e.g. NBA, man city)", Width = 360, QueryIcon = new SymbolIcon(Symbol.Find) };
-        var flyout = new Flyout { Content = box };
-        List<LibraryEntry> hits = [];
+        var box = new TextBox { PlaceholderText = "Search channels or what's on (e.g. NBA, man city)" };
+        var count = new TextBlock { Opacity = 0.7, FontSize = 12 };
+        var list = new ListView { Height = 440, SelectionMode = ListViewSelectionMode.Single, IsItemClickEnabled = true };
+        var panel = new StackPanel { Spacing = 8, Width = 460 };
+        panel.Children.Add(box);
+        panel.Children.Add(count);
+        panel.Children.Add(list);
+        var flyout = new Flyout { Content = panel };
+
+        List<PickRow> rows = [];
         var version = 0;
 
-        // Wait for a pause in typing, then search off the UI thread; drop results from older keystrokes.
-        var debounce = DispatcherQueue.CreateTimer();
-        debounce.Interval = TimeSpan.FromMilliseconds(300);
-        debounce.IsRepeating = false;
-        debounce.Tick += async (_, _) =>
+        async Task LoadAsync()
         {
             var text = box.Text.Trim();
             var mine = ++version;
-            if (text.Length < 2)
-            {
-                box.ItemsSource = null;
-                return;
-            }
-            box.ItemsSource = new List<string> { "Searching…" };
-            List<LibraryEntry> found;
+            count.Text = "Searching…";
+            List<PickRow> found;
             try
             {
                 found = await Task.Run(() =>
                 {
-                    var now = DateTimeOffset.Now;
-                    // Channels showing a matching event right now first ("man utd", "nba"), then by name.
-                    var byEvent = AppServices.Library.SearchEvents(text, now, now.AddSeconds(1), 8).SelectMany(h => h.Channels.Take(1));
-                    var byName = AppServices.Library.Search(text, MediaKind.Live, 12);
-                    return byEvent.Concat(byName).DistinctBy(e => (e.Item.SourceId, e.Item.ExternalId)).Take(16).ToList();
+                    var nowPlaying = AppServices.Library.GetNowPlaying(DateTimeOffset.Now);
+                    string? NowOn(MediaItem item) =>
+                        item.EpgChannelId is { } ch && nowPlaying.TryGetValue((item.SourceId, ch), out var p) ? p.Title : null;
+
+                    if (text.Length < 2)
+                    {
+                        return AppServices.Library.GetItems(MediaKind.Live, limit: 20000)
+                            .Select(e => new PickRow(e, NowOn(e.Item))).ToList();
+                    }
+                    var at = DateTimeOffset.Now;
+                    var byEvent = AppServices.Library.SearchEvents(text, at, at.AddSeconds(1), 500).SelectMany(h => h.Channels);
+                    var byName = AppServices.Library.Search(text, MediaKind.Live, 5000);
+                    return byEvent.Concat(byName)
+                        .DistinctBy(e => (e.Item.SourceId, e.Item.ExternalId))
+                        .Select(e => new PickRow(e, NowOn(e.Item)))
+                        .ToList();
                 });
             }
             catch (Exception ex)
             {
-                Log.Error(ex, "multi-view search");
+                Log.Error(ex, "multi-view picker");
                 found = [];
             }
             if (mine != version)
-                return;
-            hits = found;
-            box.ItemsSource = hits.Count == 0
-                ? new List<string> { "No matching channels" }
-                : hits.Select(h => $"{h.Item.Title}  ·  {h.SourceName}").ToList();
-        };
+                return; // A newer search replaced this one.
+            rows = found;
+            list.ItemsSource = rows;
+            count.Text = rows.Count == 0 ? "No matching channels" : $"{rows.Count:N0} channel{(rows.Count == 1 ? "" : "s")} · click one, or press Enter for the first";
+        }
 
-        box.TextChanged += (s, a) =>
+        // Wait for a pause in typing; drop results from older keystrokes.
+        var debounce = DispatcherQueue.CreateTimer();
+        debounce.Interval = TimeSpan.FromMilliseconds(250);
+        debounce.IsRepeating = false;
+        debounce.Tick += async (_, _) => await LoadAsync();
+        box.TextChanged += (_, _) =>
         {
-            if (a.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
-                return;
             debounce.Stop();
             debounce.Start();
         };
 
-        void Choose(int index)
+        void Choose(PickRow row)
         {
-            if (index < 0 || index >= hits.Count)
-                return;
-            Chosen[slot.Index] = ForTile(PlayRequest.ForItem(hits[index].Item));
+            // The whole list becomes the tile's channel list, so Page Up/Down steps through it.
+            var channels = rows.Select(r => r.Entry.Item).ToList();
+            Chosen[slot.Index] = ForTile(PlayRequest.ForItem(row.Entry.Item, channels));
+            _mainSlot = slot.Index;
             slot.Retry = 0;
             flyout.Hide();
             Play(slot);
-            ApplyAudio();
+            ApplyLayout();
         }
 
-        box.SuggestionChosen += (s, a) =>
-            Choose((s.ItemsSource as List<string>)?.IndexOf(a.SelectedItem as string ?? "") ?? -1);
-        // Enter picks the top result.
-        box.QuerySubmitted += (_, a) =>
+        list.ItemClick += (_, e) =>
         {
-            if (a.ChosenSuggestion is null)
-                Choose(0);
+            if (e.ClickedItem is PickRow row)
+                Choose(row);
+        };
+        box.KeyDown += (_, e) =>
+        {
+            if (e.Key == Windows.System.VirtualKey.Enter && rows.Count > 0)
+            {
+                Choose(rows[0]);
+                e.Handled = true;
+            }
+            else if (e.Key == Windows.System.VirtualKey.Down && rows.Count > 0)
+            {
+                list.SelectedIndex = 0;
+                (list.ContainerFromIndex(0) as Control)?.Focus(FocusState.Keyboard);
+                e.Handled = true;
+            }
         };
         flyout.Closed += (_, _) => debounce.Stop();
 
         flyout.ShowAt(anchor);
         box.Focus(FocusState.Programmatic);
+        _ = LoadAsync();
+    }
+
+    private void Add_Click(object sender, RoutedEventArgs e)
+    {
+        var free = _slots.FirstOrDefault(s => Chosen[s.Index] is null);
+        if (free is not null)
+            ShowPicker(free, AddButton);
     }
 
     private static void Release(Slot slot)
@@ -550,9 +649,16 @@ public sealed partial class MultiViewPage : Page
         slot.Vlc = null;
         _ = Task.Run(() =>
         {
-            player?.Stop();
-            player?.Dispose();
-            vlc?.Dispose();
+            try
+            {
+                player?.Stop();
+                player?.Dispose();
+                vlc?.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "multi-view release");
+            }
         });
     }
 
@@ -584,6 +690,18 @@ public sealed partial class MultiViewPage : Page
     {
         if (App.Window.IsFullScreen)
             ToggleFullScreen();
+        args.Handled = true;
+    }
+
+    private void ChannelUp_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        Zap(+1);
+        args.Handled = true;
+    }
+
+    private void ChannelDown_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    {
+        Zap(-1);
         args.Handled = true;
     }
 }

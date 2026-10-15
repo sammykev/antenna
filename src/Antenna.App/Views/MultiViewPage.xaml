@@ -5,7 +5,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="Black">
 
-    <!-- Up to four streams at once. Tap a tile to hear it; double-click to make it the big one. -->
+    <!-- Up to four streams playing at once. The selected tile is the main screen (a bit larger, with sound);
+         the others keep playing silently. -->
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -22,25 +23,33 @@
                     <FontIcon Glyph="&#xE72B;" />
                 </Button>
                 <TextBlock Text="Multi-view" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button x:Name="AddButton" Click="Add_Click" ToolTipService.ToolTip="Add a channel (up to 4)">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE710;" FontSize="14" />
+                        <TextBlock Text="Add channel" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
             <TextBlock Grid.Column="1" Foreground="#99FFFFFF" VerticalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis"
-                       Text="Only the selected tile (blue, 🔊) has sound · click a tile or press 1–4 to switch · double-click to make it big" />
+                       Text="Click a tile (or press 1–4) to make it the main screen with sound · Page Up/Down changes its channel" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                 <SelectorBar x:Name="LayoutChoice" SelectionChanged="Layout_SelectionChanged">
-                    <SelectorBarItem Text="2 × 2" Tag="grid" IsSelected="True" />
-                    <SelectorBarItem Text="1 + 3" Tag="focus" />
-                    <SelectorBarItem Text="Side by side" Tag="pair" />
+                    <SelectorBarItem Text="Main + others" Tag="spot" IsSelected="True" />
+                    <SelectorBarItem Text="Equal" Tag="grid" />
+                    <SelectorBarItem Text="Big + small" Tag="focus" />
                 </SelectorBar>
                 <Button Click="FullScreen_Click" ToolTipService.ToolTip="Full screen (F) · Esc to leave">
                     <FontIcon x:Name="FullScreenIcon" Glyph="&#xE740;" />
                 </Button>
             </StackPanel>
         </Grid>
-        <Grid x:Name="Slots" Grid.Row="1" RowSpacing="2" ColumnSpacing="2" />
+        <Grid x:Name="Slots" Grid.Row="1" RowSpacing="3" ColumnSpacing="3" />
     </Grid>
 
     <Page.KeyboardAccelerators>
         <KeyboardAccelerator Key="F" Invoked="FullScreen_Invoked" />
         <KeyboardAccelerator Key="Escape" Invoked="Escape_Invoked" />
+        <KeyboardAccelerator Key="PageUp" Invoked="ChannelUp_Invoked" />
+        <KeyboardAccelerator Key="PageDown" Invoked="ChannelDown_Invoked" />
     </Page.KeyboardAccelerators>
 </Page>
