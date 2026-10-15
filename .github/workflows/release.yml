@@ -147,7 +147,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Publish GitHub release
-        run: vpk upload github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --publish --releaseName "Antenna ${{ steps.version.outputs.value }}" --tag v${{ steps.version.outputs.value }}
+        run: vpk upload github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --publish --releaseName "Antenna ${{ steps.version.outputs.value }}" --tag v${{ steps.version.outputs.value }} --targetCommitish ${{ github.sha }}
 
       - name: Remove signing certificate
         if: always()
