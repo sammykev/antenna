@@ -171,9 +171,11 @@ public sealed partial class PlayerPage : Page
     }
 
     /// <summary>Shows a new request. Called on navigation and when zapping between channels.</summary>
-    private void Load(PlayRequest request)
+    private void Load(PlayRequest request, bool switchingSource = false)
     {
         SaveProgress();
+        if (!switchingSource)
+            _triedSources.Clear();
         _request = request;
         _retry = 0;
         _resumeAt = request.StartAtMs;
@@ -312,6 +314,9 @@ public sealed partial class PlayerPage : Page
     private async void OnStreamFailed()
     {
         BufferingRing.IsActive = false;
+        // A live channel that keeps failing: try the same channel from another playlist.
+        if (_request is { IsLive: true } && _retry >= 2 && TrySwitchSource(automatic: true))
+            return;
         if (_retry >= RetryDelays.Length)
         {
             ShowStatus("This stream is unavailable. Try again later or pick another channel.");

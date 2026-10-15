@@ -56,6 +56,8 @@ public sealed partial class PlayerPage
         var stats = new ToggleMenuFlyoutItem { Text = "Stream stats (S)", IsChecked = StatsPanel.Visibility == Visibility.Visible };
         stats.Click += (_, _) => ToggleStats();
         PictureMenu.Items.Add(stats);
+
+        AddSourceItems(PictureMenu);
     }
 
     private MenuFlyoutItem DelayItem(string text, TimeSpan step)

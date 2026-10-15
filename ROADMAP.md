@@ -54,7 +54,7 @@ Current release: **v0.1.7** (live pause/rewind in 0.1.6; picture and sound menu 
   and a stats overlay (codec, resolution, bitrate, dropped frames from `Media.Statistics`).
 - [x] **Multi-view presets.** *(v0.1.7: Presets menu: save/open/delete; `Core/Library/MultiViewPresets.cs`. Drag-to-swap tiles not done yet.)* Save the current tiles + layout as a named preset ("Saturday football") and
   open it in one click; drag to swap tiles.
-- [ ] **One channel, several sources.** Group the same channel across playlists (EPG id, then normalised
+- [~] **One channel, several sources.** *(v0.1.8: player switches to the same channel on another playlist after repeated failures, and offers "Watch on another playlist" in the Picture and sound menu. Still to do: show duplicates once in browse lists with a source picker.)* Group the same channel across playlists (EPG id, then normalised
   name), show it once with a source picker, and fall back to the next source automatically on failure.
 
 ## 3. Looks

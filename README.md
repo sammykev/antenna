@@ -19,6 +19,7 @@ Xtream Codes login). It doesn't include or find any content itself.
 - Continue watching: movies and episodes resume where you stopped
 - Audio tracks, embedded subtitles, subtitle files, and OpenSubtitles.com search
 - Picture and sound menu: aspect ratio and zoom-to-fill, audio delay for out-of-sync streams, deinterlacing, stream stats
+- When a live channel keeps failing, Antenna switches to the same channel on another of your playlists (or pick one: Picture and sound → Watch on another playlist)
 - Playback speed for VOD, mini player (always on top), full screen, auto-reconnect
 - Cast to Chromecast devices on your network
 - **Live events search**: type “man utd vs man city”, “NBA”, “Wimbledon” or tap a sport chip; finds live and upcoming matches across every guide (nicknames like *utd*, *spurs*, *psg* understood) and per-event channels; tick several and **watch them together**
