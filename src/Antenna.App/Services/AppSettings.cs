@@ -29,6 +29,9 @@ internal static class AppSettings
     /// <summary>Nav tag of the page shown at start-up.</summary>
     public static string StartPage { get => Get("ui.start") ?? "live"; set => Set("ui.start", value); }
 
+    /// <summary>Saved multi-view presets, as JSON (see MultiViewPresets).</summary>
+    public static string? MultiViewPresets { get => Get("multiview.presets"); set => Set("multiview.presets", value); }
+
     /// <summary>Stream buffer. Lower starts faster; higher survives a shaky connection.</summary>
     public static int NetworkCachingMs { get => Math.Clamp(GetInt("player.caching", 1500), 300, 20000); set => SetInt("player.caching", value); }
 

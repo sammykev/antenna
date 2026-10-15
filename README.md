@@ -22,7 +22,7 @@ Xtream Codes login). It doesn't include or find any content itself.
 - Playback speed for VOD, mini player (always on top), full screen, auto-reconnect
 - Cast to Chromecast devices on your network
 - **Live events search**: type “man utd vs man city”, “NBA”, “Wimbledon” or tap a sport chip; finds live and upcoming matches across every guide (nicknames like *utd*, *spurs*, *psg* understood) and per-event channels; tick several and **watch them together**
-- **Multi-view**: up to four matches playing at once; the selected tile is the main screen (slightly larger, the only one with sound) while the others keep playing silently; click a tile or press 1–4 to switch, Page Up/Down changes its channel; the channel picker lists every channel or every match for your search
+- **Multi-view**: up to four matches playing at once; the selected tile is the main screen (slightly larger, the only one with sound) while the others keep playing silently; click a tile or press 1–4 to switch, Page Up/Down changes its channel; the channel picker lists every channel or every match for your search; save the current tiles as a **preset** ("Saturday football") and reopen them in one click
 - **Picture-in-picture**: pop the player into a small always-on-top window (P) and keep browsing; double-click it to come back
 - Streams that need a particular user agent or referrer (`#EXTVLCOPT`, `url|User-Agent=…`) now play
 

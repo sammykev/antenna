@@ -608,6 +608,8 @@ public sealed partial class MultiViewPage : Page
         var reported = sourceId is not null && StreamLimits.TryGetValue(sourceId, out var limit) && limit.Max > 0
             ? $" It reports a limit of {limit.Max} stream{(limit.Max == 1 ? "" : "s")} at once."
             : "";
+        LimitBar.Severity = InfoBarSeverity.Warning;
+        LimitBar.Title = "Connection limit";
         LimitBar.Message = $"{name} refused an extra stream while another tile was playing.{reported} " +
                            "Try again, pick a channel from another playlist, or ask your provider about more connections.";
         LimitBar.IsOpen = true;

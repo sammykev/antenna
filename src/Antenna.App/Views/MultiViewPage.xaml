@@ -33,6 +33,15 @@
             <TextBlock Grid.Column="1" Foreground="#99FFFFFF" VerticalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis"
                        Text="Click a tile (or press 1–4) to make it the main screen with sound · Page Up/Down changes its channel" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <DropDownButton ToolTipService.ToolTip="Saved sets of channels">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE728;" FontSize="14" />
+                        <TextBlock Text="Presets" />
+                    </StackPanel>
+                    <DropDownButton.Flyout>
+                        <MenuFlyout x:Name="PresetsMenu" Placement="Bottom" Opening="PresetsMenu_Opening" />
+                    </DropDownButton.Flyout>
+                </DropDownButton>
                 <SelectorBar x:Name="LayoutChoice" SelectionChanged="Layout_SelectionChanged">
                     <SelectorBarItem Text="Main + others" Tag="spot" IsSelected="True" />
                     <SelectorBarItem Text="Equal" Tag="grid" />

@@ -52,7 +52,7 @@ Current release: **v0.1.5** (reminders). Next: v0.1.6 with live pause/rewind.
   start time that opens the channel. Persist reminders in the library; check on a timer like `Recorder`.
 - [x] **Player controls:** *(v0.1.7: Picture and sound menu + Z/S keys; `Views/PlayerPage.Picture.cs`)* aspect ratio / zoom / crop (4:3 channels), audio delay, deinterlace toggle,
   and a stats overlay (codec, resolution, bitrate, dropped frames from `Media.Statistics`).
-- [ ] **Multi-view presets.** Save the current tiles + layout as a named preset ("Saturday football") and
+- [x] **Multi-view presets.** *(v0.1.7: Presets menu: save/open/delete; `Core/Library/MultiViewPresets.cs`. Drag-to-swap tiles not done yet.)* Save the current tiles + layout as a named preset ("Saturday football") and
   open it in one click; drag to swap tiles.
 - [ ] **One channel, several sources.** Group the same channel across playlists (EPG id, then normalised
   name), show it once with a source picker, and fall back to the next source automatically on failure.
