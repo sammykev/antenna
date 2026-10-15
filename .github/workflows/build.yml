@@ -24,6 +24,13 @@ jobs:
       - name: Publish Windows app
         run: dotnet publish src/Antenna.App -c Release -p:Platform=x64 -r win-x64 --self-contained -o publish
 
+      - name: Check the published app has its XAML resources
+        shell: pwsh
+        run: |
+          $pri = Get-ChildItem publish -Filter *.pri | Where-Object { $_.Name -in "resources.pri", "Antenna.App.pri" }
+          if (-not $pri) { Get-ChildItem publish -Filter *.pri | Format-Table Name, Length; throw "The app's .pri is missing from publish: windows and pages won't load." }
+          Write-Host "Found $($pri.Name) ($($pri.Length) bytes)"
+
       - uses: actions/upload-artifact@v4
         with:
           name: Antenna-win-x64

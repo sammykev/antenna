@@ -18,6 +18,9 @@
     <!-- Unpackaged: runs with F5 / dotnet run, no MSIX signing needed. -->
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- Builds the app's resources.pri (compiled XAML) into publish output too; without it the
+         published app can't load any window or page. -->
+    <EnableMsixTooling>true</EnableMsixTooling>
     <!-- Lets the solution restore on non-Windows machines; building still requires Windows. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <!-- Program.cs starts the app so Velopack runs first. -->
