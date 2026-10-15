@@ -27,6 +27,9 @@ public sealed partial class MultiViewPage : Page
     /// <summary>How much larger the main screen's row and column are than the others.</summary>
     private const double MainWeight = 1.45;
 
+    /// <summary>Two drops within this window, while another tile uses the same account, mean the tiles are fighting over one connection.</summary>
+    private static readonly TimeSpan FightWindow = TimeSpan.FromMinutes(3);
+
     private static readonly TimeSpan[] RetryDelays =
         [TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(30)];
 
@@ -72,6 +75,13 @@ public sealed partial class MultiViewPage : Page
 
         /// <summary>The audio track to restore when this tile becomes the main screen again.</summary>
         public int? AudioTrack;
+
+        /// <summary>Overlay buttons offered when the tile stops (switch source, try again).</summary>
+        public required StackPanel Actions;
+
+        /// <summary>When this stream dropped after playing, for spotting tiles fighting over one connection.</summary>
+        public readonly List<DateTimeOffset> Drops = [];
+        public string? DropsUrl;
     }
 
     public MultiViewPage()
@@ -214,14 +224,24 @@ public sealed partial class MultiViewPage : Page
         ToolTipService.SetToolTip(close, "Remove");
 
         var root = new Grid { Background = new SolidColorBrush(ColorHelper.FromArgb(255, 16, 16, 20)) };
-        foreach (var child in new UIElement[] { video, hit, busy, status, header, pick, change, close, frame })
+        var actions = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(12, 200, 12, 0),
+            RequestedTheme = ElementTheme.Dark,
+            Visibility = Visibility.Collapsed,
+        };
+        foreach (var child in new UIElement[] { video, hit, busy, status, actions, header, pick, change, close, frame })
             root.Children.Add(child);
         Slots.Children.Add(root);
 
         var slot = new Slot
         {
             Index = index, Root = root, Title = title, Frame = frame, Pick = pick, Change = change, Close = close,
-            Video = video, Busy = busy, Status = status, SpeakerBadge = speaker,
+            Video = video, Busy = busy, Status = status, SpeakerBadge = speaker, Actions = actions,
         };
 
         video.Initialized += async (_, e) =>
@@ -394,6 +414,7 @@ public sealed partial class MultiViewPage : Page
         UpdateChrome(slot);
         var request = Chosen[slot.Index];
         var version = ++slot.PlayVersion;
+        SetVisible(slot.Actions, false);
         if (slot.Player is not { } player || slot.Vlc is not { } vlc)
             return;
         slot.IsPlaying = false;
@@ -441,9 +462,29 @@ public sealed partial class MultiViewPage : Page
     {
         if (Chosen[slot.Index] is not { } request)
             return;
+        var wasPlaying = slot.IsPlaying;
         slot.IsPlaying = false;
         slot.Busy.IsActive = false;
         Log.Info($"multi-view tile {slot.Index + 1}: stream failed or ended (attempt {slot.Retry + 1})");
+
+        // A stream that keeps dropping after playing, while another tile uses the same account, is two
+        // tiles taking turns knocking each other off one connection. Stop this one instead of looping.
+        var now = DateTimeOffset.Now;
+        if (slot.DropsUrl != request.Url)
+        {
+            slot.Drops.Clear();
+            slot.DropsUrl = request.Url;
+        }
+        if (wasPlaying)
+            slot.Drops.Add(now);
+        slot.Drops.RemoveAll(t => now - t > FightWindow);
+        var sharesAccount = request.SourceId is not null &&
+                            _slots.Any(s => s != slot && Chosen[s.Index]?.SourceId == request.SourceId);
+        if (sharesAccount && slot.Drops.Count >= 2)
+        {
+            await StopForLimitAsync(slot, request);
+            return;
+        }
 
         // If another tile from the same provider is playing, this is most likely its connection
         // limit: retrying would keep knocking that tile off, so give up quickly and say why.
@@ -467,6 +508,57 @@ public sealed partial class MultiViewPage : Page
         await Task.Delay(delay);
         if (!_leaving && version == slot.PlayVersion)
             Play(slot);
+    }
+
+    /// <summary>
+    /// Stops a tile that's fighting another over the account's connection, says so on the tile, and
+    /// offers the same channel from other playlists (which don't share the connection) or a retry.
+    /// </summary>
+    private async Task StopForLimitAsync(Slot slot, PlayRequest request)
+    {
+        var version = ++slot.PlayVersion;
+        if (slot.Player is { } player)
+            Worker.Run(() => player.Stop(), "multi-view stop");
+
+        var source = AppServices.Library.GetSources().FirstOrDefault(s => s.Id == request.SourceId);
+        var name = source?.Name ?? "This playlist";
+        var allows = request.SourceId is not null && StreamLimits.TryGetValue(request.SourceId, out var limit) && limit.Max > 0
+            ? $"allows {limit.Max} stream{(limit.Max == 1 ? "" : "s")} at a time"
+            : "seems to allow only one stream at a time";
+        Log.Info($"multi-view tile {slot.Index + 1}: stopped, {name} {allows} and another tile uses it");
+        Set(slot.Status, $"Stopped: {name} {allows}, and another tile is using it.");
+        SetVisible(slot.Status, true);
+        ShowLimitHint(request.SourceId);
+
+        var others = request.Item is { } item
+            ? await Task.Run(() => AppServices.Library.FindSameChannel(item, limit: 2))
+            : [];
+        if (_leaving || version != slot.PlayVersion)
+            return;
+
+        slot.Actions.Children.Clear();
+        foreach (var other in others)
+        {
+            var button = new Button { Content = $"Watch on {other.SourceName}", Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
+            button.Click += (_, _) =>
+            {
+                Log.Info($"multi-view tile {slot.Index + 1}: switching to '{other.Item.Title}' on {other.SourceName}");
+                Chosen[slot.Index] = ForTile(PlayRequest.ForItem(other.Item));
+                slot.Retry = 0;
+                Play(slot);
+                _ = CheckLimitsAsync();
+            };
+            slot.Actions.Children.Add(button);
+        }
+        var again = new Button { Content = "Try again" };
+        again.Click += (_, _) =>
+        {
+            slot.Drops.Clear();
+            slot.Retry = 0;
+            Play(slot);
+        };
+        slot.Actions.Children.Add(again);
+        SetVisible(slot.Actions, true);
     }
 
     /// <summary>Ch+/Ch− on the main screen, through the list it was picked from.</summary>

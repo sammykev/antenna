@@ -469,6 +469,38 @@ public sealed partial class LibraryStore : IDisposable
             return new LibraryCounts(counts[(int)MediaKind.Live], counts[(int)MediaKind.Movie], counts[(int)MediaKind.Series], playlists);
         });
 
+    /// <summary>
+    /// The same live channel in other playlists: same guide id, or the same name once tags and
+    /// quality markers are ignored (see <see cref="ChannelMatch"/>). At most one per playlist.
+    /// </summary>
+    public IReadOnlyList<LibraryEntry> FindSameChannel(MediaItem channel, int limit = 5)
+    {
+        var key = ChannelMatch.Key(channel.Title);
+        if (key.Length == 0)
+            return [];
+        var byGuide = channel.EpgChannelId is { Length: > 0 } epg ? LiveByGuideId(epg) : [];
+        var byName = Search(key, MediaKind.Live, 300).Where(e => ChannelMatch.Key(e.Item.Title) == key);
+        return byGuide.Concat(byName)
+            .Where(e => e.Item.SourceId != channel.SourceId)
+            .DistinctBy(e => e.Item.SourceId)
+            .Take(limit)
+            .ToList();
+    }
+
+    private IReadOnlyList<LibraryEntry> LiveByGuideId(string epgId) =>
+        ReadAside((db, credentials) =>
+        {
+            using var cmd = Command(db, $"""
+                {SelectEntries}
+                WHERE i.kind = {(int)MediaKind.Live} AND i.epg_id = $epg COLLATE NOCASE AND {VisibleFilter}
+                ORDER BY s.position, i.sort_index
+                LIMIT 50
+                """);
+            cmd.Parameters.AddWithValue("$epg", epgId);
+            AddVisibility(cmd);
+            return ReadEntries(cmd, credentials);
+        });
+
     /// <summary>One item by its key, or null if it no longer exists (or is hidden).</summary>
     public LibraryEntry? GetItem(string sourceId, string externalId, MediaKind kind)
     {
