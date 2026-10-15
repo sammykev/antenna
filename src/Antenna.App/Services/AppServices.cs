@@ -19,6 +19,9 @@ public static class AppServices
 
     public static EpgImporter Guide { get; } = new(Http, Library);
 
+    /// <summary>Raised (on a background thread) when part of a playlist's catalogue has been saved.</summary>
+    public static event Action<PlaylistSource, MediaKind, int>? CatalogPartLoaded;
+
     /// <summary>
     /// Re-imports a source's catalogue and then its guide, off the UI thread.
     /// A guide failure doesn't undo the catalogue; it's reported in <see cref="RefreshResult.GuideError"/>.
@@ -26,7 +29,17 @@ public static class AppServices
     public static Task<RefreshResult> RefreshSourceAsync(PlaylistSource source, CancellationToken ct = default) =>
         Task.Run(async () =>
         {
-            var result = await Importer.ImportAsync(source, ct);
+            // Xtream catalogues arrive in parts: save each as it lands so Live TV is usable while
+            // movies and series are still downloading.
+            var savedParts = new HashSet<MediaKind>();
+            var result = await Importer.ImportAsync(source, (kind, items) =>
+            {
+                Library.ReplaceItems(source.Id, items, kind);
+                lock (savedParts)
+                    savedParts.Add(kind);
+                GuideService.InvalidateNowPlaying();
+                CatalogPartLoaded?.Invoke(source, kind, items.Count);
+            }, ct);
             // Xtream guide URLs embed the password, so they're derived at import time, never stored.
             var saved = source with
             {
@@ -35,7 +48,8 @@ public static class AppServices
                 LastRefreshed = DateTimeOffset.Now,
             };
             Library.SaveSource(saved);
-            Library.ReplaceItems(source.Id, result.Items);
+            if (savedParts.Count == 0)
+                Library.ReplaceItems(source.Id, result.Items);
             GuideService.InvalidateNowPlaying();
 
             try

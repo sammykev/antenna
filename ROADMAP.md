@@ -69,7 +69,7 @@ Current release: **v0.1.8** (search inside types and categories, Home page, TMDB
 
 ## 4. Speed
 
-- [ ] **Staged playlist loading.** For very large playlists (100k+ items) import Live first, then Movies and
+- [x] **Staged playlist loading.** *(v0.1.9: Xtream live is fetched and saved first, then movies and series in parallel, each saved as it lands (`ReplaceItems(…, kind)`); pages refresh per part. M3U is one file, so it's still one step.)* For very large playlists (100k+ items) import Live first, then Movies and
   Series, and make each usable as soon as it lands.
 - [ ] **Faster zapping.** Pre-open the next/previous channel in a hidden player so Page Up/Down is near instant
   (respect the provider's connection limit; skip when it's 1).

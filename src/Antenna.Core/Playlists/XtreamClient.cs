@@ -117,17 +117,20 @@ public sealed class XtreamClient
     /// <summary>Downloads the full live, VOD and series catalogue as library items.</summary>
     public async Task<IReadOnlyList<MediaItem>> GetCatalogAsync(string sourceId, CancellationToken ct = default)
     {
-        var liveCats = GetCategoriesAsync("get_live_categories", ct);
-        var vodCats = GetCategoriesAsync("get_vod_categories", ct);
-        var seriesCats = GetCategoriesAsync("get_series_categories", ct);
-        var live = GetArrayAsync("get_live_streams", ct);
-        var vod = GetArrayAsync("get_vod_streams", ct);
-        var series = GetArrayAsync("get_series", ct);
-        await Task.WhenAll(liveCats, vodCats, seriesCats, live, vod, series);
+        var live = GetLiveAsync(sourceId, ct);
+        var movies = GetMoviesAsync(sourceId, ct);
+        var series = GetSeriesAsync(sourceId, ct);
+        await Task.WhenAll(live, movies, series);
+        return [.. live.Result, .. movies.Result, .. series.Result];
+    }
 
+    public async Task<IReadOnlyList<MediaItem>> GetLiveAsync(string sourceId, CancellationToken ct = default)
+    {
+        var cats = GetCategoriesAsync("get_live_categories", ct);
+        var streams = GetArrayAsync("get_live_streams", ct);
+        await Task.WhenAll(cats, streams);
         var items = new List<MediaItem>();
-
-        foreach (var s in live.Result)
+        foreach (var s in streams.Result)
         {
             var id = Str(s, "stream_id");
             if (id is null) continue;
@@ -138,7 +141,7 @@ public sealed class XtreamClient
                 ExternalId = id,
                 Kind = MediaKind.Live,
                 Title = Str(s, "name") ?? id,
-                Group = liveCats.Result.GetValueOrDefault(Str(s, "category_id") ?? "", ""),
+                Group = cats.Result.GetValueOrDefault(Str(s, "category_id") ?? "", ""),
                 LogoUrl = NullIfEmpty(Str(s, "stream_icon")),
                 StreamUrl = LiveUrl(id),
                 EpgChannelId = NullIfEmpty(Str(s, "epg_channel_id")),
@@ -146,8 +149,16 @@ public sealed class XtreamClient
                 SortIndex = items.Count,
             });
         }
+        return items;
+    }
 
-        foreach (var s in vod.Result)
+    public async Task<IReadOnlyList<MediaItem>> GetMoviesAsync(string sourceId, CancellationToken ct = default)
+    {
+        var cats = GetCategoriesAsync("get_vod_categories", ct);
+        var streams = GetArrayAsync("get_vod_streams", ct);
+        await Task.WhenAll(cats, streams);
+        var items = new List<MediaItem>();
+        foreach (var s in streams.Result)
         {
             var id = Str(s, "stream_id");
             if (id is null) continue;
@@ -157,14 +168,22 @@ public sealed class XtreamClient
                 ExternalId = id,
                 Kind = MediaKind.Movie,
                 Title = Str(s, "name") ?? id,
-                Group = vodCats.Result.GetValueOrDefault(Str(s, "category_id") ?? "", ""),
+                Group = cats.Result.GetValueOrDefault(Str(s, "category_id") ?? "", ""),
                 LogoUrl = NullIfEmpty(Str(s, "stream_icon")),
                 StreamUrl = MovieUrl(id, Str(s, "container_extension") ?? "mp4"),
                 SortIndex = items.Count,
             });
         }
+        return items;
+    }
 
-        foreach (var s in series.Result)
+    public async Task<IReadOnlyList<MediaItem>> GetSeriesAsync(string sourceId, CancellationToken ct = default)
+    {
+        var cats = GetCategoriesAsync("get_series_categories", ct);
+        var list = GetArrayAsync("get_series", ct);
+        await Task.WhenAll(cats, list);
+        var items = new List<MediaItem>();
+        foreach (var s in list.Result)
         {
             var id = Str(s, "series_id");
             if (id is null) continue;
@@ -174,12 +193,11 @@ public sealed class XtreamClient
                 ExternalId = id,
                 Kind = MediaKind.Series,
                 Title = Str(s, "name") ?? id,
-                Group = seriesCats.Result.GetValueOrDefault(Str(s, "category_id") ?? "", ""),
+                Group = cats.Result.GetValueOrDefault(Str(s, "category_id") ?? "", ""),
                 LogoUrl = NullIfEmpty(Str(s, "cover")),
                 SortIndex = items.Count,
             });
         }
-
         return items;
     }
 

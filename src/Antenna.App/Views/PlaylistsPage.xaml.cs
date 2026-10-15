@@ -102,6 +102,12 @@ public sealed partial class PlaylistsPage : Page
     {
         Busy.Visibility = Visibility.Visible;
         Status.IsOpen = false;
+        void OnPart(PlaylistSource s, MediaKind kind, int count) => DispatcherQueue.TryEnqueue(() =>
+        {
+            if (s.Id == source.Id)
+                Show(InfoBarSeverity.Informational, $"{source.Name}: {count:N0} {KindLabel(kind)} ready. Still loading the rest…");
+        });
+        AppServices.CatalogPartLoaded += OnPart;
         try
         {
             var result = await AppServices.RefreshSourceAsync(source);
@@ -116,6 +122,7 @@ public sealed partial class PlaylistsPage : Page
         }
         finally
         {
+            AppServices.CatalogPartLoaded -= OnPart;
             Busy.Visibility = Visibility.Collapsed;
             Reload();
         }
@@ -127,4 +134,11 @@ public sealed partial class PlaylistsPage : Page
         Status.Message = message;
         Status.IsOpen = true;
     }
+
+    private static string KindLabel(MediaKind kind) => kind switch
+    {
+        MediaKind.Live => "live channels",
+        MediaKind.Movie => "movies",
+        _ => "series",
+    };
 }

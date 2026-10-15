@@ -31,6 +31,12 @@ public sealed partial class BrowsePage : Page
         NavigationCacheMode = NavigationCacheMode.Enabled;
         ItemMenu.LibraryChanged += () => { if (IsLoaded) LoadGroups(); };
         Parental.Changed += () => { if (IsLoaded) LoadGroups(); };
+        // A playlist refresh saves live, movies and series separately: show each as it lands.
+        AppServices.CatalogPartLoaded += (_, kind, _) => DispatcherQueue.TryEnqueue(() =>
+        {
+            if (IsLoaded && kind == _kind && string.IsNullOrWhiteSpace(ItemSearch.Text))
+                LoadGroups();
+        });
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)

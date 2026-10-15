@@ -56,4 +56,15 @@ public sealed class ScopedSearchTests : IDisposable
         Assert.True(TextMatch.ContainsAll("UK | SPORTS", "uk sport"));
         Assert.False(TextMatch.ContainsAll("UK | NEWS", "sport"));
     }
+
+    [Fact]
+    public void Replacing_one_type_keeps_the_others()
+    {
+        _store.ReplaceItems("a", [new MediaItem { SourceId = "a", ExternalId = "9", Kind = MediaKind.Live, Title = "New Channel", Group = "UK | NEWS", StreamUrl = "http://a/9" }], MediaKind.Live);
+
+        Assert.Equal(["a:9"], Ids(_store.GetItems(MediaKind.Live, "a")));
+        Assert.Equal(["a:3"], Ids(_store.GetItems(MediaKind.Movie, "a"))); // Movies untouched.
+        Assert.Equal(["a:9"], Ids(_store.Search("new channel")));
+        Assert.Empty(_store.Search("sky")); // Old live channels gone from search too.
+    }
 }

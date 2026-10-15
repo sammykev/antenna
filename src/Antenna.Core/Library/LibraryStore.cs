@@ -336,13 +336,14 @@ public sealed partial class LibraryStore : IDisposable
     // ---- Items ----
 
     /// <summary>Replaces everything stored for a source with a freshly imported catalogue.</summary>
-    public void ReplaceItems(string sourceId, IReadOnlyList<MediaItem> items)
+    /// <param name="kind">Replace only this type (the items must all be of it); null replaces everything.</param>
+    public void ReplaceItems(string sourceId, IReadOnlyList<MediaItem> items, MediaKind? kind = null)
     {
         lock (_gate)
         {
             _ = Credentials; // Load before the transaction: reads outside it aren't allowed while it's open.
             using var tx = _db.BeginTransaction();
-            DeleteItems(sourceId, tx);
+            DeleteItems(sourceId, tx, kind);
 
             using var insert = Command("""
                 INSERT INTO items (source_id, external_id, kind, title, grp, logo, stream_url, epg_id, catchup_days, catchup_mode, catchup_source, player_options, sort_index)
@@ -679,14 +680,15 @@ public sealed partial class LibraryStore : IDisposable
         return list;
     }
 
-    private void DeleteItems(string sourceId, SqliteTransaction tx)
+    private void DeleteItems(string sourceId, SqliteTransaction tx, MediaKind? kind = null)
     {
         // The guide is kept: it's replaced separately, and a failed guide download shouldn't erase it.
         using var cmd = Command("""
-            DELETE FROM items_fts WHERE rowid IN (SELECT rowid FROM items WHERE source_id = $id);
-            DELETE FROM items WHERE source_id = $id;
+            DELETE FROM items_fts WHERE rowid IN (SELECT rowid FROM items WHERE source_id = $id AND ($kind IS NULL OR kind = $kind));
+            DELETE FROM items WHERE source_id = $id AND ($kind IS NULL OR kind = $kind);
             """, tx);
         cmd.Parameters.AddWithValue("$id", sourceId);
+        cmd.Parameters.AddWithValue("$kind", kind is null ? DBNull.Value : (object)(int)kind.Value);
         cmd.ExecuteNonQuery();
     }
 
