@@ -8,6 +8,12 @@ public partial class App : Application
 {
     public static MainWindow Window { get; private set; } = null!;
 
+    /// <summary>
+    /// Started with --smoke-test (used by CI): open every main page, log the result, and exit
+    /// with 0 when all of them loaded.
+    /// </summary>
+    public static bool SmokeTest { get; set; }
+
     public App()
     {
         // Log everything that escapes, and keep running where the platform allows it.
@@ -62,6 +68,8 @@ public partial class App : Application
         });
         _ = Task.Run(ImageCache.Trim);
         Log.Info("Started");
+        if (SmokeTest)
+            _ = Window.RunSmokeTestAsync();
     }
 
     /// <summary>Runs a start-up step, logging where it failed. Window and LibVLC failures are fatal.</summary>

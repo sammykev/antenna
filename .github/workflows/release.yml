@@ -53,6 +53,20 @@ jobs:
           if (-not $pri) { Get-ChildItem publish -Filter *.pri | Format-Table Name, Length; throw "The app's .pri is missing from publish: windows and pages won't load." }
           Write-Host "Found $($pri.Name) ($($pri.Length) bytes)"
 
+      - name: Start the published app and open every page
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:LOCALAPPDATA "AntennaData\logs\antenna.log"
+          Remove-Item $log -ErrorAction SilentlyContinue
+          $app = Start-Process publish\Antenna.App.exe -ArgumentList "--smoke-test" -PassThru
+          $null = $app.Handle  # keeps the exit code readable after the process ends
+          if (-not $app.WaitForExit(120000)) { Stop-Process $app -Force; $failed = "it was still running after 2 minutes" }
+          if (Test-Path $log) { Get-Content $log } else { Write-Host "No log was written." }
+          if (-not $failed -and $app.ExitCode -ne 0) { $failed = "it exited with code $($app.ExitCode)" }
+          if (-not $failed -and -not (Select-String -Path $log -Pattern "Smoke test passed" -Quiet)) { $failed = "it never reported 'Smoke test passed'" }
+          if (-not $failed -and (Select-String -Path $log -Pattern " ERROR " -Quiet)) { $failed = "errors were logged" }
+          if ($failed) { throw "Smoke test failed: $failed." }
+
       - name: Install Velopack
         run: dotnet tool install -g vpk --version ${{ env.VPK_VERSION }}
 

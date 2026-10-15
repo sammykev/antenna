@@ -38,6 +38,8 @@ public static class Program
         if (firstRun)
             Log.Info("First start after installing");
 
+        App.SmokeTest = args.Contains("--smoke-test");
+
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Application.Start(p =>
         {
