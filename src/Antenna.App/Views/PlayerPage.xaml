@@ -19,6 +19,8 @@
         <KeyboardAccelerator Key="L" Invoked="ChannelList_Invoked" />
         <KeyboardAccelerator Key="I" Invoked="Info_Invoked" />
         <KeyboardAccelerator Key="P" Invoked="Pip_Invoked" />
+        <KeyboardAccelerator Key="Z" Invoked="CycleAspect_Invoked" />
+        <KeyboardAccelerator Key="S" Invoked="ToggleStats_Invoked" />
     </Page.KeyboardAccelerators>
 
     <Grid x:Name="Root">
@@ -32,6 +34,12 @@
         <Border x:Name="StatusPanel" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,120,0,0"
                 Padding="16,8" CornerRadius="8" Background="#CC000000" Visibility="Collapsed" IsHitTestVisible="False">
             <TextBlock x:Name="StatusText" Foreground="White" TextWrapping="Wrap" MaxWidth="520" TextAlignment="Center" />
+        </Border>
+
+        <!-- Stream stats (S). -->
+        <Border x:Name="StatsPanel" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,24,24,0"
+                Padding="12,8" CornerRadius="8" Background="#CC000000" Visibility="Collapsed" IsHitTestVisible="False">
+            <TextBlock x:Name="StatsText" Foreground="White" FontFamily="Consolas" FontSize="13" />
         </Border>
 
         <!-- Channel number being typed. -->
@@ -159,6 +167,12 @@
                         <FontIcon Glyph="&#xED1E;" />
                         <DropDownButton.Flyout>
                             <MenuFlyout x:Name="SubtitleMenu" Placement="Top" Opening="SubtitleMenu_Opening" />
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
+                    <DropDownButton ToolTipService.ToolTip="Picture and sound: aspect ratio (Z), audio delay, deinterlacing, stats (S)">
+                        <FontIcon Glyph="&#xE799;" />
+                        <DropDownButton.Flyout>
+                            <MenuFlyout x:Name="PictureMenu" Placement="Top" Opening="PictureMenu_Opening" />
                         </DropDownButton.Flyout>
                     </DropDownButton>
                     <DropDownButton ToolTipService.ToolTip="Cast to a device">

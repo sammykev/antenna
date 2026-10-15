@@ -18,6 +18,7 @@ Xtream Codes login). It doesn't include or find any content itself.
 - **Pause and rewind live TV**: pause keeps buffering; ←/→ jump 30 s; the badge shows how far behind live you are, click it to go live (up to 30 minutes, on disk; HLS channels play directly)
 - Continue watching: movies and episodes resume where you stopped
 - Audio tracks, embedded subtitles, subtitle files, and OpenSubtitles.com search
+- Picture and sound menu: aspect ratio and zoom-to-fill, audio delay for out-of-sync streams, deinterlacing, stream stats
 - Playback speed for VOD, mini player (always on top), full screen, auto-reconnect
 - Cast to Chromecast devices on your network
 - **Live events search**: type “man utd vs man city”, “NBA”, “Wimbledon” or tap a sport chip; finds live and upcoming matches across every guide (nicknames like *utd*, *spurs*, *psg* understood) and per-event channels; tick several and **watch them together**
@@ -172,7 +173,9 @@ To remove the warning for everyone, switch to a public certificate (e.g. Azure T
 | P | Picture-in-picture |
 | F, double-click | Full screen |
 | Esc | Leave full screen / mini player |
-| ← / → | Seek 10 s |
+| ← / → | Seek 10 s (live TV: jump 30 s back/forward in the pause buffer) |
+| Z | Aspect ratio: Auto, 16:9, 4:3, 21:9, Zoom to fill |
+| S | Stream stats (resolution, bitrate, dropped frames) |
 | M | Mute |
 | Gamepad B | Back |
 

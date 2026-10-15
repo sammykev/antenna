@@ -127,6 +127,7 @@ public sealed partial class PlayerPage : Page
         _closing = true;
         foreach (var timer in new[] { _hideTimer, _historyTimer, _numberTimer, _infoTimer })
             timer.Stop();
+        _statsTimer?.Stop();
         if (App.Window.IsFullScreen)
             App.Window.SetFullScreen(false);
         if (App.Window.IsMiniPlayer)
@@ -249,6 +250,8 @@ public sealed partial class PlayerPage : Page
         StatusPanel.Visibility = Visibility.Collapsed;
         SetPlayIcon(playing: true);
         ApplySound();
+        if (_aspect != 0 || _deinterlace)
+            ApplyPicture();
 
         if (_resumeAt > 0 && _player is { IsSeekable: true } p)
         {
