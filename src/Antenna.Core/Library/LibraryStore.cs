@@ -446,6 +446,29 @@ public sealed partial class LibraryStore : IDisposable
             return ReadEntries(cmd, credentials);
         });
 
+    /// <summary>Visible channels, movies and series across all playlists (hidden and locked categories excluded).</summary>
+    public LibraryCounts CountItems() =>
+        ReadAside((db, _) =>
+        {
+            using var cmd = Command(db, $"""
+                SELECT i.kind, COUNT(*) FROM items i WHERE {VisibleFilter} GROUP BY i.kind
+                """);
+            AddVisibility(cmd);
+            var counts = new int[3];
+            using (var r = cmd.ExecuteReader())
+            {
+                while (r.Read())
+                {
+                    var kind = r.GetInt32(0);
+                    if (kind is >= 0 and < 3)
+                        counts[kind] = r.GetInt32(1);
+                }
+            }
+            using var sources = Command(db, "SELECT COUNT(*) FROM sources");
+            var playlists = Convert.ToInt32(sources.ExecuteScalar());
+            return new LibraryCounts(counts[(int)MediaKind.Live], counts[(int)MediaKind.Movie], counts[(int)MediaKind.Series], playlists);
+        });
+
     /// <summary>One item by its key, or null if it no longer exists (or is hidden).</summary>
     public LibraryEntry? GetItem(string sourceId, string externalId, MediaKind kind)
     {

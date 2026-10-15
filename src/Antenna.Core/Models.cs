@@ -13,6 +13,12 @@ public enum MediaKind
     Series,
 }
 
+/// <summary>How much is in the library: what the start-up screen shows.</summary>
+public sealed record LibraryCounts(int Live, int Movies, int Series, int Playlists)
+{
+    public int Total => Live + Movies + Series;
+}
+
 /// <summary>A playlist the user has added: an M3U URL/file or an Xtream Codes account.</summary>
 public sealed record PlaylistSource
 {

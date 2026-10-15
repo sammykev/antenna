@@ -23,6 +23,9 @@ internal static class AppSettings
     /// <summary>"system", "light" or "dark".</summary>
     public static string Theme { get => Get("ui.theme") ?? "system"; set => Set("ui.theme", value); }
 
+    /// <summary>Show the start-up screen with the library's channel, movie and series counts.</summary>
+    public static bool ShowSplash { get => Get("ui.splash") != "0"; set => Set("ui.splash", value ? "1" : "0"); }
+
     /// <summary>Nav tag of the page shown at start-up.</summary>
     public static string StartPage { get => Get("ui.start") ?? "live"; set => Set("ui.start", value); }
 

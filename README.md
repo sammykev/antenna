@@ -45,6 +45,7 @@ Xtream Codes login). It doesn't include or find any content itself.
 **Speed and looks**
 - Lists load page by page off the UI thread; logos and posters are cached on disk
 - Poster tiles and details pages (plot, cast, rating, backdrop) for movies and series
+- Start-up screen with how many live channels, movies and series you have (switch off in Settings)
 - Light/dark/system theme, custom title bar, Mica
 
 **Security**

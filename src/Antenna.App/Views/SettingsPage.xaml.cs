@@ -33,6 +33,7 @@ public sealed partial class SettingsPage : Page
         ThemeChoice.SelectedIndex = AppSettings.Theme switch { "light" => 1, "dark" => 2, _ => 0 };
         StartPageChoice.ItemsSource = StartPages.Select(p => p.Label).ToList();
         StartPageChoice.SelectedIndex = Math.Max(0, Array.FindIndex(StartPages, p => p.Tag == AppSettings.StartPage));
+        SplashToggle.IsOn = AppSettings.ShowSplash;
         CachingBox.Value = AppSettings.NetworkCachingMs;
         HardwareToggle.IsOn = AppSettings.HardwareDecoding;
         RefreshChoice.ItemsSource = RefreshOptions.Select(o => o.Label).ToList();
@@ -130,6 +131,12 @@ public sealed partial class SettingsPage : Page
             return;
         AppSettings.Theme = ThemeChoice.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
         App.Window.ApplyTheme();
+    }
+
+    private void Splash_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            AppSettings.ShowSplash = SplashToggle.IsOn;
     }
 
     private void StartPage_SelectionChanged(object sender, SelectionChangedEventArgs e)

@@ -51,6 +51,23 @@ public sealed class UserDataTests : IDisposable
     }
 
     [Fact]
+    public void Counts_visible_channels_movies_and_series()
+    {
+        _store.SaveSource(Xtream());
+        _store.ReplaceItems("x",
+        [
+            Item("x", "1"), Item("x", "2"), Item("x", "3", group: "Shopping"), Item("x", "4", group: "Adult"),
+            Item("x", "5", MediaKind.Movie), Item("x", "6", MediaKind.Series),
+        ]);
+        _store.SetGroupFlag(MediaKind.Live, "Shopping", GroupFlag.Hidden, true);
+        _store.SetGroupFlag(MediaKind.Live, "Adult", GroupFlag.Locked, true);
+
+        Assert.Equal(new LibraryCounts(3, 1, 1, 1), _store.CountItems());
+        _store.ParentalLockActive = true;
+        Assert.Equal(new LibraryCounts(2, 1, 1, 1), _store.CountItems());
+    }
+
+    [Fact]
     public void Passwords_are_encrypted_at_rest_and_urls_hold_no_credentials()
     {
         _store.SaveSource(Xtream());

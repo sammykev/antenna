@@ -106,5 +106,52 @@
                 <InfoBar x:Name="Notice" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="16" MaxWidth="520" IsClosable="True" />
             </Grid>
         </NavigationView>
+
+        <!-- Start-up screen: what's in the library, then it fades away (click to skip). -->
+        <Grid x:Name="Splash" Grid.Row="1" Background="{ThemeResource SolidBackgroundFillColorBaseBrush}"
+              Tapped="Splash_Tapped" Visibility="Collapsed">
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="28" Margin="24,0,24,48">
+                <StackPanel Spacing="10">
+                    <Image x:Name="SplashLogo" Width="112" Height="112" />
+                    <TextBlock Text="Antenna" Style="{StaticResource TitleLargeTextBlockStyle}" HorizontalAlignment="Center" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="16" HorizontalAlignment="Center">
+                    <Border Width="176" Padding="20,18" CornerRadius="12"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <StackPanel Spacing="6">
+                            <FontIcon Glyph="&#xE7F4;" FontSize="20" HorizontalAlignment="Left"
+                                      Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock x:Name="LiveCount" Text="–" FontSize="34" FontWeight="SemiBold" />
+                            <TextBlock Text="Live channels" Opacity="0.7" />
+                        </StackPanel>
+                    </Border>
+                    <Border Width="176" Padding="20,18" CornerRadius="12"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <StackPanel Spacing="6">
+                            <FontIcon Glyph="&#xE8B2;" FontSize="20" HorizontalAlignment="Left"
+                                      Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock x:Name="MovieCount" Text="–" FontSize="34" FontWeight="SemiBold" />
+                            <TextBlock Text="Movies" Opacity="0.7" />
+                        </StackPanel>
+                    </Border>
+                    <Border Width="176" Padding="20,18" CornerRadius="12"
+                            Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
+                        <StackPanel Spacing="6">
+                            <FontIcon Glyph="&#xE7F7;" FontSize="20" HorizontalAlignment="Left"
+                                      Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <TextBlock x:Name="SeriesCount" Text="–" FontSize="34" FontWeight="SemiBold" />
+                            <TextBlock Text="Series" Opacity="0.7" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="10" HorizontalAlignment="Center">
+                    <ProgressRing x:Name="SplashRing" Width="16" Height="16" IsActive="True" />
+                    <TextBlock x:Name="SplashStatus" Text="Loading your library…" Opacity="0.7" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Window>
