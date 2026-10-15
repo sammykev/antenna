@@ -66,6 +66,8 @@ jobs:
           if ("${{ inputs.unsigned }}" -eq "true") { Write-Host "Unsigned release requested."; "params=" >> $env:GITHUB_OUTPUT; exit 0 }
           if (-not $env:PFX) { Write-Host "No signing certificate secret: building unsigned."; "params=" >> $env:GITHUB_OUTPUT; exit 0 }
           $text = $env:PFX.Trim()
+          if ($text -match '^[0-9A-Fa-f]{40}$') { throw "SIGNING_CERT_PFX holds the certificate's thumbprint, not the certificate. Paste the contents of antenna-signing.pfx.txt (thousands of characters, starting with MII)." }
+          if ($text.Length -lt 1000) { throw "SIGNING_CERT_PFX is only $($text.Length) characters; the certificate is thousands. Paste the whole contents of antenna-signing.pfx.txt." }
           if ($text.StartsWith("-----BEGIN")) { throw "SIGNING_CERT_PFX holds a PEM certificate. Paste the contents of antenna-signing.pfx.txt instead." }
           try { $bytes = [Convert]::FromBase64String($text) }
           catch { throw "SIGNING_CERT_PFX isn't valid base64 ($($text.Length) characters). Paste the whole contents of antenna-signing.pfx.txt." }
