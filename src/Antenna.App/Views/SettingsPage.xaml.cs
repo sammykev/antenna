@@ -41,6 +41,7 @@ public sealed partial class SettingsPage : Page
         var refreshIndex = Array.FindIndex(RefreshOptions, o => o.Hours == AppSettings.AutoRefreshHours);
         RefreshChoice.SelectedIndex = refreshIndex >= 0 ? refreshIndex : 3;
         ApiKeyBox.Text = AppSettings.OpenSubtitlesApiKey ?? "";
+        TmdbKeyBox.Text = AppSettings.TmdbApiKey ?? "";
         SubsLangBox.Text = AppSettings.SubtitleLanguages;
         SubsUserBox.Text = AppSettings.OpenSubtitlesUser ?? "";
         SubsPassBox.Password = AppSettings.OpenSubtitlesPassword ?? "";
@@ -262,6 +263,8 @@ public sealed partial class SettingsPage : Page
     }
 
     // ---- Subtitles / recordings ----
+
+    private void Tmdb_LostFocus(object sender, RoutedEventArgs e) => AppSettings.TmdbApiKey = TmdbKeyBox.Text;
 
     private void Subtitles_LostFocus(object sender, RoutedEventArgs e)
     {

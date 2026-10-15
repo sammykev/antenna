@@ -33,14 +33,20 @@ public sealed partial class SeriesPage : Page
         BuildActions();
         var source = AppServices.Library.GetSources().FirstOrDefault(s => s.Id == _series.SourceId);
         if (source?.Kind != SourceKind.Xtream)
+        {
+            // M3U series have no episode list from the provider, but can still get artwork and a plot.
+            var series = _series;
+            if (await Artwork.CompleteAsync(series, null) is { } found && ReferenceEquals(series, _series))
+                Header.Show(series, found);
             return;
+        }
 
         Header.IsLoading = true;
         try
         {
             var (details, episodes) = await XtreamClient.For(AppServices.Http, source).GetSeriesInfoAsync(_series.ExternalId);
             _episodes = episodes;
-            Header.Show(_series, details);
+            Header.Show(_series, await Artwork.CompleteAsync(_series, details));
             _seasons = episodes.Select(ep => ep.Season).Distinct().Order().ToList();
             Seasons.ItemsSource = _seasons.Select(s => s == 0 ? "Specials" : $"Season {s}").ToList();
             Seasons.SelectedIndex = SeasonToOpen();

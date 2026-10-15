@@ -57,6 +57,9 @@ internal static class AppSettings
 
     public static string SubtitleLanguages { get => Get("subs.lang") ?? "en"; set => Set("subs.lang", value); }
 
+    /// <summary>The Movie Database key (v3 API key or v4 read token) for posters and details playlists lack.</summary>
+    public static string? TmdbApiKey { get => Get("tmdb.apikey"); set => Set("tmdb.apikey", Blank(value)); }
+
     public static string? OpenSubtitlesApiKey { get => Get("subs.apikey"); set => Set("subs.apikey", Blank(value)); }
 
     public static string? OpenSubtitlesUser { get => Get("subs.user"); set => Set("subs.user", Blank(value)); }

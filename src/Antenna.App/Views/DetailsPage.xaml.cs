@@ -28,17 +28,22 @@ public sealed partial class DetailsPage : Page
         BuildActions();
 
         var source = AppServices.Library.GetSources().FirstOrDefault(s => s.Id == item.SourceId);
-        if (source?.Kind != SourceKind.Xtream)
-            return;
         Header.IsLoading = true;
+        MediaDetails? details = null;
         try
         {
-            var details = await XtreamClient.For(AppServices.Http, source).GetVodInfoAsync(item.ExternalId);
-            Header.Show(item, details);
+            if (source?.Kind == SourceKind.Xtream)
+                details = await XtreamClient.For(AppServices.Http, source).GetVodInfoAsync(item.ExternalId);
         }
         catch (XtreamException)
         {
             // Details are a bonus; the movie still plays.
+        }
+        try
+        {
+            details = await Artwork.CompleteAsync(item, details);
+            if (details is not null && ReferenceEquals(_entry, entry))
+                Header.Show(item, details);
         }
         finally
         {

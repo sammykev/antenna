@@ -59,7 +59,7 @@ Current release: **v0.1.7** (live pause/rewind in 0.1.6; picture and sound menu 
 
 ## 3. Looks
 
-- [ ] **Movie and series artwork.** Fill missing posters, backdrops, plot, rating, cast from TMDB (user
+- [~] **Movie and series artwork.** *(v0.1.8: movie and series pages fill missing poster, backdrop, plot, rating, cast from TMDB when a key is set; `Core/Metadata/TmdbClient.cs`, `TitleCleaner.cs`. Still to do: posters in the browse grids.)* Fill missing posters, backdrops, plot, rating, cast from TMDB (user
   supplies a free API key in Settings, like OpenSubtitles). Cache with `ImageCache`.
 - [ ] **Better channel logos.** Fill missing logos from a public logo set matched by normalised name.
 - [ ] **Home page.** Grow the start-up overview into a real home: Continue watching, Live now on favourites,

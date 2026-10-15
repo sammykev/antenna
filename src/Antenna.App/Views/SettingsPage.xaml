@@ -67,6 +67,13 @@
             </StackPanel>
 
             <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="Movie and series artwork (TMDB)" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock Opacity="0.7" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                           Text="Fills in posters, backdrops, plot, rating and cast when your playlist doesn't have them. Get a free key at themoviedb.org → Settings → API, then paste the API key (or read access token) here." />
+                <TextBox x:Name="TmdbKeyBox" Header="TMDB API key" Width="360" HorizontalAlignment="Left" LostFocus="Tmdb_LostFocus" />
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource SectionStyle}">
                 <TextBlock Text="Subtitles (OpenSubtitles.com)" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <TextBlock Opacity="0.7" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
                            Text="Get a free API key at opensubtitles.com → Profile → API consumers. Logging in raises the daily download limit." />
