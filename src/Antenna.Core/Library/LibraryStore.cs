@@ -523,7 +523,9 @@ public sealed partial class LibraryStore : IDisposable
     /// Prefix search over titles and groups across all sources: "bbc new" matches "BBC News HD".
     /// Accents are ignored. Results rank by relevance.
     /// </summary>
-    public IReadOnlyList<LibraryEntry> Search(string query, MediaKind? kind = null, int limit = 200)
+    /// <param name="sourceId">Only this playlist, or null for all.</param>
+    /// <param name="group">Only this category ("" = uncategorised), or null for all.</param>
+    public IReadOnlyList<LibraryEntry> Search(string query, MediaKind? kind = null, int limit = 200, string? sourceId = null, string? group = null)
     {
         var match = BuildMatchExpression(query);
         if (match is null)
@@ -533,16 +535,30 @@ public sealed partial class LibraryStore : IDisposable
             using var cmd = Command(db, $"""
                 {SelectEntries}
                 JOIN items_fts f ON f.rowid = i.rowid
-                WHERE items_fts MATCH $match AND ($kind IS NULL OR i.kind = $kind) AND {VisibleFilter}
+                WHERE items_fts MATCH $match AND ($kind IS NULL OR i.kind = $kind)
+                  AND ($source IS NULL OR i.source_id = $source) AND ($grp IS NULL OR i.grp = $grp) AND {VisibleFilter}
                 ORDER BY bm25(items_fts, 10.0, 1.0), i.kind, s.position, i.sort_index
                 LIMIT $limit
                 """);
             cmd.Parameters.AddWithValue("$match", match);
             cmd.Parameters.AddWithValue("$kind", kind is null ? DBNull.Value : (object)(int)kind.Value);
+            cmd.Parameters.AddWithValue("$source", (object?)sourceId ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("$grp", (object?)group ?? DBNull.Value);
             cmd.Parameters.AddWithValue("$limit", limit);
             AddVisibility(cmd);
             return ReadEntries(cmd, credentials);
         });
+    }
+
+    /// <summary>Categories whose name contains every word of <paramref name="query"/> (ignoring case and accents).</summary>
+    public IReadOnlyList<(MediaKind Kind, string Group)> SearchGroups(string query, int limit = 30)
+    {
+        if (TextMatch.Words(query).Count == 0)
+            return [];
+        var found = new List<(MediaKind, string)>();
+        foreach (var kind in new[] { MediaKind.Live, MediaKind.Movie, MediaKind.Series })
+            found.AddRange(GetGroups(kind).Where(g => g.Length > 0 && TextMatch.ContainsAll(g, query)).Select(g => (kind, g)));
+        return found.Take(limit).ToList();
     }
 
     // ---- Guide ----

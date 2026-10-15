@@ -27,11 +27,24 @@
             <TextBlock x:Name="Header" Style="{StaticResource TitleTextBlockStyle}" />
             <ComboBox x:Name="SourceFilter" MinWidth="200" VerticalAlignment="Center"
                       SelectionChanged="SourceFilter_SelectionChanged" />
+            <AutoSuggestBox x:Name="ItemSearch" Width="320" VerticalAlignment="Center" QueryIcon="Find"
+                            TextChanged="ItemSearch_TextChanged" QuerySubmitted="ItemSearch_QuerySubmitted" />
+            <StackPanel x:Name="ScopePanel" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Visibility="Collapsed">
+                <TextBlock x:Name="ScopeText" Opacity="0.7" VerticalAlignment="Center" />
+                <HyperlinkButton x:Name="WidenButton" Click="Widen_Click" Padding="4,0" />
+            </StackPanel>
             <ProgressRing x:Name="Busy" Width="20" Height="20" IsActive="False" VerticalAlignment="Center" />
         </StackPanel>
 
-        <ListView x:Name="Groups" Grid.Row="1" SelectionMode="Single" SelectionChanged="Groups_SelectionChanged"
-                  RightTapped="Groups_RightTapped" ToolTipService.ToolTip="Right-click a category to hide or lock it" />
+        <Grid Grid.Row="1" RowSpacing="8">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <TextBox x:Name="GroupFilter" PlaceholderText="Find a category" Margin="0,0,12,0" TextChanged="GroupFilter_TextChanged" />
+            <ListView x:Name="Groups" Grid.Row="1" SelectionMode="Single" SelectionChanged="Groups_SelectionChanged"
+                      RightTapped="Groups_RightTapped" ToolTipService.ToolTip="Right-click a category to hide or lock it" />
+        </Grid>
 
         <GridView x:Name="Items" Grid.Row="1" Grid.Column="1" Padding="8,0,16,16"
                   IsItemClickEnabled="True" SelectionMode="None" ItemClick="Items_ItemClick"

@@ -41,7 +41,8 @@ Xtream Codes login). It doesn't include or find any content itself.
 - Scheduled recordings run while Antenna is open
 
 **Library**
-- Search across all playlists, with suggestions as you type
+- Search across all playlists, with suggestions as you type; results can be narrowed to Live TV, Movies or Series, and matching **categories** show as chips you can open
+- Search inside Live TV, Movies or Series (within the selected category, or all of them), and **Find a category** filters the category list
 - Favourites, recently watched, continue watching ("My stuff")
 - Pin categories to the top (and open them from My stuff → Pinned); hide categories; lock categories behind a parental PIN
 - Edit, reorder, recolour and re-icon playlists
