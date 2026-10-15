@@ -45,11 +45,6 @@ public sealed partial class MultiViewPage : Page
     private readonly DispatcherQueueTimer _audioGuard;
     private bool _leaving;
 
-    /// <summary>Tiles that would exceed the provider's stream limit: they stay stopped instead of kicking the others off.</summary>
-    private HashSet<int> _blocked = [];
-
-    /// <summary>Until the provider's limit is known only the main screen starts, so extra tiles can't steal its connection.</summary>
-    private bool _limitsChecked;
     private int _limitCheckVersion;
 
     private sealed class Slot
@@ -377,21 +372,10 @@ public sealed partial class MultiViewPage : Page
         if (slot.Player is not { } player || slot.Vlc is not { } vlc)
             return;
         slot.IsPlaying = false;
-        if (request is null || _blocked.Contains(slot.Index))
+        if (request is null)
         {
             slot.Busy.IsActive = false;
             Worker.Run(() => player.Stop(), "multi-view stop");
-            if (request is not null)
-            {
-                Set(slot.Status, "Not playing: your provider's stream limit is reached.\nRemove a tile or pick a channel from another playlist.");
-                SetVisible(slot.Status, true);
-            }
-            return;
-        }
-        if (!_limitsChecked && !IsMain(slot))
-        {
-            // Started once the provider's limit is known (see CheckLimitsAsync).
-            slot.Busy.IsActive = true;
             return;
         }
 
@@ -431,7 +415,7 @@ public sealed partial class MultiViewPage : Page
     /// <summary>Live streams that drop or end are retried with backoff.</summary>
     private async void OnFailed(Slot slot)
     {
-        if (Chosen[slot.Index] is not { } request || _blocked.Contains(slot.Index))
+        if (Chosen[slot.Index] is not { } request)
             return;
         slot.IsPlaying = false;
         slot.Busy.IsActive = false;
@@ -440,13 +424,15 @@ public sealed partial class MultiViewPage : Page
         // If another tile from the same provider is playing, this is most likely its connection
         // limit: retrying would keep knocking that tile off, so give up quickly and say why.
         var sameProviderPlaying = _slots.Any(s => s != slot && s.IsPlaying && Chosen[s.Index]?.SourceId == request.SourceId);
-        var maxRetries = sameProviderPlaying ? 1 : RetryDelays.Length;
+        var maxRetries = sameProviderPlaying ? 2 : RetryDelays.Length;
         if (slot.Retry >= maxRetries)
         {
             Set(slot.Status, sameProviderPlaying
-                ? "Couldn't open this stream while another tile from the same provider is playing.\nYour provider probably allows only one stream at a time."
+                ? "Couldn't open this stream while another tile from the same provider is playing."
                 : "Stream unavailable");
             SetVisible(slot.Status, true);
+            if (sameProviderPlaying)
+                ShowLimitHint(request.SourceId);
             return;
         }
 
@@ -474,58 +460,42 @@ public sealed partial class MultiViewPage : Page
     // ---- Provider stream limits ----
 
     /// <summary>
-    /// Asks each Xtream account in use how many streams it allows at once. Tiles beyond that
-    /// (keeping the main screen) stay stopped with an explanation instead of fighting over the connection.
+    /// Learns what each Xtream account in use reports as its stream limit. Advisory only: many
+    /// providers report 1 but allow more, so nothing is blocked; the number is shown only if a
+    /// tile actually fails while another from the same provider is playing.
     /// </summary>
     private async Task CheckLimitsAsync()
     {
         var version = ++_limitCheckVersion;
-        var blocked = new HashSet<int>();
-        var messages = new List<string>();
         try
         {
-            var sources = AppServices.Library.GetSources().ToDictionary(s => s.Id);
-            var groups = _slots
-                .Where(s => Chosen[s.Index]?.SourceId is { } id && sources.TryGetValue(id, out var src) && src.Kind == SourceKind.Xtream)
-                .GroupBy(s => Chosen[s.Index]!.SourceId!);
-            foreach (var group in groups)
+            var sources = AppServices.Library.GetSources();
+            var inUse = _slots.Select(s => Chosen[s.Index]?.SourceId).Where(id => id is not null).Distinct().ToHashSet();
+            foreach (var source in sources.Where(s => s.Kind == SourceKind.Xtream && inUse.Contains(s.Id)))
             {
-                var source = sources[group.Key];
-                var max = await StreamLimitAsync(source);
-                var tiles = group.OrderByDescending(IsMain).ThenBy(s => s.Index).ToList();
-                if (max <= 0 || tiles.Count <= max)
-                    continue;
-                foreach (var extra in tiles.Skip(max))
-                    blocked.Add(extra.Index);
-                messages.Add($"{source.Name} allows {max} stream{(max == 1 ? "" : "s")} at once, so {tiles.Count - max} tile{(tiles.Count - max == 1 ? "" : "s")} can't play.");
+                if (_leaving || version != _limitCheckVersion)
+                    return;
+                await StreamLimitAsync(source);
             }
         }
         catch (Exception ex)
         {
             Log.Error(ex, "multi-view limit check");
         }
+    }
 
-        if (_leaving || version != _limitCheckVersion)
-            return;
-        var firstCheck = !_limitsChecked;
-        _limitsChecked = true;
-        var changed = _slots.Where(s => blocked.Contains(s.Index) != _blocked.Contains(s.Index)).ToList();
-        _blocked = blocked;
-
-        LimitBar.Message = string.Join(" ", messages) + (messages.Count > 0 ? " Ask your provider for more connections, or use channels from another playlist." : "");
-        LimitBar.IsOpen = messages.Count > 0;
-        if (messages.Count > 0)
-            Log.Info($"multi-view: {string.Join(" ", messages)}");
-
-        // Start the tiles that were waiting for this check, stop newly blocked ones, restart unblocked ones.
-        foreach (var slot in _slots)
-        {
-            if (changed.Contains(slot) || (firstCheck && !IsMain(slot)))
-            {
-                slot.Retry = 0;
-                Play(slot);
-            }
-        }
+    /// <summary>After a real failure: explain the likely cause, quoting the provider's reported limit when known.</summary>
+    private void ShowLimitHint(string? sourceId)
+    {
+        var source = AppServices.Library.GetSources().FirstOrDefault(s => s.Id == sourceId);
+        var name = source?.Name ?? "Your provider";
+        var reported = sourceId is not null && StreamLimits.TryGetValue(sourceId, out var limit) && limit.Max > 0
+            ? $" It reports a limit of {limit.Max} stream{(limit.Max == 1 ? "" : "s")} at once."
+            : "";
+        LimitBar.Message = $"{name} refused an extra stream while another tile was playing.{reported} " +
+                           "Try again, pick a channel from another playlist, or ask your provider about more connections.";
+        LimitBar.IsOpen = true;
+        Log.Info($"multi-view: extra stream refused by {name}{reported}");
     }
 
     private static async Task<int> StreamLimitAsync(PlaylistSource source)
