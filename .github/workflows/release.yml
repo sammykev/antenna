@@ -10,6 +10,10 @@ on:
       version:
         description: "Version to release, e.g. 0.2.0"
         required: true
+      unsigned:
+        description: "Release without signing, even if the certificate secrets exist"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -59,9 +63,15 @@ jobs:
           PFX: ${{ secrets.SIGNING_CERT_PFX }}
           PFX_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
         run: |
+          if ("${{ inputs.unsigned }}" -eq "true") { Write-Host "Unsigned release requested."; "params=" >> $env:GITHUB_OUTPUT; exit 0 }
           if (-not $env:PFX) { Write-Host "No signing certificate secret: building unsigned."; "params=" >> $env:GITHUB_OUTPUT; exit 0 }
-          try { $bytes = [Convert]::FromBase64String($env:PFX.Trim()) }
-          catch { throw "SIGNING_CERT_PFX isn't valid base64. Paste the whole contents of antenna-signing.pfx.txt." }
+          $text = $env:PFX.Trim()
+          if ($text.StartsWith("-----BEGIN")) { throw "SIGNING_CERT_PFX holds a PEM certificate. Paste the contents of antenna-signing.pfx.txt instead." }
+          try { $bytes = [Convert]::FromBase64String($text) }
+          catch { throw "SIGNING_CERT_PFX isn't valid base64 ($($text.Length) characters). Paste the whole contents of antenna-signing.pfx.txt." }
+          Write-Host "SIGNING_CERT_PFX decodes to $($bytes.Length) bytes."
+          $publicOnly = $false
+          try { $probe = [Security.Cryptography.X509Certificates.X509Certificate2]::new([byte[]]$bytes); $publicOnly = -not $probe.HasPrivateKey } catch { }
           $path = Join-Path $env:RUNNER_TEMP "antenna-signing.pfx"
           [IO.File]::WriteAllBytes($path, $bytes)
           # Import into the runner's store and sign by thumbprint, so the password never goes on a command line.
@@ -69,7 +79,10 @@ jobs:
             $secure = ConvertTo-SecureString ($env:PFX_PASSWORD ?? "") -AsPlainText -Force
             $cert = Import-PfxCertificate -FilePath $path -CertStoreLocation Cert:\CurrentUser\My -Password $secure
           }
-          catch { throw "Couldn't open the signing certificate: SIGNING_CERT_PASSWORD doesn't match antenna-signing.pfx, or SIGNING_CERT_PFX is incomplete. ($($_.Exception.Message))" }
+          catch {
+            if ($publicOnly) { throw "SIGNING_CERT_PFX is the public certificate (.cer), which can't sign. Paste the contents of antenna-signing.pfx.txt instead." }
+            throw "Couldn't open the signing certificate: SIGNING_CERT_PASSWORD doesn't match antenna-signing.pfx, or SIGNING_CERT_PFX is incomplete. ($($_.Exception.Message))"
+          }
           finally { Remove-Item $path -ErrorAction SilentlyContinue }
           if (-not $cert.HasPrivateKey) { throw "The signing certificate has no private key. Use antenna-signing.pfx.txt, not the .cer file." }
           Write-Host "Signing with $($cert.Subject), thumbprint $($cert.Thumbprint), valid until $($cert.NotAfter)."
@@ -103,4 +116,4 @@ jobs:
         shell: pwsh
         run: |
           Remove-Item (Join-Path $env:RUNNER_TEMP "antenna-signing.pfx") -ErrorAction SilentlyContinue
-          Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Remove-Item -DeleteKey -ErrorAction SilentlyContinue
+          Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | ForEach-Object { Remove-Item $_.PSPath -ErrorAction SilentlyContinue }

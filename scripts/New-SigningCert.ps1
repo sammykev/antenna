@@ -36,12 +36,16 @@ $pfx = Join-Path $OutDir "antenna-signing.pfx"
 $cer = Join-Path $OutDir "antenna-signing.cer"
 Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $password | Out-Null
 Export-Certificate -Cert $cert -FilePath $cer | Out-Null
-[Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path $pfx))) | Set-Content -NoNewline (Join-Path $OutDir "antenna-signing.pfx.txt")
+$base64 = [Convert]::ToBase64String([IO.File]::ReadAllBytes((Resolve-Path $pfx)))
+[IO.File]::WriteAllText((Join-Path (Resolve-Path $OutDir) "antenna-signing.pfx.txt"), $base64)
+# Copy it so it can be pasted straight into the SIGNING_CERT_PFX secret.
+Set-Clipboard -Value $base64
 
 # The private key now lives in the .pfx; keep the store copy out of the way.
 Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)"
 
 Write-Host "Created $pfx, $cer and antenna-signing.pfx.txt (thumbprint $($cert.Thumbprint))."
+Write-Host "The SIGNING_CERT_PFX value ($($base64.Length) characters) is on your clipboard: paste it into the GitHub secret."
 
 if ($Trust) {
     $resolved = (Resolve-Path $cer).Path
