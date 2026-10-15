@@ -47,6 +47,36 @@ public sealed class TmdbClient(HttpClient http, string apiKey)
         return details;
     }
 
+    /// <summary>
+    /// Just a poster for a catalogue tile: one search request, no details. Cached; null when nothing matches.
+    /// </summary>
+    public async Task<string?> FindPosterAsync(string name, MediaKind kind, CancellationToken ct = default)
+    {
+        var (title, year) = TitleCleaner.Parse(name);
+        if (title.Length == 0)
+            return null;
+        var key = $"poster|{kind}|{title.ToLowerInvariant()}|{year}";
+        lock (_posters)
+        {
+            if (_posters.TryGetValue(key, out var cached))
+                return cached;
+        }
+        var tv = kind == MediaKind.Series;
+        var query = $"query={Uri.EscapeDataString(title)}&include_adult=false";
+        if (year is { } y)
+            query += tv ? $"&first_air_date_year={y}" : $"&year={y}";
+        using var search = await GetAsync($"/search/{(tv ? "tv" : "movie")}?{query}", ct);
+        var poster = search.RootElement.GetProperty("results").EnumerateArray()
+            .Select(r => r.TryGetProperty("poster_path", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() : null)
+            .FirstOrDefault(p => !string.IsNullOrEmpty(p));
+        var url = poster is null ? null : Images + "w342" + poster;
+        lock (_posters)
+            _posters[key] = url;
+        return url;
+    }
+
+    private readonly Dictionary<string, string?> _posters = [];
+
     internal static MediaDetails Map(JsonElement e, bool tv)
     {
         string? Str(string name) => e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { Length: > 0 } s ? s : null;

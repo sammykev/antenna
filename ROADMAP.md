@@ -59,7 +59,7 @@ Current release: **v0.1.8** (search inside types and categories, Home page, TMDB
 
 ## 3. Looks
 
-- [~] **Movie and series artwork.** *(v0.1.8: movie and series pages fill missing poster, backdrop, plot, rating, cast from TMDB when a key is set; `Core/Metadata/TmdbClient.cs`, `TitleCleaner.cs`. Still to do: posters in the browse grids.)* Fill missing posters, backdrops, plot, rating, cast from TMDB (user
+- [x] **Movie and series artwork.** *(v0.1.8: movie and series pages fill missing poster, backdrop, plot, rating, cast from TMDB when a key is set; `Core/Metadata/TmdbClient.cs`, `TitleCleaner.cs`. v0.1.9: grid tiles without a poster get one from a single TMDB search, loaded lazily for visible tiles, 4 at a time.)* Fill missing posters, backdrops, plot, rating, cast from TMDB (user
   supplies a free API key in Settings, like OpenSubtitles). Cache with `ImageCache`.
 - [ ] **Better channel logos.** Fill missing logos from a public logo set matched by normalised name.
 - [x] **Home page.** *(v0.1.8: `Views/HomePage` replaces the start-up overlay: count tiles, Continue watching, favourites on now, Recently watched. Upcoming events and recently added still to do.)* Grow the start-up overview into a real home: Continue watching, Live now on favourites,

@@ -50,6 +50,18 @@ public sealed class TmdbTests
     }
 
     [Fact]
+    public async Task Finds_just_a_poster_with_one_request()
+    {
+        var handler = new FakeTmdb();
+        var client = new TmdbClient(new HttpClient(handler), "k");
+
+        Assert.Equal("https://image.tmdb.org/t/p/w342/search.jpg", await client.FindPosterAsync("|EN| The Matrix 1999", MediaKind.Movie));
+        Assert.Equal("https://image.tmdb.org/t/p/w342/search.jpg", await client.FindPosterAsync("|EN| The Matrix 1999", MediaKind.Movie));
+        Assert.Single(handler.Requests); // One search, then cached; no details request.
+        Assert.Null(await new TmdbClient(new HttpClient(new FakeTmdb(empty: true)), "k").FindPosterAsync("Nothing", MediaKind.Series));
+    }
+
+    [Fact]
     public void Merge_keeps_the_playlist_details_and_fills_the_gaps()
     {
         var playlist = new MediaDetails { Plot = "From the provider", Rating = "7" };
@@ -72,7 +84,7 @@ public sealed class TmdbTests
             var url = request.RequestUri!.AbsoluteUri; // As sent (ToString would unescape %20).
             Requests.Add(url);
             var json = url.Contains("/search/")
-                ? empty ? """{"results":[]}""" : """{"results":[{"id":603,"title":"The Matrix"}]}"""
+                ? empty ? """{"results":[]}""" : """{"results":[{"id":603,"title":"The Matrix","poster_path":"/search.jpg"}]}"""
                 : """
                   {"overview":"A hacker learns the truth.","genres":[{"name":"Action"},{"name":"Science Fiction"}],
                    "release_date":"1999-03-30","vote_average":8.2,"runtime":136,"poster_path":"/poster.jpg","backdrop_path":"/back.jpg",

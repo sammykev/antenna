@@ -36,6 +36,34 @@ internal static class Artwork
         }
     }
 
+    private static readonly SemaphoreSlim PosterThrottle = new(4);
+
+    /// <summary>A TMDB poster URL for a movie or series tile that has none, or null.</summary>
+    public static async Task<string?> PosterAsync(MediaItem item)
+    {
+        if (!IsEnabled || item.Kind == MediaKind.Live)
+            return null;
+        await PosterThrottle.WaitAsync();
+        try
+        {
+            return await Client().FindPosterAsync(item.Title, item.Kind);
+        }
+        catch (TmdbException ex)
+        {
+            Log.Info($"tmdb poster: {ex.Message}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "tmdb poster");
+            return null;
+        }
+        finally
+        {
+            PosterThrottle.Release();
+        }
+    }
+
     private static bool NeedsMore(MediaDetails? d) =>
         d is null || d.PosterUrl is null || d.BackdropUrl is null || d.Plot is null || d.Cast is null;
 

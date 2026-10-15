@@ -55,7 +55,8 @@ public abstract class Observable : INotifyPropertyChanged
 /// An image loaded lazily through the disk cache: the first binding read starts the download,
 /// and the image appears when it's ready.
 /// </summary>
-public sealed class CachedImage(string? url, int decodeHeight) : Observable
+/// <param name="fallback">Asked for another image URL when <paramref name="url"/> is missing or won't download.</param>
+public sealed class CachedImage(string? url, int decodeHeight, Func<Task<string?>>? fallback = null) : Observable
 {
     private ImageSource? _source;
     private bool _started;
@@ -75,19 +76,28 @@ public sealed class CachedImage(string? url, int decodeHeight) : Observable
 
     private async void Load()
     {
-        if (!Ui.IsWebUrl(url))
-            return;
-        if (ImageCache.TryGetCached(url!) is { } cached)
+        if (Ui.IsWebUrl(url))
         {
-            _source = Ui.FromFile(cached, decodeHeight);
-            return;
+            if (ImageCache.TryGetCached(url!) is { } cached)
+            {
+                _source = Ui.FromFile(cached, decodeHeight);
+                return;
+            }
+            if (await ImageCache.GetAsync(url!) is { } path)
+            {
+                Show(path);
+                return;
+            }
         }
-        if (await ImageCache.GetAsync(url!) is { } path)
-        {
-            _source = Ui.FromFile(path, decodeHeight);
-            Raise(nameof(Source));
-            Raise(nameof(FallbackVisibility));
-        }
+        if (fallback is not null && await fallback() is { } other && Ui.IsWebUrl(other) && await ImageCache.GetAsync(other) is { } otherPath)
+            Show(otherPath);
+    }
+
+    private void Show(string path)
+    {
+        _source = Ui.FromFile(path, decodeHeight);
+        Raise(nameof(Source));
+        Raise(nameof(FallbackVisibility));
     }
 
     /// <summary>Show placeholder initials only while there's no image (logos are often transparent).</summary>
@@ -110,7 +120,11 @@ public sealed class ItemViewModel : Observable
     {
         Entry = entry;
         SourceBrush = Ui.Brush(entry.SourceColor);
-        Logo = new CachedImage(entry.Item.LogoUrl, entry.Item.Kind == MediaKind.Live ? 104 : 260);
+        // Movies and series without a poster can get one from TMDB (when a key is set).
+        var item = entry.Item;
+        Logo = item.Kind == MediaKind.Live
+            ? new CachedImage(item.LogoUrl, 104)
+            : new CachedImage(item.LogoUrl, 260, () => Artwork.PosterAsync(item));
     }
 
     internal LibraryEntry Entry { get; }
