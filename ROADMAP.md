@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.5** (reminders). Next: v0.1.6 with live pause/rewind.
+Current release: **v0.1.7** (live pause/rewind in 0.1.6; picture and sound menu and multi-view presets in 0.1.7). Waiting on real-world feedback on pause/rewind before the next items.
 
 ---
 
