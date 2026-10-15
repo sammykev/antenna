@@ -271,33 +271,77 @@ public sealed partial class MultiViewPage : Page
 
     private void ShowPicker(Slot slot, FrameworkElement anchor)
     {
-        var box = new AutoSuggestBox { PlaceholderText = "Search channels or events", Width = 340, QueryIcon = new SymbolIcon(Symbol.Find) };
+        var box = new AutoSuggestBox { PlaceholderText = "Search channels or events (e.g. NBA, man city)", Width = 360, QueryIcon = new SymbolIcon(Symbol.Find) };
         var flyout = new Flyout { Content = box };
         List<LibraryEntry> hits = [];
-        box.TextChanged += async (s, a) =>
+        var version = 0;
+
+        // Wait for a pause in typing, then search off the UI thread; drop results from older keystrokes.
+        var debounce = DispatcherQueue.CreateTimer();
+        debounce.Interval = TimeSpan.FromMilliseconds(300);
+        debounce.IsRepeating = false;
+        debounce.Tick += async (_, _) =>
+        {
+            var text = box.Text.Trim();
+            var mine = ++version;
+            if (text.Length < 2)
+            {
+                box.ItemsSource = null;
+                return;
+            }
+            box.ItemsSource = new List<string> { "Searching…" };
+            List<LibraryEntry> found;
+            try
+            {
+                found = await Task.Run(() =>
+                {
+                    var now = DateTimeOffset.Now;
+                    // Channels showing a matching event right now first ("man utd", "nba"), then by name.
+                    var byEvent = AppServices.Library.SearchEvents(text, now, now.AddSeconds(1), 8).SelectMany(h => h.Channels.Take(1));
+                    var byName = AppServices.Library.Search(text, MediaKind.Live, 12);
+                    return byEvent.Concat(byName).DistinctBy(e => (e.Item.SourceId, e.Item.ExternalId)).Take(16).ToList();
+                });
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "multi-view search");
+                found = [];
+            }
+            if (mine != version)
+                return;
+            hits = found;
+            box.ItemsSource = hits.Count == 0
+                ? new List<string> { "No matching channels" }
+                : hits.Select(h => $"{h.Item.Title}  ·  {h.SourceName}").ToList();
+        };
+
+        box.TextChanged += (s, a) =>
         {
             if (a.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
                 return;
-            var text = s.Text;
-            hits = (await Task.Run(() =>
-            {
-                var byName = AppServices.Library.Search(text, MediaKind.Live, 12);
-                // Also offer channels currently showing a matching event ("man utd", "nba").
-                var now = DateTimeOffset.Now;
-                var byEvent = AppServices.Library.SearchEvents(text, now, now.AddSeconds(1), 8).SelectMany(h => h.Channels.Take(1));
-                return byEvent.Concat(byName).DistinctBy(e => (e.Item.SourceId, e.Item.ExternalId)).Take(16).ToList();
-            })).ToList();
-            s.ItemsSource = hits.Select(h => $"{h.Item.Title}  ·  {h.SourceName}").ToList();
+            debounce.Stop();
+            debounce.Start();
         };
-        box.SuggestionChosen += (s, a) =>
+
+        void Choose(int index)
         {
-            var index = (s.ItemsSource as List<string>)?.IndexOf(a.SelectedItem as string ?? "") ?? -1;
             if (index < 0 || index >= hits.Count)
                 return;
             Chosen[slot.Index] = ForTile(PlayRequest.ForItem(hits[index].Item));
             flyout.Hide();
             Play(slot);
+        }
+
+        box.SuggestionChosen += (s, a) =>
+            Choose((s.ItemsSource as List<string>)?.IndexOf(a.SelectedItem as string ?? "") ?? -1);
+        // Enter picks the top result.
+        box.QuerySubmitted += (_, a) =>
+        {
+            if (a.ChosenSuggestion is null)
+                Choose(0);
         };
+        flyout.Closed += (_, _) => debounce.Stop();
+
         flyout.ShowAt(anchor);
         box.Focus(FocusState.Programmatic);
     }

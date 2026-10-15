@@ -15,18 +15,20 @@ public sealed partial class LibraryStore
         if (match is null)
             return [];
 
-        List<(Programme Programme, LibraryEntry Channel)> rows;
-        lock (_gate)
+        var rows = ReadAside((db, credentials) =>
         {
-            using var cmd = Command($"""
+            // Time window first (indexed), then the text match by rowid: far cheaper than
+            // matching the whole guide when only today's programmes matter.
+            using var cmd = Command(db, $"""
                 SELECT p.channel_id, p.start, p.stop, p.title, p.description,
                        i.source_id, i.external_id, i.kind, i.title, i.grp, i.logo, i.stream_url, i.epg_id, i.catchup_days, i.sort_index,
                        s.name, s.color, s.icon, i.catchup_mode, i.catchup_source, i.player_options
-                FROM programmes_fts f
-                JOIN programmes p ON p.rowid = f.rowid
+                FROM programmes p
                 JOIN items i ON i.source_id = p.source_id AND i.epg_id = p.channel_id AND i.kind = {(int)MediaKind.Live}
                 JOIN sources s ON s.id = i.source_id
-                WHERE programmes_fts MATCH $match AND p.stop > $from AND p.start < $to AND {VisibleFilter}
+                WHERE p.stop > $from AND p.start < $to
+                  AND p.rowid IN (SELECT rowid FROM programmes_fts WHERE programmes_fts MATCH $match)
+                  AND {VisibleFilter}
                 ORDER BY p.start, s.position, i.sort_index
                 LIMIT $limit
                 """);
@@ -37,7 +39,7 @@ public sealed partial class LibraryStore
             AddVisibility(cmd);
 
             using var r = cmd.ExecuteReader();
-            rows = [];
+            var found = new List<(Programme Programme, LibraryEntry Channel)>();
             while (r.Read())
             {
                 var programme = ReadProgramme(r, 0);
@@ -50,7 +52,7 @@ public sealed partial class LibraryStore
                     Title = r.GetString(8),
                     Group = r.GetString(9),
                     LogoUrl = r.IsDBNull(10) ? null : r.GetString(10),
-                    StreamUrl = r.IsDBNull(11) ? null : UnmaskUrl(sourceId, r.GetString(11)),
+                    StreamUrl = r.IsDBNull(11) ? null : Unmask(credentials, sourceId, r.GetString(11)),
                     EpgChannelId = r.IsDBNull(12) ? null : r.GetString(12),
                     CatchupDays = r.GetInt32(13),
                     SortIndex = r.GetInt32(14),
@@ -58,9 +60,10 @@ public sealed partial class LibraryStore
                     CatchupSource = r.IsDBNull(19) ? null : r.GetString(19),
                     PlayerOptions = r.IsDBNull(20) ? null : r.GetString(20),
                 };
-                rows.Add((programme, new LibraryEntry(item, r.GetString(15), r.GetString(16), r.GetString(17))));
+                found.Add((programme, new LibraryEntry(item, r.GetString(15), r.GetString(16), r.GetString(17))));
             }
-        }
+            return found;
+        });
 
         var now = DateTimeOffset.Now;
         return rows
@@ -81,9 +84,9 @@ public sealed partial class LibraryStore
         var match = EventSearch.BuildExpression(query);
         if (match is null)
             return [];
-        lock (_gate)
+        return ReadAside((db, credentials) =>
         {
-            using var cmd = Command($"""
+            using var cmd = Command(db, $"""
                 {SelectEntries}
                 JOIN items_fts f ON f.rowid = i.rowid
                 WHERE items_fts MATCH $match AND i.kind = {(int)MediaKind.Live} AND {VisibleFilter}
@@ -93,7 +96,7 @@ public sealed partial class LibraryStore
             cmd.Parameters.AddWithValue("$match", match);
             cmd.Parameters.AddWithValue("$limit", limit);
             AddVisibility(cmd);
-            return ReadEntries(cmd);
-        }
+            return ReadEntries(cmd, credentials);
+        });
     }
 }

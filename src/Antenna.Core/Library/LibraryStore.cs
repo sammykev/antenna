@@ -56,6 +56,10 @@ public sealed partial class LibraryStore : IDisposable
 
     private void Migrate()
     {
+        // Search indexes gained prefix tables (fast "man"* lookups); rebuild ones made before that.
+        DropIfMissingPrefix("items_fts");
+        DropIfMissingPrefix("programmes_fts");
+
         Exec("""
             CREATE TABLE IF NOT EXISTS sources (
                 id TEXT PRIMARY KEY,
@@ -85,8 +89,9 @@ public sealed partial class LibraryStore : IDisposable
             );
             CREATE INDEX IF NOT EXISTS items_browse ON items(kind, source_id, grp, sort_index);
             CREATE INDEX IF NOT EXISTS items_key ON items(source_id, external_id);
+            CREATE INDEX IF NOT EXISTS items_epg ON items(source_id, epg_id);
             CREATE VIRTUAL TABLE IF NOT EXISTS items_fts USING fts5(
-                title, grp, tokenize = 'unicode61 remove_diacritics 2'
+                title, grp, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4'
             );
             CREATE TABLE IF NOT EXISTS programmes (
                 source_id TEXT NOT NULL REFERENCES sources(id) ON DELETE CASCADE,
@@ -99,8 +104,13 @@ public sealed partial class LibraryStore : IDisposable
             CREATE INDEX IF NOT EXISTS programmes_channel ON programmes(source_id, channel_id, start);
             CREATE INDEX IF NOT EXISTS programmes_time ON programmes(start, stop);
             CREATE VIRTUAL TABLE IF NOT EXISTS programmes_fts USING fts5(
-                title, description, tokenize = 'unicode61 remove_diacritics 2'
+                title, description, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4'
             );
+            """);
+        Exec("""
+            INSERT INTO items_fts (rowid, title, grp)
+            SELECT rowid, title, grp FROM items
+            WHERE NOT EXISTS (SELECT 1 FROM items_fts LIMIT 1);
             """);
         // Guides imported before programme search existed: index them once.
         Exec("""
@@ -112,6 +122,35 @@ public sealed partial class LibraryStore : IDisposable
         AddColumnIfMissing("items", "catchup_source", "TEXT");
         AddColumnIfMissing("items", "player_options", "TEXT");
         MigrateUserData();
+    }
+
+    private void DropIfMissingPrefix(string table)
+    {
+        using var cmd = Command("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = $n");
+        cmd.Parameters.AddWithValue("$n", table);
+        if (cmd.ExecuteScalar() is string sql && !sql.Contains("prefix", StringComparison.OrdinalIgnoreCase))
+            Exec($"DROP TABLE {table}");
+    }
+
+    /// <summary>
+    /// Runs a read on its own connection, outside the store's lock. Searches can take a moment
+    /// on big libraries; with WAL they read alongside everything else instead of blocking the UI.
+    /// </summary>
+    private T ReadAside<T>(Func<SqliteConnection, Dictionary<string, (string User, string Pass)>, T> query)
+    {
+        Dictionary<string, (string User, string Pass)> credentials;
+        lock (_gate)
+            credentials = Credentials;
+        using var connection = new SqliteConnection(_connectionString);
+        connection.Open();
+        return query(connection, credentials);
+    }
+
+    private static SqliteCommand Command(SqliteConnection connection, string sql)
+    {
+        var cmd = connection.CreateCommand();
+        cmd.CommandText = sql;
+        return cmd;
     }
 
     private void AddColumnIfMissing(string table, string column, string type)
@@ -287,8 +326,10 @@ public sealed partial class LibraryStore : IDisposable
             ? url.Replace(CredentialSegment(c.User, c.Pass), CredentialToken, StringComparison.Ordinal)
             : url;
 
-    private string? UnmaskUrl(string sourceId, string? url) =>
-        url is not null && url.Contains(CredentialToken, StringComparison.Ordinal) && Credentials.TryGetValue(sourceId, out var c)
+    private string? UnmaskUrl(string sourceId, string? url) => Unmask(Credentials, sourceId, url);
+
+    private static string? Unmask(Dictionary<string, (string User, string Pass)> credentials, string sourceId, string? url) =>
+        url is not null && url.Contains(CredentialToken, StringComparison.Ordinal) && credentials.TryGetValue(sourceId, out var c)
             ? url.Replace(CredentialToken, CredentialSegment(c.User, c.Pass), StringComparison.Ordinal)
             : url;
 
@@ -386,11 +427,10 @@ public sealed partial class LibraryStore : IDisposable
         }
     }
 
-    public IReadOnlyList<LibraryEntry> GetItems(MediaKind kind, string? sourceId = null, string? group = null, int limit = 5000, int offset = 0)
-    {
-        lock (_gate)
+    public IReadOnlyList<LibraryEntry> GetItems(MediaKind kind, string? sourceId = null, string? group = null, int limit = 5000, int offset = 0) =>
+        ReadAside((db, credentials) =>
         {
-            using var cmd = Command($"""
+            using var cmd = Command(db, $"""
                 {SelectEntries}
                 WHERE i.kind = $kind AND ($source IS NULL OR i.source_id = $source) AND ($grp IS NULL OR i.grp = $grp)
                   AND {VisibleFilter}
@@ -403,9 +443,8 @@ public sealed partial class LibraryStore : IDisposable
             cmd.Parameters.AddWithValue("$limit", limit);
             cmd.Parameters.AddWithValue("$offset", offset);
             AddVisibility(cmd);
-            return ReadEntries(cmd);
-        }
-    }
+            return ReadEntries(cmd, credentials);
+        });
 
     /// <summary>One item by its key, or null if it no longer exists (or is hidden).</summary>
     public LibraryEntry? GetItem(string sourceId, string externalId, MediaKind kind)
@@ -431,13 +470,12 @@ public sealed partial class LibraryStore : IDisposable
     /// </summary>
     public IReadOnlyList<LibraryEntry> Search(string query, MediaKind? kind = null, int limit = 200)
     {
-        lock (_gate)
+        var match = BuildMatchExpression(query);
+        if (match is null)
+            return [];
+        return ReadAside((db, credentials) =>
         {
-            var match = BuildMatchExpression(query);
-            if (match is null)
-                return [];
-
-            using var cmd = Command($"""
+            using var cmd = Command(db, $"""
                 {SelectEntries}
                 JOIN items_fts f ON f.rowid = i.rowid
                 WHERE items_fts MATCH $match AND ($kind IS NULL OR i.kind = $kind) AND {VisibleFilter}
@@ -448,8 +486,8 @@ public sealed partial class LibraryStore : IDisposable
             cmd.Parameters.AddWithValue("$kind", kind is null ? DBNull.Value : (object)(int)kind.Value);
             cmd.Parameters.AddWithValue("$limit", limit);
             AddVisibility(cmd);
-            return ReadEntries(cmd);
-        }
+            return ReadEntries(cmd, credentials);
+        });
     }
 
     // ---- Guide ----
@@ -540,7 +578,9 @@ public sealed partial class LibraryStore : IDisposable
         FROM items i JOIN sources s ON s.id = i.source_id
         """;
 
-    private List<LibraryEntry> ReadEntries(SqliteCommand cmd)
+    private List<LibraryEntry> ReadEntries(SqliteCommand cmd) => ReadEntries(cmd, Credentials);
+
+    private static List<LibraryEntry> ReadEntries(SqliteCommand cmd, Dictionary<string, (string User, string Pass)> credentials)
     {
         using var r = cmd.ExecuteReader();
         var list = new List<LibraryEntry>();
@@ -555,7 +595,7 @@ public sealed partial class LibraryStore : IDisposable
                 Title = r.GetString(3),
                 Group = r.GetString(4),
                 LogoUrl = r.IsDBNull(5) ? null : r.GetString(5),
-                StreamUrl = r.IsDBNull(6) ? null : UnmaskUrl(sourceId, r.GetString(6)),
+                StreamUrl = r.IsDBNull(6) ? null : Unmask(credentials, sourceId, r.GetString(6)),
                 EpgChannelId = r.IsDBNull(7) ? null : r.GetString(7),
                 CatchupDays = r.GetInt32(8),
                 SortIndex = r.GetInt32(9),

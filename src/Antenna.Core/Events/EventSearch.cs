@@ -93,7 +93,8 @@ public static class EventSearch
                 continue;
             }
             var word = raw.ToLowerInvariant();
-            if (StopWords.Contains(word))
+            // Single letters match nearly everything and make searches slow; skip them.
+            if (StopWords.Contains(word) || word.Length < 2)
                 continue;
             current.Add(Term(word));
         }
