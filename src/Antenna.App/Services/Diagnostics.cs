@@ -3,7 +3,7 @@ using System.Text;
 namespace Antenna.App.Services;
 
 /// <summary>
-/// Writes problems to %LOCALAPPDATA%\Antenna\logs\antenna.log so crashes can be diagnosed.
+/// Writes problems to %LOCALAPPDATA%\AntennaData\logs\antenna.log so crashes can be diagnosed.
 /// Never throws: logging must not be the thing that breaks.
 /// </summary>
 internal static class Log
@@ -11,8 +11,7 @@ internal static class Log
     private const long MaxBytes = 2 * 1024 * 1024;
     private static readonly Lock Gate = new();
 
-    public static string Folder { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Antenna", "logs");
+    public static string Folder { get; } = Path.Combine(Antenna.Core.AppDataFolder.Path, "logs");
 
     public static string FilePath => Path.Combine(Folder, "antenna.log");
 

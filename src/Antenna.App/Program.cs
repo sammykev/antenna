@@ -1,3 +1,5 @@
+using Antenna.App.Services;
+using Antenna.Core;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Velopack;
@@ -13,7 +15,28 @@ public static class Program
     [STAThread]
     private static int Main(string[] args)
     {
-        VelopackApp.Build().Run();
+        var firstRun = false;
+        VelopackApp.Build()
+            .OnFirstRun(_ => firstRun = true)
+            .Run();
+
+        // Before anything opens the library or the log: move data out of the installer's folder.
+        IReadOnlyList<string> moved = [];
+        Exception? moveError = null;
+        try
+        {
+            moved = AppDataFolder.MigrateFromLegacy();
+        }
+        catch (Exception ex)
+        {
+            moveError = ex;
+        }
+        if (moved.Count > 0)
+            Log.Info($"Moved {string.Join(", ", moved)} from {AppDataFolder.LegacyPath} to {AppDataFolder.Path}");
+        if (moveError is not null)
+            Log.Error(moveError, "moving data folder");
+        if (firstRun)
+            Log.Info("First start after installing");
 
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Application.Start(p =>

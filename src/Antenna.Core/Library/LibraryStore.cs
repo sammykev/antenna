@@ -46,10 +46,10 @@ public sealed partial class LibraryStore : IDisposable
     /// </summary>
     public bool ParentalLockActive { get; set; }
 
-    /// <summary>The default database location, %LOCALAPPDATA%\Antenna\library.db on Windows.</summary>
+    /// <summary>The default database location, %LOCALAPPDATA%\AntennaData\library.db on Windows.</summary>
     public static string DefaultPath()
     {
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Antenna");
+        var dir = AppDataFolder.Path;
         Directory.CreateDirectory(dir);
         return Path.Combine(dir, "library.db");
     }

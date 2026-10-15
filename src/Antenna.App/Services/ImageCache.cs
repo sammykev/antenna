@@ -18,7 +18,7 @@ internal static class ImageCache
 
     private static string CreateFolder()
     {
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Antenna", "images");
+        var dir = Path.Combine(Antenna.Core.AppDataFolder.Path, "images");
         Directory.CreateDirectory(dir);
         return dir;
     }

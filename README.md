@@ -69,7 +69,7 @@ antenna/
    and desktop shortcuts, and opens.
    Releases are signed with a self-signed certificate, so Windows SmartScreen may say "Windows protected your PC":
    choose **More info → Run anyway**, or trust the certificate first (see [Signing](#signing)).
-3. Uninstall from **Settings → Apps → Installed apps → Antenna**. Your library stays in `%LOCALAPPDATA%\Antenna`.
+3. Uninstall from **Settings → Apps → Installed apps → Antenna**. Your library stays in `%LOCALAPPDATA%\AntennaData`.
 
 ### Updates
 
@@ -113,7 +113,7 @@ dotnet run --project src/Antenna.App -p:Platform=x64
 Or open `Antenna.slnx` in Visual Studio, set `Antenna.App` as the startup project, pick `x64`,
 and press F5. The app is unpackaged, so no certificate or MSIX install is needed.
 
-Data lives in `%LOCALAPPDATA%\Antenna\library.db`.
+Data lives in `%LOCALAPPDATA%\AntennaData` (`library.db`, `logs`, `images`). The installed app itself lives in `%LOCALAPPDATA%\Antenna`.
 
 CI (`.github/workflows/build.yml`) tests the core, builds the app on `windows-latest`,
 and uploads a self-contained `Antenna-win-x64` build as an artifact.
