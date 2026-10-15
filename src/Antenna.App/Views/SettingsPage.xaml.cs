@@ -35,6 +35,7 @@ public sealed partial class SettingsPage : Page
         StartPageChoice.SelectedIndex = Math.Max(0, Array.FindIndex(StartPages, p => p.Tag == AppSettings.StartPage));
         SplashToggle.IsOn = AppSettings.ShowSplash;
         TvToggle.IsOn = AppSettings.TvMode;
+        MergeToggle.IsOn = AppSettings.MergeDuplicateChannels;
         CachingBox.Value = AppSettings.NetworkCachingMs;
         HardwareToggle.IsOn = AppSettings.HardwareDecoding;
         TimeshiftToggle.IsOn = AppSettings.Timeshift;
@@ -135,6 +136,12 @@ public sealed partial class SettingsPage : Page
             return;
         AppSettings.Theme = ThemeChoice.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
         App.Window.ApplyTheme();
+    }
+
+    private void Merge_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            AppSettings.MergeDuplicateChannels = MergeToggle.IsOn;
     }
 
     private void Tv_Toggled(object sender, RoutedEventArgs e)

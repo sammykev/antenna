@@ -28,6 +28,7 @@
                     <x:String>Dark</x:String>
                 </RadioButtons>
                 <ComboBox x:Name="StartPageChoice" Header="Open at start-up" MinWidth="220" SelectionChanged="StartPage_SelectionChanged" />
+                <ToggleSwitch x:Name="MergeToggle" Header="Live TV (all playlists): show each channel once, even if several playlists have it" Toggled="Merge_Toggled" />
                 <ToggleSwitch x:Name="TvToggle" Header="TV mode: everything bigger, for a PC on the TV (arrow keys or a controller to move, B to go back)" Toggled="Tv_Toggled" />
                 <ToggleSwitch x:Name="SplashToggle" Header="Open on Home (channel, movie and series counts, continue watching, favourites on now)" Toggled="Splash_Toggled" />
             </StackPanel>

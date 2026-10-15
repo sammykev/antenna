@@ -26,6 +26,9 @@ internal static class AppSettings
     /// <summary>Open on the Home page (counts, continue watching, favourites on now) instead of the start page.</summary>
     public static bool ShowSplash { get => Get("ui.splash") != "0"; set => Set("ui.splash", value ? "1" : "0"); }
 
+    /// <summary>In Live TV with all playlists shown, list a channel once even if several playlists have it.</summary>
+    public static bool MergeDuplicateChannels { get => Get("live.merge") != "0"; set => Set("live.merge", value ? "1" : "0"); }
+
     /// <summary>Bigger layout for a TV: 1.5× scale, maximised window, D-pad / arrow-key focus, B goes back.</summary>
     public static bool TvMode { get => Get("ui.tv") == "1"; set => Set("ui.tv", value ? "1" : "0"); }
 

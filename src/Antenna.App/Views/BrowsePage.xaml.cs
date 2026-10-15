@@ -148,9 +148,18 @@ public sealed partial class BrowsePage : Page
         var filter = group.Filter;
         Busy.IsActive = true;
 
+        // Live TV across all playlists: each channel once (the first playlist's), the others are
+        // offered in the player as "Watch on another playlist".
+        var merge = kind == MediaKind.Live && source is null && _sources.Count > 1 && AppSettings.MergeDuplicateChannels;
+        var pager = new Antenna.Core.Library.UniquePager<LibraryEntry>(
+            (from, count) => Task.Run(() => AppServices.Library.GetItems(kind, source, filter, count, from)),
+            e => Antenna.Core.Library.ChannelMatch.Key(e.Item.Title));
+
         var list = new IncrementalList<ItemViewModel>(async (offset, count) =>
         {
-            var entries = await Task.Run(() => AppServices.Library.GetItems(kind, source, filter, count, offset));
+            var entries = merge
+                ? await pager.NextAsync(count)
+                : await Task.Run(() => AppServices.Library.GetItems(kind, source, filter, count, offset));
             return await GuideService.ToViewModelsAsync(entries, offset + 1);
         });
         list.PageLoaded += any =>

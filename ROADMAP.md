@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.8** (search inside types and categories, Home page, TMDB details, fallback to another playlist). Next: TV mode, staged loading, faster zapping.
+Current release: **v0.1.9** (everything on this list except Microsoft Store and winget). Remaining: Store, winget, app-side tests, analyzers for the app project, recently added on Home.
 
 ---
 
@@ -52,9 +52,9 @@ Current release: **v0.1.8** (search inside types and categories, Home page, TMDB
   start time that opens the channel. Persist reminders in the library; check on a timer like `Recorder`.
 - [x] **Player controls:** *(v0.1.7: Picture and sound menu + Z/S keys; `Views/PlayerPage.Picture.cs`)* aspect ratio / zoom / crop (4:3 channels), audio delay, deinterlace toggle,
   and a stats overlay (codec, resolution, bitrate, dropped frames from `Media.Statistics`).
-- [x] **Multi-view presets.** *(v0.1.7: Presets menu: save/open/delete; `Core/Library/MultiViewPresets.cs`. Drag-to-swap tiles not done yet.)* Save the current tiles + layout as a named preset ("Saturday football") and
+- [x] **Multi-view presets.** *(v0.1.7: Presets menu: save/open/delete; `Core/Library/MultiViewPresets.cs`. v0.1.9: drag a tile onto another to swap.)* Save the current tiles + layout as a named preset ("Saturday football") and
   open it in one click; drag to swap tiles.
-- [~] **One channel, several sources.** *(v0.1.8: player switches to the same channel on another playlist after repeated failures, and offers "Watch on another playlist" in the Picture and sound menu. Still to do: show duplicates once in browse lists with a source picker.)* Group the same channel across playlists (EPG id, then normalised
+- [x] **One channel, several sources.** *(v0.1.8: player switches to the same channel on another playlist after repeated failures, and offers "Watch on another playlist" in the Picture and sound menu. v0.1.9: Live TV with all playlists lists each channel once (`UniquePager` + `ChannelMatch`; Settings toggle); the others are in the player's Watch on another playlist.)* Group the same channel across playlists (EPG id, then normalised
   name), show it once with a source picker, and fall back to the next source automatically on failure.
 
 ## 3. Looks
@@ -62,7 +62,7 @@ Current release: **v0.1.8** (search inside types and categories, Home page, TMDB
 - [x] **Movie and series artwork.** *(v0.1.8: movie and series pages fill missing poster, backdrop, plot, rating, cast from TMDB when a key is set; `Core/Metadata/TmdbClient.cs`, `TitleCleaner.cs`. v0.1.9: grid tiles without a poster get one from a single TMDB search, loaded lazily for visible tiles, 4 at a time.)* Fill missing posters, backdrops, plot, rating, cast from TMDB (user
   supplies a free API key in Settings, like OpenSubtitles). Cache with `ImageCache`.
 - [ ] **Better channel logos.** Fill missing logos from a public logo set matched by normalised name.
-- [x] **Home page.** *(v0.1.8: `Views/HomePage` replaces the start-up overlay: count tiles, Continue watching, favourites on now, Recently watched. Upcoming events and recently added still to do.)* Grow the start-up overview into a real home: Continue watching, Live now on favourites,
+- [x] **Home page.** *(v0.1.8: `Views/HomePage` replaces the start-up overlay: count tiles, Continue watching, favourites on now, Recently watched. v0.1.9: Coming up row with reminders. Recently added still to do: items have no added date yet.)* Grow the start-up overview into a real home: Continue watching, Live now on favourites,
   Upcoming events today, Recently added movies/series. Keep the three count tiles at the top.
 - [x] **TV / 10-foot mode.** *(v0.1.9: Settings → TV mode: 1.5× scale via a Viewbox around the NavigationView, maximised, XY focus with arrows/D-pad, Gamepad B = back; `MainWindow.TvMode.cs`; covered by the smoke test.)* Large layout for remote or gamepad: bigger tiles, focus visuals, D-pad
   navigation everywhere (gamepad keys already handled in the player via `AddKey`).
