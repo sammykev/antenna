@@ -142,6 +142,22 @@ public sealed partial class MainWindow : Window
         Notice.IsOpen = true;
     }
 
+    /// <summary>A reminder going off: the programme, when, and Watch now.</summary>
+    public void ShowReminder(string title, string when, Action watch)
+    {
+        var button = new Button { Content = "Watch now" };
+        button.Click += (_, _) =>
+        {
+            Notice.IsOpen = false;
+            watch();
+        };
+        Notice.Severity = InfoBarSeverity.Informational;
+        Notice.Title = title;
+        Notice.Message = when;
+        Notice.ActionButton = button;
+        Notice.IsOpen = true;
+    }
+
     /// <summary>A downloaded update: offer to restart now (otherwise it installs at the next start).</summary>
     public void ShowUpdateReady(string version)
     {

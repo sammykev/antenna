@@ -18,6 +18,17 @@ public static class Program
         var firstRun = false;
         VelopackApp.Build()
             .OnFirstRun(_ => firstRun = true)
+            .OnBeforeUninstallFastCallback(_ =>
+            {
+                // Remove the Windows notification registration made for reminders.
+                try
+                {
+                    Microsoft.Windows.AppNotifications.AppNotificationManager.Default.UnregisterAll();
+                }
+                catch (Exception)
+                {
+                }
+            })
             .Run();
 
         // Before anything opens the library or the log: move data out of the installer's folder.

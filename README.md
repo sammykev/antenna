@@ -29,6 +29,9 @@ Xtream Codes login). It doesn't include or find any content itself.
 - List view per channel/day, or a timeline grid of every channel
 - Catch-up for Xtream (time-zone aware) and M3U catchup modes (default, append, shift, flussonic, xc)
 
+**Reminders**
+- Right-click an upcoming programme in the guide or a match in Live events → **Remind me**: a Windows notification with **Watch now** appears 2 minutes before it starts (while Antenna is open)
+
 **Recording**
 - Record live TV now, or schedule from the guide (with padding); save catch-up to disk
 - Download movies and episodes; Recordings page with progress, play and delete

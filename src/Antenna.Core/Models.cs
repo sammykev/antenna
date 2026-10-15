@@ -150,6 +150,24 @@ public enum RecordingStatus
 }
 
 /// <summary>A recording or download: live TV now or on a schedule, catch-up, or a movie/episode file.</summary>
+/// <summary>"Remind me" for an upcoming programme: a notification shortly before it starts.</summary>
+public sealed record Reminder
+{
+    public required string SourceId { get; init; }
+
+    /// <summary>The channel's external id in its playlist, so "Watch now" can open it.</summary>
+    public required string ChannelId { get; init; }
+    public required string ChannelTitle { get; init; }
+    public required string Title { get; init; }
+    public required DateTimeOffset Start { get; init; }
+    public required DateTimeOffset Stop { get; init; }
+
+    public string Id => KeyFor(SourceId, ChannelId, Start);
+
+    public static string KeyFor(string sourceId, string channelId, DateTimeOffset start) =>
+        $"{sourceId}|{channelId}|{start.ToUnixTimeSeconds()}";
+}
+
 public sealed record Recording
 {
     public string Id { get; init; } = Guid.NewGuid().ToString("N");

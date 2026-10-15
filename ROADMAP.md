@@ -48,7 +48,7 @@ Current release: **v0.1.4** (launch test in CI; multi-view connection-limit hand
 - [ ] **Pause and rewind live TV (timeshift).** Keep the last 30–60 min of the current live stream in a
   disk ring buffer (libvlc `:sout` to a temp file, or LibVLC's timeshift module `--input-timeshift-path`),
   allowing pause, rewind, skip back to live. Show a "LIVE" / "−5:32" indicator on the seek bar.
-- [ ] **Programme reminders.** "Remind me" on guide entries and event search results → Windows toast at
+- [x] **Programme reminders.** *(v0.1.5: Guide and Live events right-click → Remind me; `Services/Reminders.cs` shows a Windows notification + in-app notice 2 min before, with Watch now)* "Remind me" on guide entries and event search results → Windows toast at
   start time that opens the channel. Persist reminders in the library; check on a timer like `Recorder`.
 - [ ] **Player controls:** aspect ratio / zoom / crop (4:3 channels), audio delay, deinterlace toggle,
   and a stats overlay (codec, resolution, bitrate, dropped frames from `Media.Statistics`).

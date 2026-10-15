@@ -289,7 +289,7 @@ public sealed partial class GuidePage : Page
         if (!row.CanReplay)
         {
             ShowStatus(InfoBarSeverity.Informational, row.Programme.Start > DateTimeOffset.Now
-                ? "Right-click to record this when it airs."
+                ? "Right-click to set a reminder or record this when it airs."
                 : "This programme isn't in the provider's catch-up archive.");
             return;
         }
@@ -316,6 +316,17 @@ public sealed partial class GuidePage : Page
             menu.Items.Add(ItemMenu.Item(row.IsLive ? "Watch live" : "Play catch-up", "", () => _ = ActivateAsync(channel, row)));
 
         var title = $"{channel.Title} - {p.Title}";
+        if (p.Start > DateTimeOffset.Now)
+        {
+            var isSet = Reminders.IsSet(channel.Item.SourceId, channel.Item.ExternalId, p);
+            menu.Items.Add(ItemMenu.Item(isSet ? "Cancel reminder" : "Remind me", isSet ? "\uE7ED" : "\uEA8F", () =>
+            {
+                var on = Reminders.Toggle(channel.Item, p);
+                ShowStatus(InfoBarSeverity.Success, on
+                    ? $"I'll remind you at {(p.Start - Antenna.Core.Recordings.ReminderPlanner.Lead).LocalDateTime:ddd HH:mm}. Keep Antenna open."
+                    : "Reminder cancelled.");
+            }));
+        }
         if (p.Stop > DateTimeOffset.Now && channel.Item.StreamUrl is { } live)
         {
             menu.Items.Add(ItemMenu.Item(row.IsLive ? "Record the rest of this programme" : "Record when it airs", "", () =>

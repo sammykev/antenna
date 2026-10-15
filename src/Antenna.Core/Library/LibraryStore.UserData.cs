@@ -40,6 +40,15 @@ public sealed partial class LibraryStore
                 flag TEXT NOT NULL,
                 PRIMARY KEY (kind, grp, flag)
             );
+            CREATE TABLE IF NOT EXISTS reminders (
+                id TEXT PRIMARY KEY,
+                source_id TEXT NOT NULL,
+                channel_id TEXT NOT NULL,
+                channel_title TEXT NOT NULL,
+                title TEXT NOT NULL,
+                start INTEGER NOT NULL,
+                stop INTEGER NOT NULL
+            );
             CREATE TABLE IF NOT EXISTS recordings (
                 id TEXT PRIMARY KEY,
                 title TEXT NOT NULL,
@@ -283,6 +292,70 @@ public sealed partial class LibraryStore
         GroupFlag.Locked => "locked",
         _ => "pinned",
     };
+
+    // ---- Reminders ----
+
+    public void SaveReminder(Reminder reminder)
+    {
+        lock (_gate)
+        {
+            using var cmd = Command("""
+                INSERT OR REPLACE INTO reminders (id, source_id, channel_id, channel_title, title, start, stop)
+                VALUES ($id, $source, $channel, $channelTitle, $title, $start, $stop)
+                """);
+            cmd.Parameters.AddWithValue("$id", reminder.Id);
+            cmd.Parameters.AddWithValue("$source", reminder.SourceId);
+            cmd.Parameters.AddWithValue("$channel", reminder.ChannelId);
+            cmd.Parameters.AddWithValue("$channelTitle", reminder.ChannelTitle);
+            cmd.Parameters.AddWithValue("$title", reminder.Title);
+            cmd.Parameters.AddWithValue("$start", reminder.Start.ToUnixTimeSeconds());
+            cmd.Parameters.AddWithValue("$stop", reminder.Stop.ToUnixTimeSeconds());
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    public IReadOnlyList<Reminder> GetReminders()
+    {
+        lock (_gate)
+        {
+            using var cmd = Command("SELECT source_id, channel_id, channel_title, title, start, stop FROM reminders ORDER BY start");
+            using var r = cmd.ExecuteReader();
+            var list = new List<Reminder>();
+            while (r.Read())
+            {
+                list.Add(new Reminder
+                {
+                    SourceId = r.GetString(0),
+                    ChannelId = r.GetString(1),
+                    ChannelTitle = r.GetString(2),
+                    Title = r.GetString(3),
+                    Start = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(4)).ToLocalTime(),
+                    Stop = DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(5)).ToLocalTime(),
+                });
+            }
+            return list;
+        }
+    }
+
+    public bool HasReminder(string id)
+    {
+        lock (_gate)
+        {
+            using var cmd = Command("SELECT 1 FROM reminders WHERE id = $id");
+            cmd.Parameters.AddWithValue("$id", id);
+            return cmd.ExecuteScalar() is not null;
+        }
+    }
+
+    public void DeleteReminder(string id)
+    {
+        lock (_gate)
+        {
+            using var cmd = Command("DELETE FROM reminders WHERE id = $id");
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.ExecuteNonQuery();
+        }
+    }
 
     // ---- Recordings ----
 

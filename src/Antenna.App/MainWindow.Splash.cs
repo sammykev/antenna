@@ -71,6 +71,9 @@ public sealed partial class MainWindow
         HideSplash();
     }
 
+    /// <summary>Gets the start-up screen out of the way (e.g. when a reminder's Watch now opens a channel).</summary>
+    internal void DismissSplash() => HideSplash();
+
     private void HideSplash()
     {
         if (Splash.Visibility == Visibility.Collapsed || Splash.Opacity < 1)

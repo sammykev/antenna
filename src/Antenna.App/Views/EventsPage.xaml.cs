@@ -158,7 +158,7 @@ public sealed partial class EventsPage : Page
             }
             return;
         }
-        ShowStatus(InfoBarSeverity.Informational, $"Starts {vm.When}. Right-click to record it.");
+        ShowStatus(InfoBarSeverity.Informational, $"Starts {vm.When}. Right-click to set a reminder or record it.");
     }
 
     private MenuFlyout ChannelMenu(EventViewModel vm)
@@ -193,6 +193,15 @@ public sealed partial class EventsPage : Page
                 menu.Items.Add(item);
             menu.Items.Add(ItemMenu.Item("Add to multi-view", "", () => MultiViewPage.Add(PlayRequest.ForItem(first.Item) with { Title = $"{p.Title} · {first.Item.Title}" })));
             menu.Items.Add(new MenuFlyoutSeparator());
+        }
+        if (p.Start > DateTimeOffset.Now)
+        {
+            var isSet = Reminders.IsSet(first.Item.SourceId, first.Item.ExternalId, p);
+            menu.Items.Add(ItemMenu.Item(isSet ? "Cancel reminder" : "Remind me", isSet ? "\uE7ED" : "\uEA8F", () =>
+            {
+                var on = Reminders.Toggle(first.Item, p);
+                ShowStatus(InfoBarSeverity.Success, on ? $"I'll remind you before it starts ({vm.When}). Keep Antenna open." : "Reminder cancelled.");
+            }));
         }
         if (p.Stop > DateTimeOffset.Now && first.Item.StreamUrl is { } live)
         {

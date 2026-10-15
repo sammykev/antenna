@@ -64,6 +64,8 @@ public partial class App : Application
 
         Step("auto refresh", () => AutoRefresh.Start(Window.DispatcherQueue));
         Step("recorder", () => Recorder.Start(Window.DispatcherQueue));
+        if (!SmokeTest)
+            Step("reminders", () => Reminders.Start(Window.DispatcherQueue));
         Step("updates", () =>
         {
             Updater.UpdateReady += update => Window.ShowUpdateReady(update.TargetFullRelease.Version.ToString());
