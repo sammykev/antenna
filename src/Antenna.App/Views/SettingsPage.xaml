@@ -28,7 +28,7 @@
                     <x:String>Dark</x:String>
                 </RadioButtons>
                 <ComboBox x:Name="StartPageChoice" Header="Open at start-up" MinWidth="220" SelectionChanged="StartPage_SelectionChanged" />
-                <ToggleSwitch x:Name="SplashToggle" Header="Show channel, movie and series counts at start-up" Toggled="Splash_Toggled" />
+                <ToggleSwitch x:Name="SplashToggle" Header="Start with the overview screen (channel, movie and series counts)" Toggled="Splash_Toggled" />
             </StackPanel>
 
             <StackPanel Style="{StaticResource SectionStyle}">

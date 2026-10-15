@@ -48,10 +48,11 @@ public sealed partial class MainWindow : Window
 
         // First run goes straight to adding a playlist; otherwise the chosen start page.
         var start = AppServices.Library.GetSources().Count > 0 ? AppSettings.StartPage : "playlists";
-        NavigateTo(Pages.ContainsKey(start) ? start : "live");
+        start = Pages.ContainsKey(start) ? start : "live";
+        NavigateTo(start);
 
         if (AppSettings.ShowSplash)
-            _ = ShowSplashAsync();
+            _ = ShowSplashAsync(start);
     }
 
     public Frame Frame => ContentFrame;

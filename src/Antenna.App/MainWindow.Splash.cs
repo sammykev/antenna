@@ -1,29 +1,27 @@
-using System.Diagnostics;
 using System.Globalization;
 using Antenna.App.Services;
 using Antenna.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
 
 namespace Antenna.App;
 
-/// <summary>The start-up screen: counts what's in the library while the app gets ready.</summary>
+/// <summary>
+/// The start-up screen: the library's live channel, movie and series counts. It stays until one of
+/// them is clicked (which opens that section) or Continue goes to the usual start page.
+/// </summary>
 public sealed partial class MainWindow
 {
-    private static readonly TimeSpan CountUp = TimeSpan.FromMilliseconds(900);
-    private static readonly TimeSpan MinimumShown = TimeSpan.FromMilliseconds(1800);
-    private static readonly TimeSpan HoldAfterCounts = TimeSpan.FromMilliseconds(700);
+    private string _splashTarget = "live";
 
-    private bool _splashClosing;
-
-    private async Task ShowSplashAsync()
+    private async Task ShowSplashAsync(string startPage)
     {
+        _splashTarget = startPage;
         Splash.Visibility = Visibility.Visible;
         SplashLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(
             new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Logo-256.png")));
-        var shown = Stopwatch.StartNew();
+        SplashContinue.Content = $"Continue to {PageLabel(startPage)}";
 
         LibraryCounts counts;
         try
@@ -37,50 +35,47 @@ public sealed partial class MainWindow
             return;
         }
 
+        LiveCount.Text = Format(counts.Live);
+        MovieCount.Text = Format(counts.Movies);
+        SeriesCount.Text = Format(counts.Series);
         SplashRing.IsActive = false;
         SplashRing.Visibility = Visibility.Collapsed;
         SplashStatus.Text = counts.Playlists switch
         {
             0 => "Add a playlist to get started",
-            1 => "1 playlist ready",
-            var n => $"{n} playlists ready",
+            1 => "1 playlist",
+            var n => $"{n} playlists",
         };
-        await AnimateCountsAsync(counts);
-
-        var wait = Max(MinimumShown - shown.Elapsed, HoldAfterCounts);
-        await Task.Delay(wait);
-        HideSplash();
     }
 
-    /// <summary>Counts each number up from zero, easing out, so the totals land together.</summary>
-    private async Task AnimateCountsAsync(LibraryCounts counts)
+    private static string Format(int value) => value.ToString("N0", CultureInfo.CurrentCulture);
+
+    /// <summary>The pane's name for a page tag, e.g. "live" -> "Live TV".</summary>
+    private string PageLabel(string tag) =>
+        NavView.MenuItems.Concat(NavView.FooterMenuItems)
+            .OfType<NavigationViewItem>()
+            .FirstOrDefault(i => (string)i.Tag == tag)?.Content as string ?? "Live TV";
+
+    private void SplashTile_Click(object sender, RoutedEventArgs e)
     {
-        var clock = Stopwatch.StartNew();
-        while (!_splashClosing)
+        if (sender is FrameworkElement { Tag: string tag })
         {
-            var t = Math.Min(1.0, clock.Elapsed / CountUp);
-            var eased = 1 - Math.Pow(1 - t, 3);
-            LiveCount.Text = Format(counts.Live * eased);
-            MovieCount.Text = Format(counts.Movies * eased);
-            SeriesCount.Text = Format(counts.Series * eased);
-            if (t >= 1)
-                break;
-            await Task.Delay(16);
+            NavigateTo(tag);
+            HideSplash();
         }
     }
 
-    private static string Format(double value) => Math.Round(value).ToString("N0", CultureInfo.CurrentCulture);
-
-    private static TimeSpan Max(TimeSpan a, TimeSpan b) => a > b ? a : b;
-
-    private void Splash_Tapped(object sender, TappedRoutedEventArgs e) => HideSplash();
+    private void SplashContinue_Click(object sender, RoutedEventArgs e)
+    {
+        NavigateTo(_splashTarget);
+        HideSplash();
+    }
 
     private void HideSplash()
     {
-        if (_splashClosing || Splash.Visibility == Visibility.Collapsed)
+        if (Splash.Visibility == Visibility.Collapsed || Splash.Opacity < 1)
             return;
-        _splashClosing = true;
-        var fade = new DoubleAnimation { To = 0, Duration = TimeSpan.FromMilliseconds(300) };
+        var fade = new DoubleAnimation { To = 0, Duration = TimeSpan.FromMilliseconds(200) };
         Storyboard.SetTarget(fade, Splash);
         Storyboard.SetTargetProperty(fade, "Opacity");
         var storyboard = new Storyboard();
