@@ -40,6 +40,37 @@ public sealed partial class PlaylistsPage : Page
             await RefreshAsync(vm.Source);
     }
 
+    private async void Edit_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: SourceViewModel vm })
+            return;
+        var dialog = new AddPlaylistDialog(vm.Source) { XamlRoot = XamlRoot };
+        if (await dialog.ShowAsync() != ContentDialogResult.Primary || dialog.Result is null)
+            return;
+
+        AppServices.Library.SaveSource(dialog.Result);
+        Reload();
+        // Only re-download when what's fetched changed; renames and colours apply immediately.
+        var old = vm.Source;
+        var changed = old.Location != dialog.Result.Location || old.Username != dialog.Result.Username ||
+                      old.Password != dialog.Result.Password || old.EpgUrl != dialog.Result.EpgUrl || old.Kind != dialog.Result.Kind;
+        if (changed)
+            await RefreshAsync(dialog.Result);
+    }
+
+    private void MoveUp_Click(object sender, RoutedEventArgs e) => Move(sender, -1);
+
+    private void MoveDown_Click(object sender, RoutedEventArgs e) => Move(sender, +1);
+
+    private void Move(object sender, int delta)
+    {
+        if (sender is FrameworkElement { Tag: SourceViewModel vm })
+        {
+            AppServices.Library.MoveSource(vm.Source.Id, delta);
+            Reload();
+        }
+    }
+
     private async void Remove_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: SourceViewModel vm })

@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Page
+    x:Class="Antenna.App.Views.SettingsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <Page.Resources>
+        <Style x:Key="SectionStyle" TargetType="StackPanel">
+            <Setter Property="Spacing" Value="10" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="{ThemeResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{ThemeResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer>
+        <StackPanel Padding="24,16,24,32" Spacing="16" MaxWidth="860" HorizontalAlignment="Left">
+            <TextBlock Text="Settings" Style="{StaticResource TitleTextBlockStyle}" />
+            <InfoBar x:Name="Status" IsClosable="True" />
+
+            <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="Appearance" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <RadioButtons x:Name="ThemeChoice" Header="Theme" MaxColumns="3" SelectionChanged="Theme_SelectionChanged">
+                    <x:String>Use Windows setting</x:String>
+                    <x:String>Light</x:String>
+                    <x:String>Dark</x:String>
+                </RadioButtons>
+                <ComboBox x:Name="StartPageChoice" Header="Open at start-up" MinWidth="220" SelectionChanged="StartPage_SelectionChanged" />
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="Playback" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <NumberBox x:Name="CachingBox" Header="Stream buffer (milliseconds)" Minimum="300" Maximum="20000" SmallChange="250" LargeChange="1000"
+                           SpinButtonPlacementMode="Inline" Width="260" HorizontalAlignment="Left" ValueChanged="Caching_ValueChanged" />
+                <TextBlock Opacity="0.7" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                           Text="Lower starts channels faster; higher survives a shaky connection. 1500 suits most providers." />
+                <ToggleSwitch x:Name="HardwareToggle" Header="Hardware video decoding" Toggled="Hardware_Toggled" />
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="Library" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <ComboBox x:Name="RefreshChoice" Header="Refresh playlists and guides automatically" MinWidth="220" SelectionChanged="Refresh_SelectionChanged" />
+                <TextBlock Text="Hidden categories" FontWeight="SemiBold" Margin="0,8,0,0" />
+                <ListView x:Name="HiddenList" MaxHeight="220" SelectionMode="None" />
+                <TextBlock x:Name="HiddenEmpty" Text="None. Right-click a category or tile to hide it." Opacity="0.7" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Clear watch history" Click="ClearHistory_Click" />
+                    <Button x:Name="ClearImagesButton" Content="Clear image cache" Click="ClearImages_Click" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="Parental controls" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock x:Name="PinState" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button x:Name="SetPinButton" Click="SetPin_Click" />
+                    <Button x:Name="RemovePinButton" Content="Remove PIN" Click="RemovePin_Click" />
+                    <Button x:Name="LockNowButton" Content="Lock now" Click="LockNow_Click" />
+                </StackPanel>
+                <TextBlock Text="Locked categories" FontWeight="SemiBold" Margin="0,8,0,0" />
+                <ListView x:Name="LockedList" MaxHeight="220" SelectionMode="None" />
+                <TextBlock x:Name="LockedEmpty" Text="None. Right-click a category to lock it." Opacity="0.7" />
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="Subtitles (OpenSubtitles.com)" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock Opacity="0.7" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                           Text="Get a free API key at opensubtitles.com → Profile → API consumers. Logging in raises the daily download limit." />
+                <TextBox x:Name="ApiKeyBox" Header="API key" Width="360" HorizontalAlignment="Left" LostFocus="Subtitles_LostFocus" />
+                <TextBox x:Name="SubsLangBox" Header="Preferred languages (e.g. en or en,fr)" Width="200" HorizontalAlignment="Left" LostFocus="Subtitles_LostFocus" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBox x:Name="SubsUserBox" Header="Username (optional)" Width="200" LostFocus="Subtitles_LostFocus" />
+                    <PasswordBox x:Name="SubsPassBox" Header="Password (optional)" Width="200" LostFocus="Subtitles_LostFocus" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="Recordings and downloads" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="FolderBox" Header="Save to" IsReadOnly="True" />
+                    <Button Grid.Column="1" Content="Change…" VerticalAlignment="Bottom" Click="ChangeFolder_Click" />
+                </Grid>
+                <TextBlock Opacity="0.7" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                           Text="Scheduled recordings only run while Antenna is open." />
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="Backup" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock Opacity="0.7" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
+                           Text="Saves your playlists, favourites, hidden/locked categories and settings to a file. Channels and guides re-download after restoring." />
+                <CheckBox x:Name="IncludePasswords" Content="Include playlist passwords (the file will contain them in plain text)" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Export backup…" Click="Export_Click" />
+                    <Button Content="Restore backup…" Click="Import_Click" />
+                </StackPanel>
+            </StackPanel>
+
+            <StackPanel Style="{StaticResource SectionStyle}">
+                <TextBlock Text="About" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock x:Name="AboutText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

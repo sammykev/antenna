@@ -183,10 +183,58 @@ public sealed class XtreamClient
         return items;
     }
 
-    public async Task<IReadOnlyList<Episode>> GetEpisodesAsync(string seriesId, CancellationToken ct = default)
+    public async Task<IReadOnlyList<Episode>> GetEpisodesAsync(string seriesId, CancellationToken ct = default) =>
+        (await GetSeriesInfoAsync(seriesId, ct)).Episodes;
+
+    /// <summary>Series details (plot, cast, artwork) and its episodes, from one request.</summary>
+    public async Task<(MediaDetails Details, IReadOnlyList<Episode> Episodes)> GetSeriesInfoAsync(string seriesId, CancellationToken ct = default)
     {
         using var doc = await GetAsync($"get_series_info&series_id={Esc(seriesId)}", ct);
-        if (!doc.RootElement.TryGetProperty("episodes", out var episodes))
+        var details = doc.RootElement.TryGetProperty("info", out var info) ? ReadDetails(info, "cover") : new MediaDetails();
+        return (details, ReadEpisodes(doc.RootElement));
+    }
+
+    /// <summary>Movie details: plot, cast, director, rating, poster and backdrop.</summary>
+    public async Task<MediaDetails> GetVodInfoAsync(string streamId, CancellationToken ct = default)
+    {
+        using var doc = await GetAsync($"get_vod_info&vod_id={Esc(streamId)}", ct);
+        return doc.RootElement.TryGetProperty("info", out var info) ? ReadDetails(info, "movie_image") : new MediaDetails();
+    }
+
+    internal static MediaDetails ReadDetails(JsonElement info, string posterField)
+    {
+        if (info.ValueKind != JsonValueKind.Object)
+            return new MediaDetails();
+
+        // backdrop_path is usually an array of URLs, sometimes a single string.
+        string? backdrop = null;
+        if (info.TryGetProperty("backdrop_path", out var b))
+        {
+            backdrop = b.ValueKind switch
+            {
+                JsonValueKind.Array => b.EnumerateArray().Where(x => x.ValueKind == JsonValueKind.String).Select(x => x.GetString()).FirstOrDefault(x => !string.IsNullOrWhiteSpace(x)),
+                JsonValueKind.String => b.GetString(),
+                _ => null,
+            };
+        }
+
+        return new MediaDetails
+        {
+            Plot = NullIfEmpty(Str(info, "plot") ?? Str(info, "description")),
+            Cast = NullIfEmpty(Str(info, "cast") ?? Str(info, "actors")),
+            Director = NullIfEmpty(Str(info, "director")),
+            Genre = NullIfEmpty(Str(info, "genre")),
+            Released = NullIfEmpty(Str(info, "releasedate") ?? Str(info, "releaseDate") ?? Str(info, "release_date")),
+            Rating = NullIfEmpty(Str(info, "rating")) is { } r && r != "0" ? r : null,
+            Duration = NullIfEmpty(Str(info, "duration") ?? Str(info, "episode_run_time")),
+            PosterUrl = NullIfEmpty(Str(info, posterField) ?? Str(info, "cover_big")),
+            BackdropUrl = NullIfEmpty(backdrop),
+        };
+    }
+
+    private IReadOnlyList<Episode> ReadEpisodes(JsonElement root)
+    {
+        if (!root.TryGetProperty("episodes", out var episodes))
             return [];
 
         // "episodes" is normally {"1": [...], "2": [...]}, but some panels send a flat array.

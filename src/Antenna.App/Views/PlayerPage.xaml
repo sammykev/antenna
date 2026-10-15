@@ -14,9 +14,17 @@
         <KeyboardAccelerator Key="Left" Invoked="SeekBack_Invoked" />
         <KeyboardAccelerator Key="Right" Invoked="SeekForward_Invoked" />
         <KeyboardAccelerator Key="M" Invoked="ToggleMute_Invoked" />
+        <KeyboardAccelerator Key="PageUp" Invoked="ChannelUp_Invoked" />
+        <KeyboardAccelerator Key="PageDown" Invoked="ChannelDown_Invoked" />
+        <KeyboardAccelerator Key="GamepadRightShoulder" Invoked="ChannelUp_Invoked" />
+        <KeyboardAccelerator Key="GamepadLeftShoulder" Invoked="ChannelDown_Invoked" />
+        <KeyboardAccelerator Key="GamepadB" Invoked="Back_Invoked" />
+        <KeyboardAccelerator Key="GamepadMenu" Invoked="ChannelList_Invoked" />
+        <KeyboardAccelerator Key="L" Invoked="ChannelList_Invoked" />
+        <KeyboardAccelerator Key="I" Invoked="Info_Invoked" />
     </Page.KeyboardAccelerators>
 
-    <Grid>
+    <Grid x:Name="Root">
         <vlc:VideoView x:Name="Video" Initialized="Video_Initialized" />
 
         <!-- Transparent layer above the swap chain so pointer input reaches us. -->
@@ -24,9 +32,47 @@
 
         <ProgressRing x:Name="BufferingRing" Width="56" Height="56" IsActive="True" IsHitTestVisible="False" />
 
-        <Border x:Name="StatusPanel" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="0,32,0,0"
+        <Border x:Name="StatusPanel" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="0,120,0,0"
                 Padding="16,8" CornerRadius="8" Background="#CC000000" Visibility="Collapsed" IsHitTestVisible="False">
-            <TextBlock x:Name="StatusText" Foreground="White" />
+            <TextBlock x:Name="StatusText" Foreground="White" TextWrapping="Wrap" MaxWidth="520" TextAlignment="Center" />
+        </Border>
+
+        <!-- Channel number being typed. -->
+        <Border x:Name="NumberPanel" VerticalAlignment="Top" HorizontalAlignment="Right" Margin="0,32,40,0"
+                Padding="20,8" CornerRadius="8" Background="#CC000000" Visibility="Collapsed" IsHitTestVisible="False">
+            <TextBlock x:Name="NumberText" Foreground="White" FontSize="40" FontWeight="SemiBold" />
+        </Border>
+
+        <!-- Channel / now-next overlay. -->
+        <Grid x:Name="InfoPanel" VerticalAlignment="Top" HorizontalAlignment="Left" Margin="24,24,0,0" Padding="16"
+              CornerRadius="10" Background="#D0101418" MaxWidth="560" ColumnSpacing="14" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Border Width="72" Height="48" CornerRadius="6" Background="#22FFFFFF" VerticalAlignment="Top">
+                <Grid>
+                    <TextBlock x:Name="InfoNumber" Foreground="White" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    <Image x:Name="InfoLogo" Stretch="Uniform" Margin="4" />
+                </Grid>
+            </Border>
+            <StackPanel Grid.Column="1" Spacing="4">
+                <TextBlock x:Name="InfoTitle" Foreground="White" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                <StackPanel x:Name="InfoNowPanel" Spacing="4" Visibility="Collapsed">
+                    <TextBlock x:Name="InfoNow" Foreground="White" TextTrimming="CharacterEllipsis" />
+                    <ProgressBar x:Name="InfoProgress" Maximum="100" Foreground="#FF5A5F" />
+                    <TextBlock x:Name="InfoNext" Foreground="#B0FFFFFF" FontSize="12" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </StackPanel>
+        </Grid>
+
+        <!-- "Resumed at 12:34 · Start over" -->
+        <Border x:Name="ResumePanel" VerticalAlignment="Bottom" HorizontalAlignment="Left" Margin="24,0,0,140"
+                Padding="14,8" CornerRadius="8" Background="#E0101418" Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal" Spacing="12" RequestedTheme="Dark">
+                <TextBlock x:Name="ResumeText" Foreground="White" VerticalAlignment="Center" />
+                <Button Content="Start over" Click="StartOver_Click" />
+            </StackPanel>
         </Border>
 
         <Grid x:Name="ControlsPanel" VerticalAlignment="Bottom" Padding="20,40,20,16" RowSpacing="4"
@@ -58,6 +104,7 @@
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
@@ -68,13 +115,43 @@
                 <Button x:Name="PlayPauseButton" Grid.Column="1" Click="PlayPause_Click" ToolTipService.ToolTip="Play/Pause (Space)" RequestedTheme="Dark">
                     <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE769;" />
                 </Button>
-
-                <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0">
-                    <TextBlock x:Name="TitleText" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="LiveBadge" Text="● LIVE" Foreground="#FF5A5F" FontSize="12" Visibility="Collapsed" />
+                <StackPanel x:Name="ZapButtons" Grid.Column="2" Orientation="Horizontal" Spacing="4" RequestedTheme="Dark" Visibility="Collapsed">
+                    <Button Click="ChannelDown_Click" ToolTipService.ToolTip="Previous channel (Page Down)">
+                        <FontIcon Glyph="&#xE70D;" />
+                    </Button>
+                    <Button Click="ChannelUp_Click" ToolTipService.ToolTip="Next channel (Page Up)">
+                        <FontIcon Glyph="&#xE70E;" />
+                    </Button>
+                    <Button x:Name="ChannelListButton" ToolTipService.ToolTip="Channel list (L)">
+                        <FontIcon Glyph="&#xE8FD;" />
+                        <Button.Flyout>
+                            <Flyout x:Name="ChannelFlyout" Placement="Top" Opening="ChannelFlyout_Opening">
+                                <ListView x:Name="ChannelList" Width="320" MaxHeight="480" SelectionMode="Single"
+                                          IsItemClickEnabled="True" ItemClick="ChannelList_ItemClick" />
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
                 </StackPanel>
 
-                <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" RequestedTheme="Dark">
+                <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="8,0">
+                    <TextBlock x:Name="TitleText" Foreground="White" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <TextBlock x:Name="LiveBadge" Text="● LIVE" Foreground="#FF5A5F" FontSize="12" Visibility="Collapsed" />
+                        <TextBlock x:Name="RecordingBadge" Text="● REC" Foreground="#FF3B30" FontSize="12" FontWeight="Bold" Visibility="Collapsed" />
+                        <TextBlock x:Name="CastBadge" Foreground="#7FB2FF" FontSize="12" Visibility="Collapsed" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" RequestedTheme="Dark">
+                    <Button x:Name="RecordButton" Click="Record_Click" ToolTipService.ToolTip="Record" Visibility="Collapsed">
+                        <FontIcon x:Name="RecordIcon" Glyph="&#xE7C8;" Foreground="#FF3B30" />
+                    </Button>
+                    <DropDownButton x:Name="SpeedButton" ToolTipService.ToolTip="Playback speed" Visibility="Collapsed">
+                        <TextBlock x:Name="SpeedText" Text="1×" />
+                        <DropDownButton.Flyout>
+                            <MenuFlyout x:Name="SpeedMenu" Placement="Top" Opening="SpeedMenu_Opening" />
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
                     <DropDownButton ToolTipService.ToolTip="Audio track">
                         <FontIcon Glyph="&#xE8D6;" />
                         <DropDownButton.Flyout>
@@ -87,11 +164,20 @@
                             <MenuFlyout x:Name="SubtitleMenu" Placement="Top" Opening="SubtitleMenu_Opening" />
                         </DropDownButton.Flyout>
                     </DropDownButton>
+                    <DropDownButton ToolTipService.ToolTip="Cast to a device">
+                        <FontIcon Glyph="&#xEC15;" />
+                        <DropDownButton.Flyout>
+                            <MenuFlyout x:Name="CastMenu" Placement="Top" Opening="CastMenu_Opening" />
+                        </DropDownButton.Flyout>
+                    </DropDownButton>
                     <Button x:Name="MuteButton" Click="Mute_Click" ToolTipService.ToolTip="Mute (M)">
                         <FontIcon x:Name="MuteIcon" Glyph="&#xE767;" />
                     </Button>
-                    <Slider x:Name="VolumeSlider" Width="110" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center"
+                    <Slider x:Name="VolumeSlider" Width="100" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center"
                             ValueChanged="VolumeSlider_ValueChanged" />
+                    <Button Click="MiniPlayer_Click" ToolTipService.ToolTip="Mini player (always on top)">
+                        <FontIcon x:Name="MiniIcon" Glyph="&#xE944;" />
+                    </Button>
                     <Button Click="FullScreen_Click" ToolTipService.ToolTip="Full screen (F)">
                         <FontIcon x:Name="FullScreenIcon" Glyph="&#xE740;" />
                     </Button>

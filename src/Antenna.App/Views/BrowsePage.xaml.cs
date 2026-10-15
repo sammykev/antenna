@@ -3,23 +3,30 @@ using Antenna.App.ViewModels;
 using Antenna.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
+using GroupItem = Antenna.App.ViewModels.GroupItem;
 
 namespace Antenna.App.Views;
 
-/// <summary>Category list on the left, tiles on the right. Used for Live TV, Movies and Series.</summary>
+/// <summary>
+/// Category list on the left, tiles on the right. Used for Live TV, Movies and Series.
+/// Tiles load a page at a time as you scroll, off the UI thread.
+/// </summary>
 public sealed partial class BrowsePage : Page
 {
-    private const string AllGroups = "All";
-
     private MediaKind _kind;
     private IReadOnlyList<PlaylistSource> _sources = [];
     private bool _loading;
+    private int _loadVersion;
 
     public BrowsePage()
     {
         InitializeComponent();
         NavigationCacheMode = NavigationCacheMode.Enabled;
+        ItemMenu.LibraryChanged += () => { if (IsLoaded) LoadGroups(); };
+        Parental.Changed += () => { if (IsLoaded) LoadGroups(); };
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -27,6 +34,7 @@ public sealed partial class BrowsePage : Page
         base.OnNavigatedTo(e);
         _kind = (MediaKind)e.Parameter;
         Header.Text = _kind switch { MediaKind.Live => "Live TV", MediaKind.Movie => "Movies", _ => "Series" };
+        Items.ItemTemplate = ItemTemplates.Get(_kind == MediaKind.Live ? "ItemTileTemplate" : "PosterTileTemplate");
         LoadSources();
     }
 
@@ -47,20 +55,66 @@ public sealed partial class BrowsePage : Page
 
     private void LoadGroups()
     {
-        var previous = Groups.SelectedItem as string;
-        var groups = new List<string> { AllGroups };
-        groups.AddRange(AppServices.Library.GetGroups(_kind, SelectedSourceId).Select(g => g.Length == 0 ? "Uncategorised" : g));
+        var previous = (Groups.SelectedItem as GroupItem)?.Name;
+        var locked = AppServices.Library.GetFlaggedGroups(GroupFlag.Locked)
+            .Where(g => g.Kind == _kind).Select(g => g.Group).ToHashSet();
+
+        var groups = new List<GroupItem> { new("All", false, IsAll: true) };
+        groups.AddRange(AppServices.Library.GetGroups(_kind, SelectedSourceId)
+            .Select(g => new GroupItem(g.Length == 0 ? GroupItem.Uncategorised : g, locked.Contains(g))));
         Groups.ItemsSource = groups;
-        Groups.SelectedItem = groups.Contains(previous ?? "") ? previous : AllGroups;
+        Groups.SelectedItem = groups.FirstOrDefault(g => g.Name == previous) ?? groups[0];
     }
 
     private void LoadItems()
     {
-        var group = Groups.SelectedItem as string;
-        var filter = group is null or AllGroups ? null : group == "Uncategorised" ? "" : group;
-        var entries = AppServices.Library.GetItems(_kind, SelectedSourceId, filter);
-        Items.ItemsSource = GuideService.WithNowPlaying(entries);
-        EmptyState.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (Groups.SelectedItem is not GroupItem group)
+            return;
+
+        var version = ++_loadVersion;
+        EmptyState.Visibility = Visibility.Collapsed;
+        UnlockButton.Visibility = Visibility.Collapsed;
+
+        if (group.Locked && Parental.IsLocked)
+        {
+            Items.ItemsSource = null;
+            ShowEmpty("This category is locked", "Enter the parental PIN to see it.", showUnlock: true);
+            return;
+        }
+
+        var kind = _kind;
+        var source = SelectedSourceId;
+        var filter = group.Filter;
+        Busy.IsActive = true;
+
+        var list = new IncrementalList<ItemViewModel>(async (offset, count) =>
+        {
+            var entries = await Task.Run(() => AppServices.Library.GetItems(kind, source, filter, count, offset));
+            return await GuideService.ToViewModelsAsync(entries, offset + 1);
+        });
+        list.PageLoaded += any =>
+        {
+            if (version != _loadVersion)
+                return;
+            Busy.IsActive = false;
+            if (!any)
+                ShowEmpty("Nothing here yet", "Add an M3U playlist or Xtream account in Playlists.", showUnlock: false);
+        };
+        Items.ItemsSource = list;
+    }
+
+    private void ShowEmpty(string title, string detail, bool showUnlock)
+    {
+        EmptyTitle.Text = title;
+        EmptyDetail.Text = detail;
+        UnlockButton.Visibility = showUnlock ? Visibility.Visible : Visibility.Collapsed;
+        EmptyState.Visibility = Visibility.Visible;
+    }
+
+    private async void Unlock_Click(object sender, RoutedEventArgs e)
+    {
+        if (await Parental.EnsureUnlockedAsync(XamlRoot))
+            LoadItems();
     }
 
     private void SourceFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -75,9 +129,53 @@ public sealed partial class BrowsePage : Page
             LoadItems();
     }
 
+    private IReadOnlyList<ItemViewModel> LoadedItems => (Items.ItemsSource as IEnumerable<ItemViewModel>)?.ToList() ?? [];
+
     private void Items_ItemClick(object sender, ItemClickEventArgs e)
     {
         if (e.ClickedItem is ItemViewModel vm)
-            Playback.Open(vm);
+            Playback.Open(vm, LoadedItems);
+    }
+
+    private void Items_RightTapped(object sender, RightTappedRoutedEventArgs e) =>
+        ItemMenu.OnRightTapped(sender, e, LoadedItems);
+
+    /// <summary>Category menu: hide, lock or unlock.</summary>
+    private void Groups_RightTapped(object sender, RightTappedRoutedEventArgs e)
+    {
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is not GroupItem { IsAll: false } group)
+            return;
+        var name = group.Filter ?? "";
+        var menu = new MenuFlyout();
+        menu.Items.Add(ItemMenu.Item("Hide category", "", () =>
+        {
+            AppServices.Library.SetGroupFlag(_kind, name, GroupFlag.Hidden, true);
+            LoadGroups();
+        }));
+        if (group.Locked)
+        {
+            menu.Items.Add(ItemMenu.Item("Unlock category (remove lock)", "", async () =>
+            {
+                if (await Parental.EnsureUnlockedAsync(XamlRoot))
+                {
+                    AppServices.Library.SetGroupFlag(_kind, name, GroupFlag.Locked, false);
+                    Parental.Apply();
+                    LoadGroups();
+                }
+            }));
+        }
+        else
+        {
+            menu.Items.Add(ItemMenu.Item(Parental.IsPinSet ? "Lock category" : "Lock category (set a PIN in Settings first)", "", () =>
+            {
+                if (!Parental.IsPinSet)
+                    return;
+                AppServices.Library.SetGroupFlag(_kind, name, GroupFlag.Locked, true);
+                Parental.Apply();
+                LoadGroups();
+            }));
+        }
+        menu.ShowAt((UIElement)sender, new FlyoutShowOptions { Position = e.GetPosition((UIElement)sender) });
+        e.Handled = true;
     }
 }

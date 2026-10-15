@@ -13,7 +13,7 @@ public static class AppServices
 {
     public static HttpClient Http { get; } = CreateHttpClient();
 
-    public static LibraryStore Library { get; } = new(LibraryStore.DefaultPath());
+    public static LibraryStore Library { get; } = new(LibraryStore.DefaultPath(), new DpapiProtector());
 
     public static PlaylistImporter Importer { get; } = new(Http);
 
@@ -27,13 +27,21 @@ public static class AppServices
         Task.Run(async () =>
         {
             var result = await Importer.ImportAsync(source, ct);
-            var updated = source with { EpgUrl = result.EpgUrl, LastRefreshed = DateTimeOffset.Now };
-            Library.SaveSource(updated);
+            // Xtream guide URLs embed the password, so they're derived at import time, never stored.
+            var saved = source with
+            {
+                EpgUrl = source.Kind != SourceKind.Xtream ? result.EpgUrl
+                    : source.EpgUrl?.Contains("xmltv.php", StringComparison.OrdinalIgnoreCase) == true ? null : source.EpgUrl,
+                LastRefreshed = DateTimeOffset.Now,
+            };
+            Library.SaveSource(saved);
             Library.ReplaceItems(source.Id, result.Items);
+            GuideService.InvalidateNowPlaying();
 
             try
             {
-                var programmes = await Guide.ImportAsync(updated, result.Items, ct);
+                var programmes = await Guide.ImportAsync(saved with { EpgUrl = result.EpgUrl }, result.Items, ct);
+                GuideService.InvalidateNowPlaying();
                 return new RefreshResult(result.Items.Count, programmes, null);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

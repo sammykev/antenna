@@ -30,7 +30,7 @@
         </SelectorBar>
 
         <GridView x:Name="Results" Grid.Row="2" IsItemClickEnabled="True" SelectionMode="None"
-                  ItemClick="Results_ItemClick" ItemTemplate="{StaticResource ItemTileTemplate}" />
+                  ItemClick="Results_ItemClick" RightTapped="Results_RightTapped" ItemTemplate="{StaticResource ItemTileTemplate}" />
 
         <TextBlock x:Name="NoResults" Grid.Row="2" Text="No matches in any playlist." Opacity="0.7"
                    HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed" />

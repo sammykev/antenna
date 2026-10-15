@@ -9,54 +9,97 @@
         <MicaBackdrop />
     </Window.SystemBackdrop>
 
-    <NavigationView
-        x:Name="NavView"
-        IsSettingsVisible="False"
-        IsBackButtonVisible="Auto"
-        IsBackEnabled="{x:Bind ContentFrame.CanGoBack, Mode=OneWay}"
-        BackRequested="NavView_BackRequested"
-        ItemInvoked="NavView_ItemInvoked"
-        PaneDisplayMode="Left">
+    <Grid x:Name="RootGrid">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
-        <NavigationView.AutoSuggestBox>
-            <AutoSuggestBox
-                x:Name="SearchBox"
-                PlaceholderText="Search all playlists"
-                QueryIcon="Find"
-                QuerySubmitted="SearchBox_QuerySubmitted" />
-        </NavigationView.AutoSuggestBox>
+        <!-- Custom title bar: the app draws into the caption area. -->
+        <Grid x:Name="AppTitleBar" Height="36" Padding="16,0,140,0" ColumnSpacing="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Image Source="ms-appx:///Assets/Antenna.ico" Width="16" Height="16" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="1" Text="Antenna" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
+        </Grid>
 
-        <NavigationView.MenuItems>
-            <NavigationViewItem Content="Live TV" Tag="live">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE7F4;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="Guide" Tag="guide">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE787;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="Movies" Tag="movies">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE8B2;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="Series" Tag="series">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE7F7;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-        </NavigationView.MenuItems>
+        <NavigationView
+            x:Name="NavView"
+            Grid.Row="1"
+            IsSettingsVisible="False"
+            IsBackButtonVisible="Auto"
+            IsBackEnabled="{x:Bind ContentFrame.CanGoBack, Mode=OneWay}"
+            BackRequested="NavView_BackRequested"
+            ItemInvoked="NavView_ItemInvoked"
+            PaneDisplayMode="Left">
 
-        <NavigationView.FooterMenuItems>
-            <NavigationViewItem Content="Playlists" Tag="playlists">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE90B;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-        </NavigationView.FooterMenuItems>
+            <NavigationView.AutoSuggestBox>
+                <AutoSuggestBox
+                    x:Name="SearchBox"
+                    PlaceholderText="Search all playlists"
+                    QueryIcon="Find"
+                    TextChanged="SearchBox_TextChanged"
+                    QuerySubmitted="SearchBox_QuerySubmitted" />
+            </NavigationView.AutoSuggestBox>
 
-        <Frame x:Name="ContentFrame" Navigated="ContentFrame_Navigated" />
-    </NavigationView>
+            <NavigationView.MenuItems>
+                <NavigationViewItem Content="Live TV" Tag="live">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7F4;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Guide" Tag="guide">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE787;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Movies" Tag="movies">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8B2;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Series" Tag="series">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7F7;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItemSeparator />
+                <NavigationViewItem Content="My stuff" Tag="favourites">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE734;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Multi-view" Tag="multiview">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xF0E2;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Recordings" Tag="recordings">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7C8;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.MenuItems>
+
+            <NavigationView.FooterMenuItems>
+                <NavigationViewItem Content="Playlists" Tag="playlists">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE90B;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Settings" Tag="settings">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE713;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+            </NavigationView.FooterMenuItems>
+
+            <Grid>
+                <Frame x:Name="ContentFrame" Navigated="ContentFrame_Navigated" />
+                <InfoBar x:Name="Notice" VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="16" MaxWidth="520" IsClosable="True" />
+            </Grid>
+        </NavigationView>
+    </Grid>
 </Window>

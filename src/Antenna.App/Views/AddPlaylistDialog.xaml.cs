@@ -10,14 +10,56 @@ public sealed partial class AddPlaylistDialog : ContentDialog
 {
     private static readonly string[] Palette = ["#4F7CFF", "#E5484D", "#30A46C", "#F5A524", "#8E4EC6", "#12A594", "#E54D9E", "#6E6E6E"];
 
+    /// <summary>TV, film, globe, sport, music, kids, news, star, heart, home.</summary>
+    private static readonly string[] Icons = ["\uE7F4", "\uE8B2", "\uE774", "\uE805", "\uE8D6", "\uE716", "\uE789", "\uE734", "\uEB51", "\uE80F"];
+
+    private readonly PlaylistSource? _editing;
+
     internal PlaylistSource? Result { get; private set; }
 
-    public AddPlaylistDialog()
+    public AddPlaylistDialog() : this(null)
+    {
+    }
+
+    /// <summary>With a source, the dialog edits it (keeping its id, favourites and history).</summary>
+    internal AddPlaylistDialog(PlaylistSource? editing)
     {
         InitializeComponent();
+        _editing = editing;
         foreach (var hex in Palette)
             ColorChoice.Items.Add(new Ellipse { Width = 24, Height = 24, Fill = Ui.Brush(hex), Tag = hex });
+        foreach (var glyph in Icons)
+            IconChoice.Items.Add(new FontIcon { Glyph = glyph, FontSize = 20, Tag = glyph });
         ColorChoice.SelectedIndex = 0;
+        IconChoice.SelectedIndex = 0;
+
+        if (editing is null)
+            return;
+
+        Title = "Edit playlist";
+        PrimaryButtonText = "Save";
+        NameBox.Text = editing.Name;
+        EpgBox.Text = editing.EpgUrl ?? "";
+        ColorChoice.SelectedIndex = Math.Max(0, Array.IndexOf(Palette, editing.Color));
+        IconChoice.SelectedIndex = Math.Max(0, Array.IndexOf(Icons, editing.Icon));
+        if (editing.Kind == SourceKind.Xtream)
+        {
+            KindChoice.SelectedIndex = 2;
+            ServerBox.Text = editing.Location;
+            UserBox.Text = editing.Username ?? "";
+            PasswordBox.Password = editing.Password ?? "";
+        }
+        else if (Uri.TryCreate(editing.Location, UriKind.Absolute, out var uri) && !uri.IsFile)
+        {
+            KindChoice.SelectedIndex = 0;
+            UrlBox.Text = editing.Location;
+        }
+        else
+        {
+            KindChoice.SelectedIndex = 1;
+            FileBox.Text = editing.Location;
+        }
+        KindChoice_SelectionChanged(KindChoice, null!);
     }
 
     private int Kind => KindChoice.SelectedIndex; // 0 = M3U URL, 1 = M3U file, 2 = Xtream
@@ -92,6 +134,9 @@ public sealed partial class AddPlaylistDialog : ContentDialog
 
         Result = new PlaylistSource
         {
+            Id = _editing?.Id ?? Guid.NewGuid().ToString("N"),
+            LastRefreshed = _editing?.LastRefreshed,
+            Icon = (IconChoice.SelectedItem as FontIcon)?.Tag as string ?? Icons[0],
             Name = name,
             Kind = Kind == 2 ? SourceKind.Xtream : SourceKind.M3u,
             Location = location,

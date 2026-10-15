@@ -43,8 +43,15 @@
                             <TextBlock Text="{x:Bind Details}" Style="{StaticResource CaptionTextBlockStyle}" Opacity="0.7" TextTrimming="CharacterEllipsis" />
                         </StackPanel>
 
-                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
                             <Button Content="Refresh" Tag="{x:Bind}" Click="Refresh_Click" />
+                            <Button Content="Edit" Tag="{x:Bind}" Click="Edit_Click" />
+                            <Button Tag="{x:Bind}" Click="MoveUp_Click" ToolTipService.ToolTip="Move up">
+                                <FontIcon Glyph="&#xE70E;" FontSize="12" />
+                            </Button>
+                            <Button Tag="{x:Bind}" Click="MoveDown_Click" ToolTipService.ToolTip="Move down">
+                                <FontIcon Glyph="&#xE70D;" FontSize="12" />
+                            </Button>
                             <Button Content="Remove" Tag="{x:Bind}" Click="Remove_Click" />
                         </StackPanel>
                     </Grid>

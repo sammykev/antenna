@@ -7,35 +7,53 @@ or assets from any of them.
 Antenna plays streams from playlists **you** supply (your IPTV provider's M3U URL or
 Xtream Codes login). It doesn't include or find any content itself.
 
-## Status
+## Features
 
-| Feature | State |
-|---|---|
-| M3U / M3U8 playlists (URL or file) | ✅ |
-| Xtream Codes accounts (live, movies, series + episodes) | ✅ |
-| Search across all playlists (accent-insensitive, prefix) | ✅ |
-| Colour- and icon-coded playlists | ✅ (colour picker; icon picker to do) |
-| Playback: live and VOD, seeking, volume, full screen, keyboard shortcuts | ✅ |
-| Multiple audio tracks and embedded subtitles | ✅ |
-| Load subtitle files (.srt/.ass/.vtt) | ✅ |
-| Auto-reconnect when the stream drops (VOD resumes in place) | ✅ |
-| EPG guide (XMLTV, .xml or .xml.gz; auto-detected from url-tvg / Xtream) | ✅ |
-| "Now playing" on Live TV tiles and in search | ✅ |
-| Guide channel matching by tvg-id, then by name ("UK: BBC One HD" ↔ "BBC One") | ✅ |
-| Catch-up: Xtream timeshift (server time-zone aware) | ✅ |
-| Catch-up: M3U `catchup` modes default / append / shift / flussonic / xc | ✅ |
-| Favourites and recently watched | ⏳ |
-| OpenSubtitles.com search | ⏳ needs an API key |
-| PIN parental controls by category | ⏳ |
-| Offline downloads for VOD and catch-up | ⏳ |
-| DVR recording | ⏳ |
-| Secure credential storage (Windows Credential Locker) | ⏳ passwords are currently stored in the local database |
+**Watching**
+- Live TV, movies and series from M3U/M3U8 playlists (URL or file) and Xtream Codes accounts
+- Instant channel switching in the player: Ch+/Ch− (Page Up/Down, gamepad bumpers), type a channel number, or pick from the channel list (L)
+- Now/next overlay with channel logo and programme progress (I)
+- Continue watching: movies and episodes resume where you stopped
+- Audio tracks, embedded subtitles, subtitle files, and OpenSubtitles.com search
+- Playback speed for VOD, mini player (always on top), full screen, auto-reconnect
+- Cast to Chromecast devices on your network
+- Multi-view: up to four channels at once; click a tile to hear it
+- Streams that need a particular user agent or referrer (`#EXTVLCOPT`, `url|User-Agent=…`) now play
+
+**Guide and catch-up**
+- XMLTV guide (.xml / .xml.gz), matched to channels by id then by name
+- List view per channel/day, or a timeline grid of every channel
+- Catch-up for Xtream (time-zone aware) and M3U catchup modes (default, append, shift, flussonic, xc)
+
+**Recording**
+- Record live TV now, or schedule from the guide (with padding); save catch-up to disk
+- Download movies and episodes; Recordings page with progress, play and delete
+- Scheduled recordings run while Antenna is open
+
+**Library**
+- Search across all playlists, with suggestions as you type
+- Favourites, recently watched, continue watching ("My stuff")
+- Hide categories; lock categories behind a parental PIN
+- Edit, reorder, recolour and re-icon playlists
+- Automatic background refresh of playlists and guides
+- Backup and restore (playlists, favourites, category settings, preferences)
+
+**Speed and looks**
+- Lists load page by page off the UI thread; logos and posters are cached on disk
+- Poster tiles and details pages (plot, cast, rating, backdrop) for movies and series
+- Light/dark/system theme, custom title bar, Mica
+
+**Security**
+- Playlist passwords are encrypted with Windows DPAPI (only your Windows account can read them)
+- Xtream credentials are kept out of stored stream URLs and guide links
+- The parental PIN is stored only as a salted PBKDF2 hash
 
 ## Layout
 
 ```
 antenna/
-  src/Antenna.Core/        Cross-platform logic: M3U parser, Xtream client, SQLite library + FTS5 search
+  src/Antenna.Core/        Cross-platform logic: playlists, Xtream, XMLTV guide, catch-up, SQLite library + search,
+                           favourites/history/settings, backup, PIN hashing, OpenSubtitles, recording planner
   src/Antenna.App/         WinUI 3 app (Windows only)
   tests/Antenna.Core.Tests xUnit tests for the core library
 ```
@@ -98,10 +116,15 @@ and uploads a self-contained `Antenna-win-x64` build as an artifact.
 | Key | Action |
 |---|---|
 | Space / K | Play / pause |
-| F, double-click | Toggle full screen |
-| Esc | Leave full screen |
+| Page Up / Page Down (gamepad bumpers) | Next / previous channel |
+| 0–9 | Type a channel number |
+| L (gamepad Menu) | Channel list |
+| I | Channel info (now / next) |
+| F, double-click | Full screen |
+| Esc | Leave full screen / mini player |
 | ← / → | Seek 10 s |
 | M | Mute |
+| Gamepad B | Back |
 
 ## Licences
 

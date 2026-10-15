@@ -42,6 +42,11 @@
             <GridView x:Name="ColorChoice" SelectionMode="Single" />
         </StackPanel>
 
+        <StackPanel Spacing="4">
+            <TextBlock Text="Icon" />
+            <GridView x:Name="IconChoice" SelectionMode="Single" />
+        </StackPanel>
+
         <InfoBar x:Name="Error" Severity="Error" IsClosable="False" />
     </StackPanel>
 </ContentDialog>

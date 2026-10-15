@@ -1,6 +1,8 @@
 using Antenna.App.Services;
+using Antenna.App.ViewModels;
 using Antenna.App.Views;
 using Antenna.Core;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -10,25 +12,95 @@ namespace Antenna.App;
 
 public sealed partial class MainWindow : Window
 {
+    private static readonly Dictionary<string, (Type Page, object? Parameter)> Pages = new()
+    {
+        ["live"] = (typeof(BrowsePage), MediaKind.Live),
+        ["guide"] = (typeof(GuidePage), null),
+        ["movies"] = (typeof(BrowsePage), MediaKind.Movie),
+        ["series"] = (typeof(BrowsePage), MediaKind.Series),
+        ["favourites"] = (typeof(FavouritesPage), null),
+        ["multiview"] = (typeof(MultiViewPage), null),
+        ["recordings"] = (typeof(RecordingsPage), null),
+        ["playlists"] = (typeof(PlaylistsPage), null),
+        ["settings"] = (typeof(SettingsPage), null),
+    };
+
+    private readonly DispatcherQueueTimer _suggestTimer;
+    private List<SuggestionItem> _suggestions = [];
+
     public MainWindow()
     {
         InitializeComponent();
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(1280, 800));
+        AppWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Antenna.ico"));
+        ExtendsContentIntoTitleBar = true;
+        SetTitleBar(AppTitleBar);
+        ApplyTheme();
 
-        // First run goes straight to adding a playlist; otherwise open Live TV.
-        var start = AppServices.Library.GetSources().Count > 0 ? "live" : "playlists";
-        NavigateTo(start);
+        _suggestTimer = DispatcherQueue.CreateTimer();
+        _suggestTimer.Interval = TimeSpan.FromMilliseconds(250);
+        _suggestTimer.IsRepeating = false;
+        _suggestTimer.Tick += async (_, _) => await UpdateSuggestionsAsync();
+
+        AutoRefresh.Refreshed += OnBackgroundRefresh;
+
+        // First run goes straight to adding a playlist; otherwise the chosen start page.
+        var start = AppServices.Library.GetSources().Count > 0 ? AppSettings.StartPage : "playlists";
+        NavigateTo(Pages.ContainsKey(start) ? start : "live");
     }
 
     public Frame Frame => ContentFrame;
 
     public bool IsFullScreen => AppWindow.Presenter.Kind == AppWindowPresenterKind.FullScreen;
 
-    /// <summary>Full-screen hides the navigation pane so video fills the screen.</summary>
+    public bool IsMiniPlayer => AppWindow.Presenter.Kind == AppWindowPresenterKind.CompactOverlay;
+
+    public void ApplyTheme()
+    {
+        RootGrid.RequestedTheme = AppSettings.Theme switch
+        {
+            "light" => ElementTheme.Light,
+            "dark" => ElementTheme.Dark,
+            _ => ElementTheme.Default,
+        };
+    }
+
+    /// <summary>Full-screen hides the navigation pane and title bar so video fills the screen.</summary>
     public void SetFullScreen(bool fullScreen)
     {
         AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Default);
-        NavView.IsPaneVisible = !fullScreen;
+        SetChromeVisible(!fullScreen);
+    }
+
+    /// <summary>A small always-on-top window showing just the player.</summary>
+    public void SetMiniPlayer(bool mini)
+    {
+        AppWindow.SetPresenter(mini ? AppWindowPresenterKind.CompactOverlay : AppWindowPresenterKind.Default);
+        if (mini)
+            AppWindow.Resize(new Windows.Graphics.SizeInt32(560, 315));
+        SetChromeVisible(!mini);
+    }
+
+    private void SetChromeVisible(bool visible)
+    {
+        NavView.IsPaneVisible = visible;
+        NavView.IsBackButtonVisible = visible ? NavigationViewBackButtonVisible.Auto : NavigationViewBackButtonVisible.Collapsed;
+        AppTitleBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public void ShowNotice(InfoBarSeverity severity, string message)
+    {
+        Notice.Severity = severity;
+        Notice.Message = message;
+        Notice.IsOpen = true;
+    }
+
+    private void OnBackgroundRefresh(string name, RefreshResult? result, string? error)
+    {
+        if (error is not null)
+            ShowNotice(InfoBarSeverity.Warning, $"Couldn't refresh {name}: {error}");
+        else if (result?.GuideError is { } guideError)
+            ShowNotice(InfoBarSeverity.Warning, $"{name} refreshed, but its guide failed: {guideError}");
     }
 
     private void NavView_ItemInvoked(NavigationView sender, NavigationViewItemInvokedEventArgs args)
@@ -39,14 +111,8 @@ public sealed partial class MainWindow : Window
 
     private void NavigateTo(string tag)
     {
-        switch (tag)
-        {
-            case "live": Navigate(typeof(BrowsePage), MediaKind.Live); break;
-            case "guide": Navigate(typeof(GuidePage), null); break;
-            case "movies": Navigate(typeof(BrowsePage), MediaKind.Movie); break;
-            case "series": Navigate(typeof(BrowsePage), MediaKind.Series); break;
-            case "playlists": Navigate(typeof(PlaylistsPage), null); break;
-        }
+        if (Pages.TryGetValue(tag, out var target))
+            Navigate(target.Page, target.Parameter);
     }
 
     private void Navigate(Type page, object? parameter)
@@ -57,8 +123,40 @@ public sealed partial class MainWindow : Window
         ContentFrame.Navigate(page, parameter);
     }
 
+    // ---- Search ----
+
+    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+            return;
+        _suggestTimer.Stop();
+        if (sender.Text.Trim().Length < 2)
+        {
+            sender.ItemsSource = null;
+            return;
+        }
+        _suggestTimer.Start();
+    }
+
+    private async Task UpdateSuggestionsAsync()
+    {
+        var text = SearchBox.Text;
+        var hits = await Task.Run(() => AppServices.Library.Search(text, null, 8));
+        if (text != SearchBox.Text)
+            return;
+        _suggestions = hits.Select(h => new SuggestionItem(h)).ToList();
+        SearchBox.ItemsSource = _suggestions;
+    }
+
     private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
+        if (args.ChosenSuggestion is SuggestionItem chosen)
+        {
+            sender.Text = "";
+            sender.ItemsSource = null;
+            Playback.Open(new ItemViewModel(chosen.Entry));
+            return;
+        }
         if (string.IsNullOrWhiteSpace(args.QueryText))
             return;
         ContentFrame.Tag = null;
@@ -74,22 +172,13 @@ public sealed partial class MainWindow : Window
     private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
     {
         // Keep the pane selection in sync when navigating back.
-        var tag = e.SourcePageType == typeof(PlaylistsPage) ? "playlists"
-            : e.SourcePageType == typeof(GuidePage) ? "guide"
-            : e.SourcePageType == typeof(BrowsePage) && e.Parameter is MediaKind k ? k switch
-            {
-                MediaKind.Live => "live",
-                MediaKind.Movie => "movies",
-                _ => "series",
-            }
-            : null;
-
-        if (tag is null)
+        var match = Pages.FirstOrDefault(p => p.Value.Page == e.SourcePageType && Equals(p.Value.Parameter, e.Parameter is MediaKind ? e.Parameter : p.Value.Parameter));
+        if (match.Key is null)
             return;
         ContentFrame.Tag = e.Parameter;
         var item = NavView.MenuItems.Concat(NavView.FooterMenuItems)
             .OfType<NavigationViewItem>()
-            .FirstOrDefault(i => (string)i.Tag == tag);
+            .FirstOrDefault(i => (string)i.Tag == match.Key);
         if (item is not null && !ReferenceEquals(NavView.SelectedItem, item))
             NavView.SelectedItem = item;
     }

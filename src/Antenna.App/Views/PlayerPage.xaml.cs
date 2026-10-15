@@ -1,3 +1,5 @@
+using System.Globalization;
+using Antenna.App.Services;
 using Antenna.App.ViewModels;
 using LibVLCSharp.Platforms.Windows;
 using LibVLCSharp.Shared;
@@ -7,67 +9,116 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 using Windows.Storage.Pickers;
+using VirtualKey = Windows.System.VirtualKey;
 
 namespace Antenna.App.Views;
 
 /// <summary>
-/// LibVLC-backed player. Live streams reconnect automatically with backoff when the
-/// connection drops; VOD reconnects and resumes from the last position.
+/// LibVLC-backed player. Live streams reconnect automatically with backoff when the connection
+/// drops, and can be zapped with Ch+/Ch−, a typed channel number or the channel list without
+/// leaving the page (so the video engine stays warm). VOD resumes where it was left.
 /// </summary>
 public sealed partial class PlayerPage : Page
 {
     private static readonly TimeSpan[] RetryDelays =
         [TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(15)];
 
-    private static readonly string[] MediaOptions = [":network-caching=1500", ":http-reconnect"];
+    private static readonly float[] Speeds = [0.5f, 0.75f, 1f, 1.25f, 1.5f, 2f];
 
     private readonly DispatcherQueueTimer _hideTimer;
+    private readonly DispatcherQueueTimer _historyTimer;
+    private readonly DispatcherQueueTimer _numberTimer;
+    private readonly DispatcherQueueTimer _infoTimer;
     private LibVLC? _vlc;
     private MediaPlayer? _player;
+    private RendererDiscoverer? _discoverer;
+    private readonly List<RendererItem> _renderers = [];
+    private RendererItem? _activeRenderer;
     private PlayRequest? _request;
     private int _retry;
     private long _resumeAt;
     private long _lastTime;
+    private long _lastLength;
     private bool _closing;
     private bool _updatingSeek;
+    private bool _recordedStart;
+    private string _typedNumber = "";
+    private string? _recordingId;
 
     public PlayerPage()
     {
         InitializeComponent();
-        _hideTimer = DispatcherQueue.CreateTimer();
-        _hideTimer.Interval = TimeSpan.FromSeconds(3);
-        _hideTimer.IsRepeating = false;
-        _hideTimer.Tick += (_, _) =>
+
+        _hideTimer = Timer(TimeSpan.FromSeconds(3), () =>
         {
             if (_player?.IsPlaying == true)
+            {
                 ControlsPanel.Visibility = Visibility.Collapsed;
-        };
+                ResumePanel.Visibility = Visibility.Collapsed;
+            }
+        });
+        _infoTimer = Timer(TimeSpan.FromSeconds(5), () => InfoPanel.Visibility = Visibility.Collapsed);
+        _historyTimer = Timer(TimeSpan.FromSeconds(10), SaveProgress, repeat: true);
+        _numberTimer = Timer(TimeSpan.FromSeconds(1.5), CommitTypedNumber);
+
+        // Digit keys (top row and keypad) type a channel number.
+        for (var i = 0; i <= 9; i++)
+        {
+            var digit = i;
+            foreach (var key in new[] { VirtualKey.Number0 + i, VirtualKey.NumberPad0 + i })
+            {
+                var accelerator = new KeyboardAccelerator { Key = key };
+                accelerator.Invoked += (_, a) =>
+                {
+                    TypeDigit(digit);
+                    a.Handled = true;
+                };
+                KeyboardAccelerators.Add(accelerator);
+            }
+        }
     }
+
+    private DispatcherQueueTimer Timer(TimeSpan interval, Action tick, bool repeat = false)
+    {
+        var timer = DispatcherQueue.CreateTimer();
+        timer.Interval = interval;
+        timer.IsRepeating = repeat;
+        timer.Tick += (_, _) => tick();
+        return timer;
+    }
+
+    // ---- Lifecycle ----
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        _request = (PlayRequest)e.Parameter;
-        TitleText.Text = _request.Title;
-        LiveBadge.Visibility = _request.IsLive ? Visibility.Visible : Visibility.Collapsed;
-        Start();
+        Load((PlayRequest)e.Parameter);
+        PlayPauseButton.Focus(FocusState.Programmatic);
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         base.OnNavigatedFrom(e);
+        SaveProgress();
         _closing = true;
-        _hideTimer.Stop();
+        foreach (var timer in new[] { _hideTimer, _historyTimer, _numberTimer, _infoTimer })
+            timer.Stop();
         if (App.Window.IsFullScreen)
             App.Window.SetFullScreen(false);
+        if (App.Window.IsMiniPlayer)
+            App.Window.SetMiniPlayer(false);
 
         var player = _player;
         var vlc = _vlc;
+        var discoverer = _discoverer;
         _player = null;
         _vlc = null;
+        _discoverer = null;
         // Stop can block while libvlc tears down the stream, so keep it off the UI thread.
         _ = Task.Run(() =>
         {
+            discoverer?.Stop();
+            discoverer?.Dispose();
             player?.Stop();
             player?.Dispose();
             vlc?.Dispose();
@@ -87,6 +138,31 @@ public sealed partial class PlayerPage : Page
         _player.EncounteredError += (_, _) => OnUi(OnStreamFailed);
         _player.EndReached += (_, _) => OnUi(OnEndReached);
         Video.MediaPlayer = _player;
+        StartCastDiscovery();
+        Start();
+    }
+
+    /// <summary>Shows a new request. Called on navigation and when zapping between channels.</summary>
+    private void Load(PlayRequest request)
+    {
+        SaveProgress();
+        _request = request;
+        _retry = 0;
+        _resumeAt = request.StartAtMs;
+        _lastTime = 0;
+        _lastLength = 0;
+        _recordedStart = false;
+
+        TitleText.Text = request.Title;
+        LiveBadge.Visibility = request.IsLive ? Visibility.Visible : Visibility.Collapsed;
+        ZapButtons.Visibility = request.CanZap ? Visibility.Visible : Visibility.Collapsed;
+        RecordButton.Visibility = request.IsLive ? Visibility.Visible : Visibility.Collapsed;
+        SpeedButton.Visibility = request.IsLive ? Visibility.Collapsed : Visibility.Visible;
+        SeekRow.Visibility = Visibility.Collapsed;
+        StatusPanel.Visibility = Visibility.Collapsed;
+        ResumePanel.Visibility = Visibility.Collapsed;
+        UpdateRecordingState();
+        _ = ShowInfoAsync();
         Start();
     }
 
@@ -100,10 +176,18 @@ public sealed partial class PlayerPage : Page
             return;
 
         BufferingRing.IsActive = true;
+        var options = new List<string>
+        {
+            $":network-caching={AppSettings.NetworkCachingMs}",
+            ":http-reconnect",
+            AppSettings.HardwareDecoding ? ":avcodec-hw=any" : ":avcodec-hw=none",
+        };
+        options.AddRange(request.Options);
+
         // Never call into libvlc from its own event threads; the thread pool is always safe.
         ThreadPool.QueueUserWorkItem(_ =>
         {
-            using var media = new Media(vlc, request.Url, FromType.FromLocation, MediaOptions);
+            using var media = new Media(vlc, request.Url, FromType.FromLocation, [.. options]);
             player.Play(media);
         });
     }
@@ -121,25 +205,40 @@ public sealed partial class PlayerPage : Page
         BufferingRing.IsActive = false;
         StatusPanel.Visibility = Visibility.Collapsed;
         SetPlayIcon(playing: true);
+
         if (_resumeAt > 0 && _player is { IsSeekable: true } p)
         {
             var at = _resumeAt;
             _resumeAt = 0;
             ThreadPool.QueueUserWorkItem(_ => p.Time = at);
+            if (_request?.StartAtMs == at)
+            {
+                ResumeText.Text = $"Resumed from {Ui.Clock(at)}";
+                ResumePanel.Visibility = Visibility.Visible;
+            }
         }
+
+        if (!_recordedStart)
+        {
+            _recordedStart = true;
+            SaveProgress();
+        }
+        if (_request?.IsLive == false)
+            _historyTimer.Start();
         _hideTimer.Start();
     }
 
     private void OnLengthChanged(long length)
     {
+        _lastLength = length;
         SeekRow.Visibility = length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        DurationText.Text = Format(length);
+        DurationText.Text = Ui.Clock(length);
     }
 
     private void OnTimeChanged(long time)
     {
         _lastTime = time;
-        ElapsedText.Text = Format(time);
+        ElapsedText.Text = Ui.Clock(time);
         if (_player is { } p)
         {
             _updatingSeek = true;
@@ -156,6 +255,9 @@ public sealed partial class PlayerPage : Page
             OnStreamFailed();
             return;
         }
+        _historyTimer.Stop();
+        if (_request?.ToWatch(_lastLength, _lastLength) is { } done)
+            AppServices.Library.RecordWatch(done);
         SetPlayIcon(playing: false);
         ControlsPanel.Visibility = Visibility.Visible;
     }
@@ -170,13 +272,26 @@ public sealed partial class PlayerPage : Page
             return;
         }
 
+        var request = _request;
         var delay = RetryDelays[_retry++];
         ShowStatus($"Connection lost. Reconnecting ({_retry}/{RetryDelays.Length})…");
-        if (_request?.IsLive == false)
+        if (request?.IsLive == false)
             _resumeAt = _lastTime;
 
         await Task.Delay(delay);
-        Start();
+        if (ReferenceEquals(request, _request))
+            Start();
+    }
+
+    /// <summary>Remembers what's playing (and where, for VOD) for "continue watching".</summary>
+    private void SaveProgress()
+    {
+        if (_request is not { } request || !_recordedStart)
+            return;
+        if (!request.IsLive && _lastTime <= 0)
+            return;
+        if (request.ToWatch(_lastTime, _lastLength) is { } record)
+            AppServices.Library.RecordWatch(record);
     }
 
     private void ShowStatus(string message)
@@ -187,10 +302,84 @@ public sealed partial class PlayerPage : Page
 
     private void SetPlayIcon(bool playing) => PlayPauseIcon.Glyph = playing ? "" : "";
 
-    private static string Format(long ms)
+    // ---- Channel overlay ----
+
+    private async Task ShowInfoAsync()
     {
-        var t = TimeSpan.FromMilliseconds(Math.Max(0, ms));
-        return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss") : t.ToString(@"m\:ss");
+        if (_request is not { } request)
+            return;
+
+        InfoTitle.Text = request.Title;
+        InfoNumber.Text = request.CanZap ? (request.ChannelIndex + 1).ToString(CultureInfo.InvariantCulture) : "";
+        InfoLogo.Source = null;
+        InfoNowPanel.Visibility = Visibility.Collapsed;
+        InfoPanel.Visibility = Visibility.Visible;
+        _infoTimer.Stop();
+        _infoTimer.Start();
+
+        if (request.LogoUrl is { } logo && Ui.IsWebUrl(logo) && await ImageCache.GetAsync(logo) is { } path && ReferenceEquals(request, _request))
+        {
+            InfoLogo.Source = Ui.FromFile(path, 48);
+            InfoNumber.Text = "";
+        }
+
+        if (request is { IsLive: true, SourceId: { } source, EpgChannelId: { } channel })
+        {
+            var (now, next) = await GuideService.NowAndNextAsync(source, channel);
+            if (!ReferenceEquals(request, _request) || now is null)
+                return;
+            InfoNow.Text = $"{now.Start.LocalDateTime:HH:mm}–{now.Stop.LocalDateTime:HH:mm}  {now.Title}";
+            InfoProgress.Value = Math.Clamp((DateTimeOffset.Now - now.Start) / now.Duration, 0, 1) * 100;
+            InfoNext.Text = next is null ? "" : $"Next: {next.Start.LocalDateTime:HH:mm}  {next.Title}";
+            InfoNowPanel.Visibility = Visibility.Visible;
+        }
+    }
+
+    // ---- Zapping ----
+
+    private void Zap(int delta)
+    {
+        if (_request is { CanZap: true } r)
+            Load(r.WithChannel(r.ChannelIndex + delta));
+    }
+
+    private void TypeDigit(int digit)
+    {
+        if (_request is not { CanZap: true })
+            return;
+        _typedNumber = (_typedNumber + digit.ToString(CultureInfo.InvariantCulture)).TrimStart('0');
+        if (_typedNumber.Length > 4)
+            _typedNumber = _typedNumber[^4..];
+        NumberText.Text = _typedNumber.Length == 0 ? "0" : _typedNumber;
+        NumberPanel.Visibility = Visibility.Visible;
+        _numberTimer.Stop();
+        _numberTimer.Start();
+    }
+
+    private void CommitTypedNumber()
+    {
+        NumberPanel.Visibility = Visibility.Collapsed;
+        if (_request is { CanZap: true } r && int.TryParse(_typedNumber, out var n) && n >= 1 && n <= r.Channels.Count)
+            Load(r.WithChannel(n - 1));
+        _typedNumber = "";
+    }
+
+    private void ChannelFlyout_Opening(object sender, object e)
+    {
+        if (_request is not { CanZap: true } r)
+            return;
+        ChannelList.ItemsSource = r.Channels.Select((c, i) => $"{i + 1}.  {c.Title}").ToList();
+        ChannelList.SelectedIndex = r.ChannelIndex;
+        if (r.ChannelIndex >= 0)
+            ChannelList.ScrollIntoView(ChannelList.SelectedItem, ScrollIntoViewAlignment.Leading);
+    }
+
+    private void ChannelList_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        var index = ChannelList.Items.IndexOf(e.ClickedItem);
+        ChannelFlyout.Hide();
+        if (_request is { CanZap: true } r && index >= 0)
+            Load(r.WithChannel(index));
     }
 
     // ---- Controls ----
@@ -209,9 +398,23 @@ public sealed partial class PlayerPage : Page
 
     private void ToggleFullScreen()
     {
+        if (App.Window.IsMiniPlayer)
+            ToggleMiniPlayer();
         var full = !App.Window.IsFullScreen;
         App.Window.SetFullScreen(full);
         FullScreenIcon.Glyph = full ? "" : "";
+    }
+
+    private void ToggleMiniPlayer()
+    {
+        var mini = !App.Window.IsMiniPlayer;
+        if (mini && App.Window.IsFullScreen)
+        {
+            App.Window.SetFullScreen(false);
+            FullScreenIcon.Glyph = "";
+        }
+        App.Window.SetMiniPlayer(mini);
+        MiniIcon.Glyph = mini ? "" : "";
     }
 
     private void SeekBy(TimeSpan offset)
@@ -239,17 +442,26 @@ public sealed partial class PlayerPage : Page
         _hideTimer.Start();
     }
 
-    private void PlayPause_Click(object sender, RoutedEventArgs e) => TogglePause();
-
-    private void Back_Click(object sender, RoutedEventArgs e)
+    private void GoBack()
     {
         if (Frame.CanGoBack)
             Frame.GoBack();
     }
 
+    private void PlayPause_Click(object sender, RoutedEventArgs e) => TogglePause();
+    private void Back_Click(object sender, RoutedEventArgs e) => GoBack();
     private void FullScreen_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
-
+    private void MiniPlayer_Click(object sender, RoutedEventArgs e) => ToggleMiniPlayer();
     private void Mute_Click(object sender, RoutedEventArgs e) => ToggleMute();
+    private void ChannelUp_Click(object sender, RoutedEventArgs e) => Zap(+1);
+    private void ChannelDown_Click(object sender, RoutedEventArgs e) => Zap(-1);
+
+    private void StartOver_Click(object sender, RoutedEventArgs e)
+    {
+        ResumePanel.Visibility = Visibility.Collapsed;
+        if (_player is { IsSeekable: true } p)
+            ThreadPool.QueueUserWorkItem(_ => p.Time = 0);
+    }
 
     private void SeekSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
@@ -266,49 +478,81 @@ public sealed partial class PlayerPage : Page
     }
 
     private void Surface_PointerMoved(object sender, PointerRoutedEventArgs e) => ShowControls();
-
     private void Surface_Tapped(object sender, TappedRoutedEventArgs e) => ShowControls();
-
     private void Surface_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e) => ToggleFullScreen();
 
-    private void TogglePause_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    private void Handle(KeyboardAcceleratorInvokedEventArgs args, Action action)
     {
-        TogglePause();
+        action();
         args.Handled = true;
     }
 
-    private void ToggleFullScreen_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
-    {
-        ToggleFullScreen();
-        args.Handled = true;
-    }
+    private void TogglePause_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, TogglePause);
+    private void ToggleFullScreen_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, ToggleFullScreen);
+    private void SeekBack_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () => SeekBy(TimeSpan.FromSeconds(-10)));
+    private void SeekForward_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () => SeekBy(TimeSpan.FromSeconds(10)));
+    private void ToggleMute_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, ToggleMute);
+    private void ChannelUp_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () => Zap(+1));
+    private void ChannelDown_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () => Zap(-1));
+    private void Back_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, GoBack);
+    private void Info_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () => _ = ShowInfoAsync());
 
-    private void ExitFullScreen_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    private void ChannelList_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () =>
+    {
+        if (_request is { CanZap: true })
+        {
+            ShowControls();
+            ChannelFlyout.ShowAt(ChannelListButton);
+        }
+    });
+
+    private void ExitFullScreen_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () =>
     {
         if (App.Window.IsFullScreen)
             ToggleFullScreen();
-        args.Handled = true;
-    }
+        else if (App.Window.IsMiniPlayer)
+            ToggleMiniPlayer();
+    });
 
-    private void SeekBack_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    // ---- Recording ----
+
+    private void UpdateRecordingState()
     {
-        SeekBy(TimeSpan.FromSeconds(-10));
-        args.Handled = true;
+        _recordingId = _request is { } r ? Recorder.ActiveRecordingFor(r.Url) : null;
+        RecordingBadge.Visibility = _recordingId is null ? Visibility.Collapsed : Visibility.Visible;
+        RecordIcon.Glyph = _recordingId is null ? "" : "";
+        ToolTipService.SetToolTip(RecordButton, _recordingId is null ? "Record (until stopped, max 4 h)" : "Stop recording");
     }
 
-    private void SeekForward_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    private void Record_Click(object sender, RoutedEventArgs e)
     {
-        SeekBy(TimeSpan.FromSeconds(10));
-        args.Handled = true;
+        if (_request is not { } r)
+            return;
+        if (_recordingId is { } id)
+            Recorder.Stop(id);
+        else
+            Recorder.RecordNow(r.Title, r.Url, r.Options, TimeSpan.FromHours(4));
+        UpdateRecordingState();
     }
 
-    private void ToggleMute_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args)
+    // ---- Tracks, speed, subtitles ----
+
+    private void SpeedMenu_Opening(object sender, object e)
     {
-        ToggleMute();
-        args.Handled = true;
+        SpeedMenu.Items.Clear();
+        if (_player is not { } p)
+            return;
+        foreach (var speed in Speeds)
+        {
+            var item = new RadioMenuFlyoutItem { Text = $"{speed:0.##}×", GroupName = "speed", IsChecked = Math.Abs(p.Rate - speed) < 0.01 };
+            item.Click += (_, _) =>
+            {
+                p.SetRate(speed);
+                SpeedText.Text = $"{speed:0.##}×";
+            };
+            SpeedMenu.Items.Add(item);
+        }
     }
-
-    // ---- Tracks ----
 
     private void AudioMenu_Opening(object sender, object e)
     {
@@ -346,12 +590,18 @@ public sealed partial class PlayerPage : Page
         if (SubtitleMenu.Items.Count > 0)
             SubtitleMenu.Items.Add(new MenuFlyoutSeparator());
 
-        var load = new MenuFlyoutItem { Text = "Load subtitle file…" };
-        load.Click += LoadSubtitleFile_Click;
-        SubtitleMenu.Items.Add(load);
+        SubtitleMenu.Items.Add(ItemMenu.Item("Search online…", "", async () =>
+        {
+            if (_player is { } player && _request is { } request &&
+                await SubtitleSearchDialog.PickAsync(XamlRoot, request.Title) is { } path)
+            {
+                player.AddSlave(MediaSlaveType.Subtitle, new Uri(path).AbsoluteUri, select: true);
+            }
+        }));
+        SubtitleMenu.Items.Add(ItemMenu.Item("Load subtitle file…", "", LoadSubtitleFile));
     }
 
-    private async void LoadSubtitleFile_Click(object sender, RoutedEventArgs e)
+    private async void LoadSubtitleFile()
     {
         if (_player is not { } p)
             return;
@@ -364,5 +614,70 @@ public sealed partial class PlayerPage : Page
         var file = await picker.PickSingleFileAsync();
         if (file is not null)
             p.AddSlave(MediaSlaveType.Subtitle, new Uri(file.Path).AbsoluteUri, select: true);
+    }
+
+    // ---- Casting ----
+
+    private void StartCastDiscovery()
+    {
+        if (_vlc is null)
+            return;
+        try
+        {
+            var name = _vlc.RendererList.FirstOrDefault().Name;
+            if (string.IsNullOrEmpty(name))
+                return;
+            _discoverer = new RendererDiscoverer(_vlc, name);
+            _discoverer.ItemAdded += (_, a) => OnUi(() => _renderers.Add(a.RendererItem));
+            _discoverer.ItemDeleted += (_, a) => OnUi(() => _renderers.RemoveAll(r => r.Name == a.RendererItem.Name));
+            _discoverer.Start();
+        }
+        catch (Exception)
+        {
+            _discoverer = null; // Casting is optional; playback works without it.
+        }
+    }
+
+    private void CastMenu_Opening(object sender, object e)
+    {
+        CastMenu.Items.Clear();
+        var local = new RadioMenuFlyoutItem { Text = "This PC", GroupName = "cast", IsChecked = _activeRenderer is null };
+        local.Click += (_, _) => CastTo(null);
+        CastMenu.Items.Add(local);
+
+        foreach (var renderer in _renderers.Where(r => r.CanRenderVideo))
+        {
+            var target = renderer;
+            var item = new RadioMenuFlyoutItem { Text = renderer.Name, GroupName = "cast", IsChecked = ReferenceEquals(renderer, _activeRenderer) };
+            item.Click += (_, _) => CastTo(target);
+            CastMenu.Items.Add(item);
+        }
+        if (_renderers.Count == 0)
+            CastMenu.Items.Add(new MenuFlyoutItem { Text = _discoverer is null ? "Casting isn't available" : "Looking for Chromecast devices…", IsEnabled = false });
+    }
+
+    /// <summary>Switching renderer takes effect on the next Play, so playback restarts (resuming VOD).</summary>
+    private void CastTo(RendererItem? renderer)
+    {
+        if (_player is not { } p)
+            return;
+        _activeRenderer = renderer;
+        CastBadge.Text = renderer is null ? "" : $"Casting to {renderer.Name}";
+        CastBadge.Visibility = renderer is null ? Visibility.Collapsed : Visibility.Visible;
+        if (_request?.IsLive == false)
+            _resumeAt = _lastTime;
+        ThreadPool.QueueUserWorkItem(_ =>
+        {
+            try
+            {
+                p.Stop();
+                p.SetRenderer(renderer!);
+            }
+            catch (Exception)
+            {
+                // A device that vanished mid-switch: carry on locally.
+            }
+            OnUi(Start);
+        });
     }
 }

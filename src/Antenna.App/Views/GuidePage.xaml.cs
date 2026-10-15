@@ -2,36 +2,54 @@ using Antenna.App.Services;
 using Antenna.App.ViewModels;
 using Antenna.Core;
 using Antenna.Core.Epg;
+using Antenna.Core.Recordings;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Navigation;
 
 namespace Antenna.App.Views;
 
 public sealed partial class GuidePage : Page
 {
+    private static readonly TimeSpan WindowLength = TimeSpan.FromHours(3);
+    private static readonly TimeSpan WindowStep = TimeSpan.FromMinutes(90);
+
     private IReadOnlyList<PlaylistSource> _sources = [];
     private List<ItemViewModel> _allChannels = [];
     private List<DateTime> _days = [];
+    private DateTimeOffset _windowStart;
     private bool _loading;
 
     public GuidePage()
     {
         InitializeComponent();
         NavigationCacheMode = NavigationCacheMode.Enabled;
+        _windowStart = DefaultWindowStart();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        LoadSources();
+        _ = LoadSourcesAsync();
     }
+
+    private bool IsTimeline => (ViewMode.SelectedItem?.Tag as string) == "grid";
 
     private ItemViewModel? SelectedChannel => Channels.SelectedItem as ItemViewModel;
 
     private string? SelectedSourceId => SourceFilter.SelectedIndex > 0 ? _sources[SourceFilter.SelectedIndex - 1].Id : null;
 
-    private void LoadSources()
+    private static DateTimeOffset DefaultWindowStart()
+    {
+        // Start half an hour back, on a half-hour boundary, so "now" sits near the left.
+        var now = DateTimeOffset.Now;
+        var rounded = new DateTimeOffset(now.Year, now.Month, now.Day, now.Hour, now.Minute >= 30 ? 30 : 0, 0, now.Offset);
+        return rounded.AddMinutes(-30);
+    }
+
+    private async Task LoadSourcesAsync()
     {
         _loading = true;
         var previous = SelectedSourceId;
@@ -39,29 +57,55 @@ public sealed partial class GuidePage : Page
         SourceFilter.ItemsSource = new[] { "All playlists" }.Concat(_sources.Select(s => s.Name)).ToList();
         SourceFilter.SelectedIndex = _sources.ToList().FindIndex(s => s.Id == previous) + 1;
         _loading = false;
-        LoadChannels();
+        await LoadChannelsAsync();
     }
 
-    private void LoadChannels()
+    private async Task LoadChannelsAsync()
     {
         var previous = SelectedChannel?.Item;
-        _allChannels = GuideService.WithNowPlaying(AppServices.Library.GetItems(MediaKind.Live, SelectedSourceId));
+        var source = SelectedSourceId;
+        var entries = await Task.Run(() => AppServices.Library.GetItems(MediaKind.Live, source));
+        _allChannels = await GuideService.ToViewModelsAsync(entries);
         ApplyChannelFilter();
 
         var keep = previous is null ? null
             : _allChannels.FirstOrDefault(c => c.Item.SourceId == previous.SourceId && c.Item.ExternalId == previous.ExternalId);
         Channels.SelectedItem = keep ?? (Channels.ItemsSource as List<ItemViewModel>)?.FirstOrDefault(c => c.Item.EpgChannelId is not null);
-        if (Channels.SelectedItem is null)
+        if (Channels.SelectedItem is null && !IsTimeline)
             ShowEmpty("No guide yet", "Add an EPG (XMLTV) URL to a playlist, or refresh it in Playlists. Xtream accounts include one automatically.");
+        ShowMode();
+    }
+
+    private List<ItemViewModel> FilteredChannels()
+    {
+        var text = ChannelFilter.Text.Trim();
+        return text.Length == 0 ? _allChannels : _allChannels.Where(c => c.Title.Contains(text, StringComparison.CurrentCultureIgnoreCase)).ToList();
     }
 
     private void ApplyChannelFilter()
     {
-        var text = ChannelFilter.Text.Trim();
-        Channels.ItemsSource = text.Length == 0
-            ? _allChannels
-            : _allChannels.Where(c => c.Title.Contains(text, StringComparison.CurrentCultureIgnoreCase)).ToList();
+        var filtered = FilteredChannels();
+        Channels.ItemsSource = filtered;
+        if (IsTimeline)
+            TimelineRows.ItemsSource = filtered.Where(c => c.Item.EpgChannelId is not null).ToList();
     }
+
+    private void ShowMode()
+    {
+        var grid = IsTimeline;
+        foreach (var e in new UIElement[] { Channels, ListHeader, Schedule })
+            e.Visibility = grid ? Visibility.Collapsed : Visibility.Visible;
+        TimelineHeader.Visibility = grid ? Visibility.Visible : Visibility.Collapsed;
+        Timeline.Visibility = grid ? Visibility.Visible : Visibility.Collapsed;
+        if (grid)
+        {
+            EmptyState.Visibility = Visibility.Collapsed;
+            BuildRuler();
+            TimelineRows.ItemsSource = FilteredChannels().Where(c => c.Item.EpgChannelId is not null).ToList();
+        }
+    }
+
+    // ---- List view ----
 
     private void ShowChannel(ItemViewModel channel)
     {
@@ -76,12 +120,12 @@ public sealed partial class GuidePage : Page
         Days.ItemsSource = _days.Select(DayLabel).ToList();
         Days.SelectedIndex = back; // today
         _loading = false;
-        LoadSchedule();
+        _ = LoadScheduleAsync();
     }
 
-    private void LoadSchedule()
+    private async Task LoadScheduleAsync()
     {
-        Error.IsOpen = false;
+        Status.IsOpen = false;
         if (SelectedChannel is not { } channel || Days.SelectedIndex < 0)
             return;
 
@@ -92,14 +136,13 @@ public sealed partial class GuidePage : Page
             return;
         }
 
-        var day = _days[Days.SelectedIndex];
-        var from = new DateTimeOffset(day);
-        var programmes = AppServices.Library.GetProgrammes(channel.Item.SourceId, epgId, from, from.AddDays(1));
-        var now = DateTimeOffset.Now;
-        var rows = programmes
-            .Select(p => new ProgrammeViewModel(p, p.IsOnAt(now), Catchup.IsAvailable(channel.Item, p, now) && !p.IsOnAt(now)))
-            .ToList();
+        var from = new DateTimeOffset(_days[Days.SelectedIndex]);
+        var programmes = await Task.Run(() => AppServices.Library.GetProgrammes(channel.Item.SourceId, epgId, from, from.AddDays(1)));
+        if (!ReferenceEquals(channel, SelectedChannel))
+            return;
 
+        var now = DateTimeOffset.Now;
+        var rows = programmes.Select(p => Row(channel.Item, p, now)).ToList();
         Schedule.ItemsSource = rows;
         if (rows.Count == 0)
         {
@@ -112,6 +155,9 @@ public sealed partial class GuidePage : Page
             Schedule.ScrollIntoView(live, ScrollIntoViewAlignment.Leading);
     }
 
+    private static ProgrammeViewModel Row(MediaItem channel, Programme p, DateTimeOffset now) =>
+        new(p, p.IsOnAt(now), Catchup.IsAvailable(channel, p, now) && !p.IsOnAt(now));
+
     private void ShowEmpty(string title, string detail)
     {
         EmptyTitle.Text = title;
@@ -119,22 +165,211 @@ public sealed partial class GuidePage : Page
         EmptyState.Visibility = Visibility.Visible;
     }
 
-    private static string DayLabel(DateTime day)
+    private static string DayLabel(DateTime day) => (day - DateTime.Today).Days switch
     {
-        var diff = (day - DateTime.Today).Days;
-        return diff switch
+        0 => "Today",
+        -1 => "Yesterday",
+        1 => "Tomorrow",
+        _ => day.ToString("ddd d MMM"),
+    };
+
+    // ---- Timeline view ----
+
+    private void BuildRuler()
+    {
+        Ruler.Children.Clear();
+        Ruler.ColumnDefinitions.Clear();
+        var slots = (int)(WindowLength / TimeSpan.FromMinutes(30));
+        for (var i = 0; i < slots; i++)
         {
-            0 => "Today",
-            -1 => "Yesterday",
-            1 => "Tomorrow",
-            _ => day.ToString("ddd d MMM"),
+            Ruler.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var label = new TextBlock { Text = _windowStart.AddMinutes(30 * i).LocalDateTime.ToString("HH:mm"), Opacity = 0.7, Margin = new Thickness(4, 0, 0, 0) };
+            Grid.SetColumn(label, i);
+            Ruler.Children.Add(label);
+        }
+        WindowText.Text = $"{_windowStart.LocalDateTime:ddd d MMM, HH:mm} – {(_windowStart + WindowLength).LocalDateTime:HH:mm}";
+    }
+
+    /// <summary>Fills a channel row's lane with programmes sized by their share of the window.</summary>
+    private void TimelineRows_ContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (args.InRecycleQueue || args.Item is not ItemViewModel channel || args.ItemContainer.ContentTemplateRoot is not Grid root)
+            return;
+        if (root.FindName("Lane") is not Grid lane)
+            return;
+
+        lane.Children.Clear();
+        lane.ColumnDefinitions.Clear();
+        if (channel.Item.EpgChannelId is not { } epgId)
+            return;
+
+        var start = _windowStart;
+        var end = _windowStart + WindowLength;
+        var programmes = AppServices.Library.GetProgrammes(channel.Item.SourceId, epgId, start, end);
+        var now = DateTimeOffset.Now;
+        var cursor = start;
+        var column = 0;
+
+        void AddColumn(TimeSpan span)
+        {
+            lane.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(Math.Max(span.TotalMinutes, 0.5), GridUnitType.Star) });
+        }
+
+        foreach (var p in programmes)
+        {
+            var from = p.Start < start ? start : p.Start;
+            var to = p.Stop > end ? end : p.Stop;
+            if (to <= cursor)
+                continue;
+            if (from > cursor)
+            {
+                AddColumn(from - cursor);
+                column++;
+            }
+            AddColumn(to - (from > cursor ? from : cursor));
+            var row = Row(channel.Item, p, now);
+            var cell = Cell(channel, row);
+            Grid.SetColumn(cell, column++);
+            lane.Children.Add(cell);
+            cursor = to;
+        }
+        if (cursor < end)
+            AddColumn(end - cursor);
+    }
+
+    private Button Cell(ItemViewModel channel, ProgrammeViewModel row)
+    {
+        var text = new StackPanel { Spacing = 0 };
+        text.Children.Add(new TextBlock { Text = row.Title, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+        text.Children.Add(new TextBlock { Text = row.Time + (row.State.Length > 0 ? "  " + row.State : ""), FontSize = 11, Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis });
+        var cell = new Button
+        {
+            Content = text,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(8, 4, 8, 4),
+            Opacity = row.Opacity,
         };
+        if (row.IsLive)
+            cell.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
+        ToolTipService.SetToolTip(cell, string.IsNullOrEmpty(row.Description) ? row.Title : $"{row.Title}\n{row.Description}");
+        cell.Click += (_, _) => _ = ActivateAsync(channel, row);
+        cell.RightTapped += (s, e) =>
+        {
+            ProgrammeMenu(channel, row).ShowAt((UIElement)s, new FlyoutShowOptions { Position = e.GetPosition((UIElement)s) });
+            e.Handled = true;
+        };
+        return cell;
+    }
+
+    private void ShiftWindow(TimeSpan by)
+    {
+        _windowStart += by;
+        BuildRuler();
+        // Re-realize rows so lanes redraw for the new window.
+        var rows = TimelineRows.ItemsSource;
+        TimelineRows.ItemsSource = null;
+        TimelineRows.ItemsSource = rows;
+    }
+
+    private void Earlier_Click(object sender, RoutedEventArgs e) => ShiftWindow(-WindowStep);
+    private void Later_Click(object sender, RoutedEventArgs e) => ShiftWindow(WindowStep);
+    private void Now_Click(object sender, RoutedEventArgs e) => ShiftWindow(DefaultWindowStart() - _windowStart);
+
+    // ---- Actions (both views) ----
+
+    private async Task ActivateAsync(ItemViewModel channel, ProgrammeViewModel row)
+    {
+        if (row.IsLive)
+        {
+            Playback.Open(channel, FilteredChannels());
+            return;
+        }
+        if (!row.CanReplay)
+        {
+            ShowStatus(InfoBarSeverity.Informational, row.Programme.Start > DateTimeOffset.Now
+                ? "Right-click to record this when it airs."
+                : "This programme isn't in the provider's catch-up archive.");
+            return;
+        }
+
+        try
+        {
+            var url = await GuideService.ResolveCatchupUrlAsync(channel.Item, row.Programme);
+            if (url is null)
+                ShowStatus(InfoBarSeverity.Warning, "This playlist doesn't say how to replay programmes for this channel.");
+            else
+                Playback.Play(PlayRequest.ForCatchup(channel.Item, row.Programme, url));
+        }
+        catch (Exception ex)
+        {
+            ShowStatus(InfoBarSeverity.Error, $"Couldn't start catch-up: {ex.Message}");
+        }
+    }
+
+    private MenuFlyout ProgrammeMenu(ItemViewModel channel, ProgrammeViewModel row)
+    {
+        var p = row.Programme;
+        var menu = new MenuFlyout();
+        if (row.IsLive || row.CanReplay)
+            menu.Items.Add(ItemMenu.Item(row.IsLive ? "Watch live" : "Play catch-up", "", () => _ = ActivateAsync(channel, row)));
+
+        var title = $"{channel.Title} - {p.Title}";
+        if (p.Stop > DateTimeOffset.Now && channel.Item.StreamUrl is { } live)
+        {
+            menu.Items.Add(ItemMenu.Item(row.IsLive ? "Record the rest of this programme" : "Record when it airs", "", () =>
+            {
+                var (start, stop) = RecordingPlanner.Window(p);
+                Recorder.Schedule(title, live, channel.Item.Options, start, stop);
+                ShowStatus(InfoBarSeverity.Success, row.IsLive
+                    ? "Recording now. See Recordings."
+                    : $"Scheduled for {p.Start.LocalDateTime:ddd HH:mm}. Keep Antenna open to record.");
+            }));
+        }
+        else if (row.CanReplay)
+        {
+            menu.Items.Add(ItemMenu.Item("Save catch-up to disk", "", async () =>
+            {
+                try
+                {
+                    if (await GuideService.ResolveCatchupUrlAsync(channel.Item, p) is { } url)
+                    {
+                        var now = DateTimeOffset.Now;
+                        Recorder.Schedule(title, url, channel.Item.Options, now, now + p.Duration + RecordingPlanner.PaddingAfter);
+                        ShowStatus(InfoBarSeverity.Success, "Saving in the background. See Recordings.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    ShowStatus(InfoBarSeverity.Error, ex.Message);
+                }
+            }));
+        }
+        if (menu.Items.Count == 0)
+            menu.Items.Add(new MenuFlyoutItem { Text = "Nothing to do for this programme", IsEnabled = false });
+        return menu;
+    }
+
+    private void ShowStatus(InfoBarSeverity severity, string message)
+    {
+        Status.Severity = severity;
+        Status.Message = message;
+        Status.IsOpen = true;
+    }
+
+    // ---- Events ----
+
+    private void ViewMode_SelectionChanged(SelectorBar sender, SelectorBarSelectionChangedEventArgs args)
+    {
+        if (Timeline is not null) // Also fires during InitializeComponent.
+            ShowMode();
     }
 
     private void SourceFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loading)
-            LoadChannels();
+            _ = LoadChannelsAsync();
     }
 
     private void ChannelFilter_TextChanged(object sender, TextChangedEventArgs e) => ApplyChannelFilter();
@@ -148,41 +383,20 @@ public sealed partial class GuidePage : Page
     private void Days_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (!_loading)
-            LoadSchedule();
+            _ = LoadScheduleAsync();
     }
 
-    private async void Schedule_ItemClick(object sender, ItemClickEventArgs e)
+    private void Schedule_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is not ProgrammeViewModel row || SelectedChannel is not { } channel)
-            return;
-
-        if (row.IsLive && channel.Item.StreamUrl is { } live)
-        {
-            Frame.Navigate(typeof(PlayerPage), new PlayRequest(channel.Title, live, IsLive: true));
-            return;
-        }
-        if (!row.CanReplay)
-            return;
-
-        try
-        {
-            var url = await GuideService.ResolveCatchupUrlAsync(channel.Item, row.Programme);
-            if (url is null)
-            {
-                ShowError("This playlist doesn't say how to replay programmes for this channel.");
-                return;
-            }
-            Frame.Navigate(typeof(PlayerPage), new PlayRequest($"{channel.Title} · {row.Title} (catch-up)", url, IsLive: false));
-        }
-        catch (Exception ex)
-        {
-            ShowError($"Couldn't start catch-up: {ex.Message}");
-        }
+        if (e.ClickedItem is ProgrammeViewModel row && SelectedChannel is { } channel)
+            _ = ActivateAsync(channel, row);
     }
 
-    private void ShowError(string message)
+    private void Schedule_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
-        Error.Message = message;
-        Error.IsOpen = true;
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is not ProgrammeViewModel row || SelectedChannel is not { } channel)
+            return;
+        ProgrammeMenu(channel, row).ShowAt((UIElement)sender, new FlyoutShowOptions { Position = e.GetPosition((UIElement)sender) });
+        e.Handled = true;
     }
 }

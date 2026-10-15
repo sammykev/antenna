@@ -27,18 +27,22 @@
             <TextBlock x:Name="Header" Style="{StaticResource TitleTextBlockStyle}" />
             <ComboBox x:Name="SourceFilter" MinWidth="200" VerticalAlignment="Center"
                       SelectionChanged="SourceFilter_SelectionChanged" />
+            <ProgressRing x:Name="Busy" Width="20" Height="20" IsActive="False" VerticalAlignment="Center" />
         </StackPanel>
 
-        <ListView x:Name="Groups" Grid.Row="1" SelectionMode="Single" SelectionChanged="Groups_SelectionChanged" />
+        <ListView x:Name="Groups" Grid.Row="1" SelectionMode="Single" SelectionChanged="Groups_SelectionChanged"
+                  RightTapped="Groups_RightTapped" ToolTipService.ToolTip="Right-click a category to hide or lock it" />
 
         <GridView x:Name="Items" Grid.Row="1" Grid.Column="1" Padding="8,0,16,16"
                   IsItemClickEnabled="True" SelectionMode="None" ItemClick="Items_ItemClick"
+                  RightTapped="Items_RightTapped"
                   ItemTemplate="{StaticResource ItemTileTemplate}" />
 
         <StackPanel x:Name="EmptyState" Grid.Row="1" Grid.Column="1" Visibility="Collapsed"
                     HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
-            <TextBlock Text="Nothing here yet" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
-            <TextBlock Text="Add an M3U playlist or Xtream account in Playlists." Opacity="0.7" HorizontalAlignment="Center" />
+            <TextBlock x:Name="EmptyTitle" Text="Nothing here yet" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+            <TextBlock x:Name="EmptyDetail" Text="Add an M3U playlist or Xtream account in Playlists." Opacity="0.7" HorizontalAlignment="Center" />
+            <Button x:Name="UnlockButton" Content="Enter PIN" HorizontalAlignment="Center" Visibility="Collapsed" Click="Unlock_Click" />
         </StackPanel>
     </Grid>
 </Page>

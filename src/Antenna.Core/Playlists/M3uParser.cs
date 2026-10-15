@@ -26,6 +26,7 @@ public static partial class M3uParser
         Dictionary<string, string>? attrs = null;
         string? title = null;
         string? extGroup = null;
+        var options = new List<string>();
 
         foreach (var rawLine in content.Split('\n'))
         {
@@ -48,26 +49,32 @@ public static partial class M3uParser
                 attrs = ParseAttributes(line);
                 title = ExtractTitle(line);
                 extGroup = null;
+                options = [];
             }
             else if (line.StartsWith("#EXTGRP:", StringComparison.OrdinalIgnoreCase))
             {
                 extGroup = line["#EXTGRP:".Length..].Trim();
             }
+            else if (line.StartsWith("#EXTVLCOPT:", StringComparison.OrdinalIgnoreCase))
+            {
+                // Per-stream player options, typically http-user-agent / http-referrer that the server insists on.
+                var opt = line["#EXTVLCOPT:".Length..].Trim();
+                if (opt.Length > 0)
+                    options.Add(":" + opt.TrimStart(':'));
+            }
             else if (line.StartsWith('#'))
             {
-                // #EXTVLCOPT and other directives are not needed for playback via LibVLC.
-            }
-            else if (attrs is not null)
-            {
-                items.Add(BuildItem(sourceId, line, WithDefaults(attrs, defaults), title, extGroup, items.Count));
-                attrs = null;
-                title = null;
-                extGroup = null;
+                // Other directives aren't needed for playback.
             }
             else
             {
-                // Bare URL without #EXTINF: still playable.
-                items.Add(BuildItem(sourceId, line, WithDefaults(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), defaults), null, null, items.Count));
+                // A bare URL without #EXTINF is still playable.
+                var itemAttrs = WithDefaults(attrs ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase), defaults);
+                items.Add(BuildItem(sourceId, line, itemAttrs, title, extGroup, options, items.Count));
+                attrs = null;
+                title = null;
+                extGroup = null;
+                options = [];
             }
         }
 
@@ -83,9 +90,49 @@ public static partial class M3uParser
         return attrs;
     }
 
-    private static MediaItem BuildItem(
-        string sourceId, string url, Dictionary<string, string> attrs, string? title, string? extGroup, int index)
+    /// <summary>
+    /// Splits Kodi-style "url|User-Agent=x&amp;Referer=y" into the URL and LibVLC options,
+    /// and adds header attributes some playlists put on #EXTINF.
+    /// </summary>
+    internal static (string Url, List<string> Options) ExtractOptions(string rawUrl, Dictionary<string, string> attrs, IEnumerable<string> vlcOptions)
     {
+        var options = new List<string>(vlcOptions);
+        var url = rawUrl;
+        var pipe = rawUrl.IndexOf('|');
+        if (pipe > 0)
+        {
+            url = rawUrl[..pipe].Trim();
+            foreach (var pair in rawUrl[(pipe + 1)..].Split('&', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var eq = pair.IndexOf('=');
+                if (eq <= 0)
+                    continue;
+                var value = Uri.UnescapeDataString(pair[(eq + 1)..]);
+                var option = HeaderOption(pair[..eq].Trim());
+                if (option is not null)
+                    options.Add($":{option}={value}");
+            }
+        }
+
+        foreach (var (key, value) in attrs)
+        {
+            if (HeaderOption(key) is { } option && value.Length > 0 && !options.Any(o => o.StartsWith($":{option}=", StringComparison.OrdinalIgnoreCase)))
+                options.Add($":{option}={value}");
+        }
+        return (url, options);
+    }
+
+    private static string? HeaderOption(string name) => name.ToLowerInvariant() switch
+    {
+        "user-agent" or "http-user-agent" => "http-user-agent",
+        "referer" or "referrer" or "http-referrer" or "http-referer" => "http-referrer",
+        _ => null,
+    };
+
+    private static MediaItem BuildItem(
+        string sourceId, string rawUrl, Dictionary<string, string> attrs, string? title, string? extGroup, IEnumerable<string> vlcOptions, int index)
+    {
+        var (url, options) = ExtractOptions(rawUrl, attrs, vlcOptions);
         var name = FirstNonEmpty(title, attrs.GetValueOrDefault("tvg-name")) ?? url;
         var group = FirstNonEmpty(attrs.GetValueOrDefault("group-title"), extGroup) ?? "";
         _ = int.TryParse(FirstNonEmpty(attrs.GetValueOrDefault("catchup-days"), attrs.GetValueOrDefault("tvg-rec")), out var catchupDays);
@@ -103,6 +150,7 @@ public static partial class M3uParser
             CatchupDays = Math.Max(0, catchupDays),
             CatchupMode = FirstNonEmpty(attrs.GetValueOrDefault("catchup"), attrs.GetValueOrDefault("catchup-type"))?.ToLowerInvariant(),
             CatchupSource = FirstNonEmpty(attrs.GetValueOrDefault("catchup-source")),
+            PlayerOptions = options.Count > 0 ? string.Join('\n', options) : null,
             SortIndex = index,
         };
     }

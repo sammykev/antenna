@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Antenna.App.Views.DetailsHeader"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Backdrop with a fade, poster, title, facts, plot, credits and a row of actions. -->
+    <Grid MinHeight="300">
+        <Image x:Name="Backdrop" Stretch="UniformToFill" Opacity="0.35" VerticalAlignment="Top" />
+        <Rectangle>
+            <Rectangle.Fill>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Color="#00000000" Offset="0" />
+                    <GradientStop Color="{ThemeResource SolidBackgroundFillColorBase}" Offset="1" />
+                </LinearGradientBrush>
+            </Rectangle.Fill>
+        </Rectangle>
+
+        <Grid Padding="32,32,32,16" ColumnSpacing="28">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="180" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+            <Grid Height="270" CornerRadius="8" VerticalAlignment="Top" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                <Image x:Name="Poster" Stretch="UniformToFill" />
+            </Grid>
+            <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Bottom">
+                <TextBlock x:Name="TitleText" Style="{StaticResource TitleLargeTextBlockStyle}" TextWrapping="Wrap" />
+                <TextBlock x:Name="FactsText" Opacity="0.75" TextWrapping="Wrap" />
+                <TextBlock x:Name="PlotText" TextWrapping="Wrap" MaxWidth="820" MaxLines="6" TextTrimming="WordEllipsis" HorizontalAlignment="Left" />
+                <TextBlock x:Name="CreditsText" Opacity="0.7" TextWrapping="Wrap" MaxWidth="820" HorizontalAlignment="Left" Style="{StaticResource CaptionTextBlockStyle}" />
+                <StackPanel x:Name="Actions" Orientation="Horizontal" Spacing="8" Margin="0,6,0,0" />
+                <ProgressBar x:Name="LoadingBar" IsIndeterminate="True" Visibility="Collapsed" MaxWidth="300" HorizontalAlignment="Left" />
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

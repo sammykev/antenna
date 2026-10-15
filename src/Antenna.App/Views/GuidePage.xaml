@@ -5,8 +5,10 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:Antenna.App.ViewModels">
 
-    <!-- Channel list on the left; the selected channel's schedule, one day at a time, on the right.
-         Tap what's on now to watch live, or a past programme marked Catch-up to replay it. -->
+    <!-- Two views of the same guide:
+         List: channels on the left, the selected channel's day on the right.
+         Timeline: every channel as a row against a sliding 3-hour window.
+         Click what's on now to watch live, a past "Catch-up" programme to replay it; right-click to record. -->
     <Grid Padding="24,16,16,0" ColumnSpacing="16" RowSpacing="12">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -18,11 +20,18 @@
         </Grid.ColumnDefinitions>
 
         <StackPanel Spacing="8">
-            <TextBlock Text="Guide" Style="{StaticResource TitleTextBlockStyle}" />
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <TextBlock Text="Guide" Style="{StaticResource TitleTextBlockStyle}" />
+                <SelectorBar x:Name="ViewMode" SelectionChanged="ViewMode_SelectionChanged">
+                    <SelectorBarItem Text="List" Tag="list" IsSelected="True" />
+                    <SelectorBarItem Text="Timeline" Tag="grid" />
+                </SelectorBar>
+            </StackPanel>
             <ComboBox x:Name="SourceFilter" HorizontalAlignment="Stretch" SelectionChanged="SourceFilter_SelectionChanged" />
             <TextBox x:Name="ChannelFilter" PlaceholderText="Filter channels" TextChanged="ChannelFilter_TextChanged" />
         </StackPanel>
 
+        <!-- ===== List view ===== -->
         <ListView x:Name="Channels" Grid.Row="1" SelectionMode="Single" SelectionChanged="Channels_SelectionChanged">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="vm:ItemViewModel">
@@ -36,7 +45,7 @@
                         <Border Grid.Column="1" Height="32" CornerRadius="4" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
                             <Grid>
                                 <TextBlock Text="{x:Bind Initials}" FontSize="12" Opacity="0.5" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                <Image Source="{x:Bind Logo}" Stretch="Uniform" Margin="2" />
+                                <Image Source="{x:Bind Logo.Source, Mode=OneWay}" Stretch="Uniform" Margin="2" />
                             </Grid>
                         </Border>
                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
@@ -48,7 +57,7 @@
             </ListView.ItemTemplate>
         </ListView>
 
-        <Grid Grid.Column="1" ColumnSpacing="12" VerticalAlignment="Bottom">
+        <Grid x:Name="ListHeader" Grid.Column="1" ColumnSpacing="12" VerticalAlignment="Bottom">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -57,7 +66,8 @@
             <ComboBox x:Name="Days" Grid.Column="1" MinWidth="160" SelectionChanged="Days_SelectionChanged" />
         </Grid>
 
-        <ListView x:Name="Schedule" Grid.Row="1" Grid.Column="1" SelectionMode="None" IsItemClickEnabled="True" ItemClick="Schedule_ItemClick">
+        <ListView x:Name="Schedule" Grid.Row="1" Grid.Column="1" SelectionMode="None" IsItemClickEnabled="True"
+                  ItemClick="Schedule_ItemClick" RightTapped="Schedule_RightTapped">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="vm:ProgrammeViewModel">
                     <Grid Padding="0,10" ColumnSpacing="16" Opacity="{x:Bind Opacity}">
@@ -83,6 +93,66 @@
             <TextBlock x:Name="EmptyDetail" Opacity="0.7" TextWrapping="Wrap" MaxWidth="420" TextAlignment="Center" HorizontalAlignment="Center" />
         </StackPanel>
 
-        <InfoBar x:Name="Error" Grid.Row="1" Grid.Column="1" VerticalAlignment="Bottom" Severity="Error" IsClosable="True" />
+        <!-- ===== Timeline view ===== -->
+        <StackPanel x:Name="TimelineHeader" Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom" Visibility="Collapsed">
+            <Button Click="Earlier_Click" ToolTipService.ToolTip="Earlier">
+                <FontIcon Glyph="&#xE76B;" FontSize="14" />
+            </Button>
+            <Button Content="Now" Click="Now_Click" />
+            <Button Click="Later_Click" ToolTipService.ToolTip="Later">
+                <FontIcon Glyph="&#xE76C;" FontSize="14" />
+            </Button>
+            <TextBlock x:Name="WindowText" VerticalAlignment="Center" Margin="8,0" Opacity="0.8" />
+        </StackPanel>
+
+        <Grid x:Name="Timeline" Grid.Row="1" Grid.ColumnSpan="2" RowSpacing="4" Visibility="Collapsed">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <Grid ColumnSpacing="4">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="220" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid x:Name="Ruler" Grid.Column="1" />
+            </Grid>
+            <ListView x:Name="TimelineRows" Grid.Row="1" SelectionMode="None" Padding="0,0,0,16"
+                      ContainerContentChanging="TimelineRows_ContainerContentChanging">
+                <ListView.ItemContainerStyle>
+                    <Style TargetType="ListViewItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="MinHeight" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    </Style>
+                </ListView.ItemContainerStyle>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ItemViewModel">
+                        <Grid Height="56" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="220" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Grid ColumnSpacing="8" Padding="4,0" Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" CornerRadius="4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="4" />
+                                    <ColumnDefinition Width="40" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Background="{x:Bind SourceBrush}" CornerRadius="2" Margin="0,8" />
+                                <Grid Grid.Column="1" Height="30">
+                                    <TextBlock Text="{x:Bind Initials}" FontSize="11" Opacity="0.5" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <Image Source="{x:Bind Logo.Source, Mode=OneWay}" Stretch="Uniform" />
+                                </Grid>
+                                <TextBlock Grid.Column="2" Text="{x:Bind Title}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                            </Grid>
+                            <Grid x:Name="Lane" Grid.Column="1" ColumnSpacing="2" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </Grid>
+
+        <InfoBar x:Name="Status" Grid.Row="1" Grid.Column="1" VerticalAlignment="Bottom" IsClosable="True" />
     </Grid>
 </Page>

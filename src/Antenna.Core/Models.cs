@@ -65,8 +65,15 @@ public sealed record MediaItem
     /// <summary>M3U catch-up URL template, e.g. "?utc={utc}&amp;lutc={lutc}".</summary>
     public string? CatchupSource { get; init; }
 
+    /// <summary>
+    /// LibVLC media options (one per line, e.g. ":http-user-agent=Foo") the stream needs to play.
+    /// </summary>
+    public string? PlayerOptions { get; init; }
+
     /// <summary>Position in the source playlist, used to keep the provider's ordering.</summary>
     public int SortIndex { get; init; }
+
+    public string[] Options => PlayerOptions?.Split('\n', StringSplitOptions.RemoveEmptyEntries) ?? [];
 }
 
 public sealed record Episode
@@ -93,6 +100,78 @@ public sealed record Programme
     public TimeSpan Duration => Stop - Start;
 
     public bool IsOnAt(DateTimeOffset time) => Start <= time && time < Stop;
+}
+
+/// <summary>Something the user watched: drives "Continue watching", "Recently watched" and resume.</summary>
+public sealed record WatchRecord
+{
+    public required string SourceId { get; init; }
+
+    /// <summary>Item external id; episodes use "ep:{episode id}".</summary>
+    public required string ExternalId { get; init; }
+
+    public required MediaKind Kind { get; init; }
+    public required string Title { get; init; }
+    public required string StreamUrl { get; init; }
+    public string? LogoUrl { get; init; }
+    public string? PlayerOptions { get; init; }
+    public long PositionMs { get; init; }
+    public long LengthMs { get; init; }
+    public DateTimeOffset WatchedAt { get; init; } = DateTimeOffset.Now;
+
+    /// <summary>Worth offering "continue": started properly and not (nearly) finished.</summary>
+    public bool IsResumable => Kind != MediaKind.Live && PositionMs > 60_000 && LengthMs > 0 && PositionMs < LengthMs * 0.95;
+
+    public double Progress => LengthMs > 0 ? Math.Clamp((double)PositionMs / LengthMs, 0, 1) : 0;
+}
+
+public enum GroupFlag
+{
+    Hidden,
+    Locked,
+}
+
+public enum RecordingStatus
+{
+    Scheduled,
+    Recording,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+/// <summary>A recording or download: live TV now or on a schedule, catch-up, or a movie/episode file.</summary>
+public sealed record Recording
+{
+    public string Id { get; init; } = Guid.NewGuid().ToString("N");
+    public required string Title { get; init; }
+    public required string Url { get; init; }
+    public string? PlayerOptions { get; init; }
+
+    /// <summary>Live and catch-up streams record for a time window; downloads copy a whole file.</summary>
+    public required bool IsDownload { get; init; }
+
+    public required DateTimeOffset Start { get; init; }
+    public DateTimeOffset? Stop { get; init; }
+    public required string Path { get; init; }
+    public RecordingStatus Status { get; init; } = RecordingStatus.Scheduled;
+    public string? Error { get; init; }
+    public long BytesWritten { get; init; }
+    public long? TotalBytes { get; init; }
+}
+
+/// <summary>Extra information for a movie or series, from the provider (Xtream) where available.</summary>
+public sealed record MediaDetails
+{
+    public string? Plot { get; init; }
+    public string? Cast { get; init; }
+    public string? Director { get; init; }
+    public string? Genre { get; init; }
+    public string? Released { get; init; }
+    public string? Rating { get; init; }
+    public string? Duration { get; init; }
+    public string? PosterUrl { get; init; }
+    public string? BackdropUrl { get; init; }
 }
 
 /// <summary>A search hit or browse result, joined with the source it came from.</summary>
