@@ -42,7 +42,7 @@ internal static class Log
 /// Runs work on the thread pool. Unlike ThreadPool.QueueUserWorkItem, an exception is logged
 /// instead of terminating the app.
 /// </summary>
-internal static class Background
+internal static class Worker
 {
     public static void Run(Action action, string where = "background")
     {

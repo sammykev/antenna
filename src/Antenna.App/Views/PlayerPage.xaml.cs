@@ -187,7 +187,7 @@ public sealed partial class PlayerPage : Page
         options.AddRange(request.Options);
 
         // Never call into libvlc from its own event threads; the thread pool is always safe.
-        Background.Run(() =>
+        Worker.Run(() =>
         {
             using var media = new Media(vlc, request.Url, FromType.FromLocation, [.. options]);
             player.Play(media);
@@ -212,7 +212,7 @@ public sealed partial class PlayerPage : Page
         {
             var at = _resumeAt;
             _resumeAt = 0;
-            Background.Run(() => p.Time = at);
+            Worker.Run(() => p.Time = at);
             if (_request?.StartAtMs == at)
             {
                 ResumeText.Text = $"Resumed from {Ui.Clock(at)}";
@@ -423,7 +423,7 @@ public sealed partial class PlayerPage : Page
         if (_player is { IsSeekable: true } p)
         {
             var target = Math.Clamp(p.Time + (long)offset.TotalMilliseconds, 0, Math.Max(0, p.Length));
-            Background.Run(() => p.Time = target);
+            Worker.Run(() => p.Time = target);
         }
         ShowControls();
     }
@@ -476,7 +476,7 @@ public sealed partial class PlayerPage : Page
     {
         ResumePanel.Visibility = Visibility.Collapsed;
         if (_player is { IsSeekable: true } p)
-            Background.Run(() => p.Time = 0);
+            Worker.Run(() => p.Time = 0);
     }
 
     private void SeekSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
@@ -484,7 +484,7 @@ public sealed partial class PlayerPage : Page
         if (_updatingSeek || _player is not { IsSeekable: true } p)
             return;
         var position = (float)(e.NewValue / 1000);
-        Background.Run(() => p.Position = position);
+        Worker.Run(() => p.Position = position);
     }
 
     private void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
@@ -582,7 +582,7 @@ public sealed partial class PlayerPage : Page
         {
             var id = track.Id;
             var item = new RadioMenuFlyoutItem { Text = track.Name, GroupName = "audio", IsChecked = id == current };
-            item.Click += (_, _) => Background.Run(() => p.SetAudioTrack(id));
+            item.Click += (_, _) => Worker.Run(() => p.SetAudioTrack(id));
             AudioMenu.Items.Add(item);
         }
         if (AudioMenu.Items.Count == 0)
@@ -601,7 +601,7 @@ public sealed partial class PlayerPage : Page
         {
             var id = track.Id;
             var item = new RadioMenuFlyoutItem { Text = track.Name, GroupName = "spu", IsChecked = id == current };
-            item.Click += (_, _) => Background.Run(() => p.SetSpu(id));
+            item.Click += (_, _) => Worker.Run(() => p.SetSpu(id));
             SubtitleMenu.Items.Add(item);
         }
         if (SubtitleMenu.Items.Count > 0)
@@ -683,7 +683,7 @@ public sealed partial class PlayerPage : Page
         CastBadge.Visibility = renderer is null ? Visibility.Collapsed : Visibility.Visible;
         if (_request?.IsLive == false)
             _resumeAt = _lastTime;
-        Background.Run(() =>
+        Worker.Run(() =>
         {
             try
             {

@@ -136,7 +136,7 @@ internal sealed class PipWindow : Window
         if (!request.IsLive && request.StartAtMs > 0)
             options.Add($":start-time={request.StartAtMs / 1000}");
         options.AddRange(request.Options);
-        Background.Run(() =>
+        Worker.Run(() =>
         {
             using var media = new Media(vlc, request.Url, FromType.FromLocation, [.. options]);
             player.Play(media);

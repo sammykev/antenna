@@ -149,7 +149,7 @@ public sealed partial class MultiViewPage : Page
             return;
         if (request is null)
         {
-            Background.Run(() => player.Stop());
+            Worker.Run(() => player.Stop());
             return;
         }
 
@@ -160,7 +160,7 @@ public sealed partial class MultiViewPage : Page
             AppSettings.HardwareDecoding ? ":avcodec-hw=any" : ":avcodec-hw=none",
         };
         options.AddRange(request.Options);
-        Background.Run(() =>
+        Worker.Run(() =>
         {
             using var media = new Media(vlc, request.Url, FromType.FromLocation, [.. options]);
             player.Play(media);
