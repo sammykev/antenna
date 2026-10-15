@@ -24,7 +24,7 @@
                 <TextBlock Text="Multi-view" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
             <TextBlock Grid.Column="1" Foreground="#99FFFFFF" VerticalAlignment="Center" Margin="12,0" TextTrimming="CharacterEllipsis"
-                       Text="Tap a tile to hear it · double-click to make it big · add channels from any right-click menu or Live events" />
+                       Text="Only the selected tile (blue, 🔊) has sound · click a tile or press 1–4 to switch · double-click to make it big" />
             <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                 <SelectorBar x:Name="LayoutChoice" SelectionChanged="Layout_SelectionChanged">
                     <SelectorBarItem Text="2 × 2" Tag="grid" IsSelected="True" />
