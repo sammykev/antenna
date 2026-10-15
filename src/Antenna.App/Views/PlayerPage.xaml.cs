@@ -132,6 +132,7 @@ public sealed partial class PlayerPage : Page
         if (App.Window.IsMiniPlayer)
             App.Window.SetMiniPlayer(false);
 
+        StopTimeshift();
         var player = _player;
         var vlc = _vlc;
         var discoverer = _discoverer;
@@ -202,6 +203,18 @@ public sealed partial class PlayerPage : Page
             return;
 
         BufferingRing.IsActive = true;
+        var options = BaseOptions(request);
+        if (UseTimeshift(request))
+        {
+            StartTimeshifted(request, player, vlc, options);
+            return;
+        }
+        StopTimeshift();
+        StartDirect(request, player, vlc, options);
+    }
+
+    private static List<string> BaseOptions(PlayRequest request)
+    {
         var options = new List<string>
         {
             $":network-caching={AppSettings.NetworkCachingMs}",
@@ -209,7 +222,11 @@ public sealed partial class PlayerPage : Page
             AppSettings.HardwareDecoding ? ":avcodec-hw=any" : ":avcodec-hw=none",
         };
         options.AddRange(request.Options);
+        return options;
+    }
 
+    private static void StartDirect(PlayRequest request, MediaPlayer player, LibVLC vlc, IReadOnlyList<string> options)
+    {
         // Never call into libvlc from its own event threads; the thread pool is always safe.
         Worker.Run(() =>
         {
@@ -445,6 +462,12 @@ public sealed partial class PlayerPage : Page
 
     private void SeekBy(TimeSpan offset)
     {
+        // Live TV jumps in bigger steps through the pause/rewind buffer.
+        if (_request?.IsLive == true && TimeshiftSeek(offset * 3))
+        {
+            ShowControls();
+            return;
+        }
         if (_player is { IsSeekable: true } p)
         {
             var target = Math.Clamp(p.Time + (long)offset.TotalMilliseconds, 0, Math.Max(0, p.Length));

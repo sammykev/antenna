@@ -72,6 +72,7 @@ public partial class App : Application
             Updater.Start(Window.DispatcherQueue);
         });
         _ = Task.Run(ImageCache.Trim);
+        _ = Task.Run(Views.PlayerPage.CleanUpTimeshiftFolders);
         Log.Info("Started");
         if (SmokeTest)
             _ = Window.RunSmokeTestAsync();

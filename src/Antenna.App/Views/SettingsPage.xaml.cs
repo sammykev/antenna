@@ -36,6 +36,7 @@ public sealed partial class SettingsPage : Page
         SplashToggle.IsOn = AppSettings.ShowSplash;
         CachingBox.Value = AppSettings.NetworkCachingMs;
         HardwareToggle.IsOn = AppSettings.HardwareDecoding;
+        TimeshiftToggle.IsOn = AppSettings.Timeshift;
         RefreshChoice.ItemsSource = RefreshOptions.Select(o => o.Label).ToList();
         var refreshIndex = Array.FindIndex(RefreshOptions, o => o.Hours == AppSettings.AutoRefreshHours);
         RefreshChoice.SelectedIndex = refreshIndex >= 0 ? refreshIndex : 3;
@@ -149,6 +150,12 @@ public sealed partial class SettingsPage : Page
     {
         if (!_loading && !double.IsNaN(args.NewValue))
             AppSettings.NetworkCachingMs = (int)args.NewValue;
+    }
+
+    private void Timeshift_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            AppSettings.Timeshift = TimeshiftToggle.IsOn;
     }
 
     private void Hardware_Toggled(object sender, RoutedEventArgs e)

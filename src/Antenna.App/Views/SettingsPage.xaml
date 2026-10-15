@@ -38,6 +38,7 @@
                 <TextBlock Opacity="0.7" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
                            Text="Lower starts channels faster; higher survives a shaky connection. 1500 suits most providers." />
                 <ToggleSwitch x:Name="HardwareToggle" Header="Hardware video decoding" Toggled="Hardware_Toggled" />
+                <ToggleSwitch x:Name="TimeshiftToggle" Header="Pause and rewind live TV (buffers up to 30 minutes on disk)" Toggled="Timeshift_Toggled" />
             </StackPanel>
 
             <StackPanel Style="{StaticResource SectionStyle}">

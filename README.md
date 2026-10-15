@@ -15,6 +15,7 @@ Xtream Codes login). It doesn't include or find any content itself.
 - Live TV, movies and series from M3U/M3U8 playlists (URL or file) and Xtream Codes accounts
 - Instant channel switching in the player: Ch+/Ch− (Page Up/Down, gamepad bumpers), type a channel number, or pick from the channel list (L)
 - Now/next overlay with channel logo and programme progress (I)
+- **Pause and rewind live TV**: pause keeps buffering; ←/→ jump 30 s; the badge shows how far behind live you are, click it to go live (up to 30 minutes, on disk; HLS channels play directly)
 - Continue watching: movies and episodes resume where you stopped
 - Audio tracks, embedded subtitles, subtitle files, and OpenSubtitles.com search
 - Playback speed for VOD, mini player (always on top), full screen, auto-reconnect

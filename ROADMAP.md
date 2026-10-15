@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.4** (launch test in CI; multi-view connection-limit handling; crash reporting; What's new).
+Current release: **v0.1.5** (reminders). Next: v0.1.6 with live pause/rewind.
 
 ---
 
@@ -45,7 +45,7 @@ Current release: **v0.1.4** (launch test in CI; multi-view connection-limit hand
 
 ## 2. Watching
 
-- [ ] **Pause and rewind live TV (timeshift).** Keep the last 30–60 min of the current live stream in a
+- [x] **Pause and rewind live TV (timeshift).** *(v0.1.6: `Core/Playback/TimeshiftBuffer` + `LiveCapture`, played through `TimeshiftInput`; ←/→ jump 30 s, badge shows time behind and Go live; HLS plays directly. Needs real-world testing.)* Keep the last 30–60 min of the current live stream in a
   disk ring buffer (libvlc `:sout` to a temp file, or LibVLC's timeshift module `--input-timeshift-path`),
   allowing pause, rewind, skip back to live. Show a "LIVE" / "−5:32" indicator on the seek bar.
 - [x] **Programme reminders.** *(v0.1.5: Guide and Live events right-click → Remind me; `Services/Reminders.cs` shows a Windows notification + in-app notice 2 min before, with Watch now)* "Remind me" on guide entries and event search results → Windows toast at
