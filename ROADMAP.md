@@ -3,13 +3,13 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.3** (start-up overview screen with clickable Live / Movies / Series counts).
+Current release: **v0.1.4** (launch test in CI; multi-view connection-limit handling).
 
 ---
 
 ## 1. Reliability (do first)
 
-- [ ] **Launch-test every build before it can be released.**
+- [x] **Launch-test every build before it can be released.** *(v0.1.4: `--smoke-test`, run by build and release workflows)*
   v0.1.0 shipped unable to open (its `resources.pri` was missing) because nothing ever started the
   published build. In `release.yml` (and `build.yml`), after publishing: start `publish/Antenna.App.exe`
   on the runner, wait ~20 s, confirm the process is still alive and that
@@ -17,7 +17,7 @@ Current release: **v0.1.3** (start-up overview screen with clickable Live / Movi
   close it. Fail the job otherwise. Consider a hidden `--smoke-test` argument that starts up, logs,
   and exits 0 by itself so the check doesn't need to kill the process.
 
-- [ ] **Multi-view: stop two streams from the same account knocking each other off.**
+- [x] **Multi-view: stop two streams from the same account knocking each other off.** *(v0.1.4: tile stops after 2 drops in 3 min, offers "Watch on <other playlist>" via `LibraryStore.FindSameChannel`)*
   From a real log: the provider reports `3 months allows 1 connection(s)`, and tiles 1 and 2 (both on
   that account) take turns failing every 25–50 s (`stream failed or ended (attempt 1)` → reopen → the
   other one drops). Plan:
