@@ -279,6 +279,36 @@ public sealed partial class MultiViewPage : Page
             Play(slot);
         };
         hit.Tapped += (_, _) => SelectMain(index);
+
+        // Drag a tile onto another to swap their channels.
+        hit.CanDrag = true;
+        hit.AllowDrop = true;
+        hit.DragStarting += (_, args) =>
+        {
+            if (Chosen[index] is null)
+            {
+                args.Cancel = true;
+                return;
+            }
+            args.Data.SetText(TileDragPrefix + index.ToString(CultureInfo.InvariantCulture));
+            args.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move;
+        };
+        hit.DragOver += (_, args) =>
+        {
+            args.AcceptedOperation = args.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text)
+                ? Windows.ApplicationModel.DataTransfer.DataPackageOperation.Move
+                : Windows.ApplicationModel.DataTransfer.DataPackageOperation.None;
+            args.DragUIOverride.Caption = "Swap tiles";
+        };
+        hit.Drop += async (_, args) =>
+        {
+            if (!args.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.Text))
+                return;
+            var text = await args.DataView.GetTextAsync();
+            if (text.StartsWith(TileDragPrefix, StringComparison.Ordinal)
+                && int.TryParse(text[TileDragPrefix.Length..], NumberStyles.Integer, CultureInfo.InvariantCulture, out var from))
+                SwapTiles(from, index);
+        };
         hit.DoubleTapped += (_, _) =>
         {
             SelectMain(index);
@@ -398,6 +428,28 @@ public sealed partial class MultiViewPage : Page
 
     [GeneratedRegex(@"(\w+://[^/\s]+)/\S*")]
     private static partial Regex UrlPath();
+
+    private const string TileDragPrefix = "antenna-tile:";
+
+    /// <summary>Swaps the channels in two tiles; the tile with sound keeps the sound with its channel.</summary>
+    private void SwapTiles(int a, int b)
+    {
+        if (a == b || a is < 0 or >= SlotCount || b is < 0 or >= SlotCount)
+            return;
+        (Chosen[a], Chosen[b]) = (Chosen[b], Chosen[a]);
+        if (_mainSlot == a)
+            _mainSlot = b;
+        else if (_mainSlot == b)
+            _mainSlot = a;
+        Log.Info($"multi-view: swapped tiles {a + 1} and {b + 1}");
+        foreach (var slot in new[] { _slots[a], _slots[b] })
+        {
+            slot.Retry = 0;
+            slot.Drops.Clear();
+            Play(slot);
+        }
+        ApplyLayout();
+    }
 
     private void SelectMain(int index)
     {
