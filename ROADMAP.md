@@ -100,8 +100,15 @@ Current release: **v0.1.5** (reminders). Next: v0.1.6 with live pause/rewind.
 - Core tests: `dotnet test tests/Antenna.Core.Tests` (runs anywhere).
 - The WinUI app only fully builds on Windows (the XAML compiler is Windows-only). On Linux, type-check C# with
   `dotnet build src/Antenna.App -p:Platform=x64 -p:EnableDefaultPageItems=false -p:EnableDefaultApplicationDefinition=false -p:WindowsAppSDKSelfContained=false`
-  and ignore errors about `InitializeComponent`, XAML element names "does not exist in the current context",
-  and `XamlTypeInfo`. CI (`build.yml`, windows-latest) is the real check.
+  and ignore errors about `InitializeComponent`, `XamlTypeInfo`, and "The name 'X' does not exist" **only where X
+  is an `x:Name` in a .xaml file** (a missing `using` produces the same message for real types, e.g. `ToolTipService`):
+  ```bash
+  names=$(grep -rhoP 'x:Name="\K[^"]+' src/Antenna.App --include=*.xaml | sort -u | paste -sd'|')
+  dotnet build src/Antenna.App -p:Platform=x64 -p:EnableDefaultPageItems=false -p:EnableDefaultApplicationDefinition=false \
+    -p:WindowsAppSDKSelfContained=false 2>&1 | grep -E " (error|warning) " \
+    | grep -v "InitializeComponent\|XamlTypeInfo\|PasswordBox.Password" | grep -vP "The name '($names)' does not exist" | sort -u
+  ```
+  CI (`build.yml`, windows-latest) is the real check.
 
 **Releasing**
 - `release.yml`: push a tag `vX.Y.Z`, or run the **Release** workflow with input `version` (use this when tag
