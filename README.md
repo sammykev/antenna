@@ -1,3 +1,5 @@
+<p align="center"><img src="antenna-logo.png" width="128" alt="Antenna logo" /></p>
+
 # Antenna
 
 An IPTV player for Windows, built with WinUI 3 and LibVLC. It is an independent, clean-room
@@ -17,7 +19,9 @@ Xtream Codes login). It doesn't include or find any content itself.
 - Audio tracks, embedded subtitles, subtitle files, and OpenSubtitles.com search
 - Playback speed for VOD, mini player (always on top), full screen, auto-reconnect
 - Cast to Chromecast devices on your network
-- Multi-view: up to four channels at once; click a tile to hear it
+- **Live events search**: type “man utd vs man city”, “NBA”, “Wimbledon” or tap a sport chip; finds live and upcoming matches across every guide (nicknames like *utd*, *spurs*, *psg* understood) and per-event channels; tick several and **watch them together**
+- **Multi-view**: up to four matches at once in 2×2, 1 big + 3, or side-by-side; tap a tile to hear it, double-click to make it big
+- **Picture-in-picture**: pop the player into a small always-on-top window (P) and keep browsing; double-click it to come back
 - Streams that need a particular user agent or referrer (`#EXTVLCOPT`, `url|User-Agent=…`) now play
 
 **Guide and catch-up**
@@ -33,7 +37,7 @@ Xtream Codes login). It doesn't include or find any content itself.
 **Library**
 - Search across all playlists, with suggestions as you type
 - Favourites, recently watched, continue watching ("My stuff")
-- Hide categories; lock categories behind a parental PIN
+- Pin categories to the top (and open them from My stuff → Pinned); hide categories; lock categories behind a parental PIN
 - Edit, reorder, recolour and re-icon playlists
 - Automatic background refresh of playlists and guides
 - Backup and restore (playlists, favourites, category settings, preferences)
@@ -120,6 +124,7 @@ and uploads a self-contained `Antenna-win-x64` build as an artifact.
 | 0–9 | Type a channel number |
 | L (gamepad Menu) | Channel list |
 | I | Channel info (now / next) |
+| P | Picture-in-picture |
 | F, double-click | Full screen |
 | Esc | Leave full screen / mini player |
 | ← / → | Seek 10 s |

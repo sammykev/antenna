@@ -25,6 +25,7 @@ public sealed partial class SearchPage : Page
         base.OnNavigatedTo(e);
         _query = e.Parameter as string ?? "";
         Header.Text = $"Results for “{_query}”";
+        EventsLink.Content = $"Find live events for “{_query}” →";
         _ = RunAsync();
     }
 
@@ -58,6 +59,9 @@ public sealed partial class SearchPage : Page
         if (e.ClickedItem is ItemViewModel vm)
             Playback.Open(vm, _results);
     }
+
+    private void EventsLink_Click(object sender, RoutedEventArgs e) =>
+        Frame.Navigate(typeof(EventsPage), _query);
 
     private void Results_RightTapped(object sender, RightTappedRoutedEventArgs e) =>
         ItemMenu.OnRightTapped(sender, e, _results);

@@ -21,7 +21,7 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
-            <Image Source="ms-appx:///Assets/Antenna.ico" Width="16" Height="16" VerticalAlignment="Center" />
+            <Image x:Name="TitleLogo" Width="18" Height="18" VerticalAlignment="Center" />
             <TextBlock Grid.Column="1" Text="Antenna" Style="{StaticResource CaptionTextBlockStyle}" VerticalAlignment="Center" />
         </Grid>
 
@@ -53,6 +53,11 @@
                 <NavigationViewItem Content="Guide" Tag="guide">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE787;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Live events" Tag="events">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE909;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Movies" Tag="movies">

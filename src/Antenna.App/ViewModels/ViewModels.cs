@@ -233,14 +233,14 @@ public sealed class WatchViewModel
 }
 
 /// <summary>A category in the browse list. ToString is what the list shows.</summary>
-public sealed record GroupItem(string Name, bool Locked, bool IsAll = false)
+public sealed record GroupItem(string Name, bool Locked, bool IsAll = false, bool Pinned = false)
 {
     public const string Uncategorised = "Uncategorised";
 
     /// <summary>The group value to filter by: null for "All", "" for uncategorised.</summary>
     public string? Filter => IsAll ? null : Name == Uncategorised ? "" : Name;
 
-    public override string ToString() => Locked ? $"🔒 {Name}" : Name;
+    public override string ToString() => (Pinned ? "📌 " : "") + (Locked ? "🔒 " : "") + Name;
 }
 
 /// <summary>A search-box suggestion. ToString is what the list shows.</summary>
@@ -252,5 +252,65 @@ public sealed class SuggestionItem(LibraryEntry entry)
     {
         var kind = Entry.Item.Kind switch { MediaKind.Live => "Live", MediaKind.Movie => "Movie", _ => "Series" };
         return $"{Entry.Item.Title}  ·  {kind} · {Entry.SourceName}";
+    }
+}
+
+/// <summary>A live/upcoming event in event search.</summary>
+public sealed class EventViewModel
+{
+    internal EventViewModel(Antenna.Core.Events.EventHit hit, DateTimeOffset now)
+    {
+        Hit = hit;
+        var p = hit.Programme;
+        IsLive = p.IsOnAt(now);
+        CanReplay = !IsLive && p.Stop <= now && hit.Channels.Any(c => Antenna.Core.Epg.Catchup.IsAvailable(c.Item, p, now));
+        var first = hit.Channels[0];
+        Logo = new CachedImage(first.Item.LogoUrl, 40);
+        SourceBrush = Ui.Brush(first.SourceColor);
+    }
+
+    internal Antenna.Core.Events.EventHit Hit { get; }
+    internal Programme Programme => Hit.Programme;
+    internal bool IsLive { get; }
+    internal bool CanReplay { get; }
+
+    public string Title => Programme.Title;
+    public string Description => Programme.Description ?? "";
+    public CachedImage Logo { get; }
+    public SolidColorBrush SourceBrush { get; }
+
+    public string When
+    {
+        get
+        {
+            var start = Programme.Start.LocalDateTime;
+            var time = $"{start:HH:mm}–{Programme.Stop.LocalDateTime:HH:mm}";
+            var day = (start.Date - DateTime.Today).Days switch
+            {
+                0 => "Today",
+                1 => "Tomorrow",
+                -1 => "Yesterday",
+                _ => start.ToString("ddd d MMM", CultureInfo.CurrentCulture),
+            };
+            return $"{day} {time}";
+        }
+    }
+
+    public string State => IsLive ? "● LIVE" : CanReplay ? "▶ Catch-up" : Programme.Start > DateTimeOffset.Now ? StartsIn() : "";
+
+    public string Channels => Hit.Channels.Count == 1
+        ? $"{Hit.Channels[0].Item.Title} · {Hit.Channels[0].SourceName}"
+        : $"{Hit.Channels[0].Item.Title} + {Hit.Channels.Count - 1} more";
+
+    public double Progress => IsLive ? Math.Clamp((DateTimeOffset.Now - Programme.Start) / Programme.Duration, 0, 1) * 100 : 0;
+
+    public Microsoft.UI.Xaml.Visibility ProgressVisibility => IsLive ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    private string StartsIn()
+    {
+        var d = Programme.Start - DateTimeOffset.Now;
+        return d.TotalMinutes < 60 ? $"in {(int)Math.Ceiling(d.TotalMinutes)} min"
+            : d.TotalHours < 24 ? $"in {(int)d.TotalHours} h {d.Minutes:00} min"
+            : "";
     }
 }

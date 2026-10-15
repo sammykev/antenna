@@ -17,6 +17,7 @@ namespace Antenna.App.Views;
 public sealed partial class BrowsePage : Page
 {
     private MediaKind _kind;
+    private string? _initialGroup;
     private IReadOnlyList<PlaylistSource> _sources = [];
     private bool _loading;
     private int _loadVersion;
@@ -32,7 +33,15 @@ public sealed partial class BrowsePage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        _kind = (MediaKind)e.Parameter;
+        if (e.Parameter is BrowseTarget target)
+        {
+            _kind = target.Kind;
+            _initialGroup = target.Group;
+        }
+        else
+        {
+            _kind = (MediaKind)e.Parameter;
+        }
         Header.Text = _kind switch { MediaKind.Live => "Live TV", MediaKind.Movie => "Movies", _ => "Series" };
         Items.ItemTemplate = ItemTemplates.Get(_kind == MediaKind.Live ? "ItemTileTemplate" : "PosterTileTemplate");
         LoadSources();
@@ -55,13 +64,16 @@ public sealed partial class BrowsePage : Page
 
     private void LoadGroups()
     {
-        var previous = (Groups.SelectedItem as GroupItem)?.Name;
-        var locked = AppServices.Library.GetFlaggedGroups(GroupFlag.Locked)
+        var previous = _initialGroup is { } initial ? (initial.Length == 0 ? GroupItem.Uncategorised : initial) : (Groups.SelectedItem as GroupItem)?.Name;
+        _initialGroup = null;
+        HashSet<string> Flagged(GroupFlag flag) => AppServices.Library.GetFlaggedGroups(flag)
             .Where(g => g.Kind == _kind).Select(g => g.Group).ToHashSet();
+        var locked = Flagged(GroupFlag.Locked);
+        var pinned = Flagged(GroupFlag.Pinned);
 
         var groups = new List<GroupItem> { new("All", false, IsAll: true) };
         groups.AddRange(AppServices.Library.GetGroups(_kind, SelectedSourceId)
-            .Select(g => new GroupItem(g.Length == 0 ? GroupItem.Uncategorised : g, locked.Contains(g))));
+            .Select(g => new GroupItem(g.Length == 0 ? GroupItem.Uncategorised : g, locked.Contains(g), Pinned: pinned.Contains(g))));
         Groups.ItemsSource = groups;
         Groups.SelectedItem = groups.FirstOrDefault(g => g.Name == previous) ?? groups[0];
     }
@@ -147,6 +159,11 @@ public sealed partial class BrowsePage : Page
             return;
         var name = group.Filter ?? "";
         var menu = new MenuFlyout();
+        menu.Items.Add(ItemMenu.Item(group.Pinned ? "Unpin" : "Pin to top", group.Pinned ? "\uE77A" : "\uE718", () =>
+        {
+            AppServices.Library.SetGroupFlag(_kind, name, GroupFlag.Pinned, !group.Pinned);
+            LoadGroups();
+        }));
         menu.Items.Add(ItemMenu.Item("Hide category", "", () =>
         {
             AppServices.Library.SetGroupFlag(_kind, name, GroupFlag.Hidden, true);

@@ -22,6 +22,7 @@
         <KeyboardAccelerator Key="GamepadMenu" Invoked="ChannelList_Invoked" />
         <KeyboardAccelerator Key="L" Invoked="ChannelList_Invoked" />
         <KeyboardAccelerator Key="I" Invoked="Info_Invoked" />
+        <KeyboardAccelerator Key="P" Invoked="Pip_Invoked" />
     </Page.KeyboardAccelerators>
 
     <Grid x:Name="Root">
@@ -175,8 +176,11 @@
                     </Button>
                     <Slider x:Name="VolumeSlider" Width="100" Minimum="0" Maximum="100" Value="100" VerticalAlignment="Center"
                             ValueChanged="VolumeSlider_ValueChanged" />
-                    <Button Click="MiniPlayer_Click" ToolTipService.ToolTip="Mini player (always on top)">
-                        <FontIcon x:Name="MiniIcon" Glyph="&#xE944;" />
+                    <Button Click="Pip_Click" ToolTipService.ToolTip="Picture in picture (P): keep watching in a small window">
+                        <FontIcon Glyph="&#xE944;" />
+                    </Button>
+                    <Button Click="AddToMultiView_Click" ToolTipService.ToolTip="Add to multi-view (watch up to 4)">
+                        <FontIcon Glyph="&#xF0E2;" />
                     </Button>
                     <Button Click="FullScreen_Click" ToolTipService.ToolTip="Full screen (F)">
                         <FontIcon x:Name="FullScreenIcon" Glyph="&#xE740;" />

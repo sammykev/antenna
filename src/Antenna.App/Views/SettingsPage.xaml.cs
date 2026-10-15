@@ -54,6 +54,7 @@ public sealed partial class SettingsPage : Page
     {
         var cacheMb = await Task.Run(() => ImageCache.SizeBytes() / 1024.0 / 1024.0);
         ClearImagesButton.Content = $"Clear image cache ({cacheMb:0} MB)";
+        AboutLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Logo-256.png")));
         var version = typeof(App).Assembly.GetName().Version;
         AboutText.Text = $"Antenna {version}\nData: {Path.GetDirectoryName(LibraryStore.DefaultPath())}\n" +
                          "Video playback by LibVLC (VideoLAN, LGPL-2.1-or-later).";

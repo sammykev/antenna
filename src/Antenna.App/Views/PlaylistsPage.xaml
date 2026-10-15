@@ -59,6 +59,16 @@
             </ListView.ItemTemplate>
         </ListView>
 
+        <!-- First run: nothing added yet. -->
+        <StackPanel x:Name="Welcome" Grid.Row="2" Spacing="14" Visibility="Collapsed" Margin="0,48,0,0"
+                    HorizontalAlignment="Center" MaxWidth="520">
+            <Image x:Name="WelcomeLogo" Width="112" Height="112" HorizontalAlignment="Center" />
+            <TextBlock Text="Welcome to Antenna" Style="{StaticResource TitleTextBlockStyle}" HorizontalAlignment="Center" />
+            <TextBlock TextWrapping="Wrap" TextAlignment="Center" Opacity="0.8"
+                       Text="Add the M3U link or Xtream Codes login from your IPTV provider. Channels, movies, series and the TV guide load automatically." />
+            <Button Style="{StaticResource AccentButtonStyle}" HorizontalAlignment="Center" Click="Add_Click" Content="Add your first playlist" />
+        </StackPanel>
+
         <ProgressBar x:Name="Busy" Grid.Row="2" VerticalAlignment="Top" IsIndeterminate="True" Visibility="Collapsed" />
     </Grid>
 </Page>

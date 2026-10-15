@@ -2,6 +2,9 @@ using Antenna.Core;
 
 namespace Antenna.App.Services;
 
+/// <summary>Opens a browse page on a particular category (used by pinned categories).</summary>
+public sealed record BrowseTarget(MediaKind Kind, string Group);
+
 /// <summary>Everything the player needs: what to play, how, and where it came from (for history and zapping).</summary>
 public sealed record PlayRequest(string Title, string Url, bool IsLive)
 {

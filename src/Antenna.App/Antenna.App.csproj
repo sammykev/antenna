@@ -37,6 +37,7 @@
 
   <ItemGroup>
     <Content Include="Assets\Antenna.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\Logo-*.png" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

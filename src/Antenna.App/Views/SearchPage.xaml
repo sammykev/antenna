@@ -20,7 +20,10 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock x:Name="Header" Style="{StaticResource TitleTextBlockStyle}" />
+        <StackPanel Orientation="Horizontal" Spacing="16">
+            <TextBlock x:Name="Header" Style="{StaticResource TitleTextBlockStyle}" />
+            <HyperlinkButton x:Name="EventsLink" Click="EventsLink_Click" VerticalAlignment="Center" />
+        </StackPanel>
 
         <SelectorBar x:Name="KindFilter" Grid.Row="1" SelectionChanged="KindFilter_SelectionChanged">
             <SelectorBarItem Text="Everything" Tag="all" IsSelected="True" />

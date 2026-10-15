@@ -16,6 +16,7 @@ public sealed partial class MainWindow : Window
     {
         ["live"] = (typeof(BrowsePage), MediaKind.Live),
         ["guide"] = (typeof(GuidePage), null),
+        ["events"] = (typeof(EventsPage), null),
         ["movies"] = (typeof(BrowsePage), MediaKind.Movie),
         ["series"] = (typeof(BrowsePage), MediaKind.Series),
         ["favourites"] = (typeof(FavouritesPage), null),
@@ -35,6 +36,7 @@ public sealed partial class MainWindow : Window
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Antenna.ico"));
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
+        TitleLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Logo-64.png")));
         ApplyTheme();
 
         _suggestTimer = DispatcherQueue.CreateTimer();
@@ -172,7 +174,8 @@ public sealed partial class MainWindow : Window
     private void ContentFrame_Navigated(object sender, NavigationEventArgs e)
     {
         // Keep the pane selection in sync when navigating back.
-        var match = Pages.FirstOrDefault(p => p.Value.Page == e.SourcePageType && Equals(p.Value.Parameter, e.Parameter is MediaKind ? e.Parameter : p.Value.Parameter));
+        var parameter = e.Parameter is BrowseTarget target ? target.Kind : e.Parameter;
+        var match = Pages.FirstOrDefault(p => p.Value.Page == e.SourcePageType && Equals(p.Value.Parameter, parameter is MediaKind ? parameter : p.Value.Parameter));
         if (match.Key is null)
             return;
         ContentFrame.Tag = e.Parameter;

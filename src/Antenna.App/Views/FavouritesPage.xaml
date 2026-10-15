@@ -27,6 +27,7 @@
                 <SelectorBarItem Text="Favourites" Tag="fav" IsSelected="True" />
                 <SelectorBarItem Text="Continue watching" Tag="continue" />
                 <SelectorBarItem Text="Recently watched" Tag="recent" />
+                <SelectorBarItem Text="Pinned categories" Tag="pinned" />
             </SelectorBar>
             <Button x:Name="ClearButton" Content="Clear history" HorizontalAlignment="Right" Visibility="Collapsed" Click="Clear_Click" />
         </Grid>
@@ -38,6 +39,9 @@
         <ListView x:Name="History" Grid.Row="2" IsItemClickEnabled="True" SelectionMode="None" Visibility="Collapsed"
                   ItemClick="History_ItemClick" RightTapped="History_RightTapped"
                   ItemTemplate="{StaticResource WatchRowTemplate}" />
+
+        <ListView x:Name="Pinned" Grid.Row="2" IsItemClickEnabled="True" SelectionMode="None" Visibility="Collapsed"
+                  ItemClick="Pinned_ItemClick" />
 
         <StackPanel x:Name="EmptyState" Grid.Row="2" Spacing="8" Visibility="Collapsed"
                     HorizontalAlignment="Center" VerticalAlignment="Center">

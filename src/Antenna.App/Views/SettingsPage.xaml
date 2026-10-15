@@ -103,7 +103,10 @@
 
             <StackPanel Style="{StaticResource SectionStyle}">
                 <TextBlock Text="About" Style="{StaticResource SubtitleTextBlockStyle}" />
-                <TextBlock x:Name="AboutText" TextWrapping="Wrap" IsTextSelectionEnabled="True" />
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <Image x:Name="AboutLogo" Width="64" Height="64" VerticalAlignment="Top" />
+                    <TextBlock x:Name="AboutText" TextWrapping="Wrap" IsTextSelectionEnabled="True" VerticalAlignment="Center" />
+                </StackPanel>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

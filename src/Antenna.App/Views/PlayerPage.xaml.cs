@@ -414,7 +414,6 @@ public sealed partial class PlayerPage : Page
             FullScreenIcon.Glyph = "";
         }
         App.Window.SetMiniPlayer(mini);
-        MiniIcon.Glyph = mini ? "" : "";
     }
 
     private void SeekBy(TimeSpan offset)
@@ -451,7 +450,22 @@ public sealed partial class PlayerPage : Page
     private void PlayPause_Click(object sender, RoutedEventArgs e) => TogglePause();
     private void Back_Click(object sender, RoutedEventArgs e) => GoBack();
     private void FullScreen_Click(object sender, RoutedEventArgs e) => ToggleFullScreen();
-    private void MiniPlayer_Click(object sender, RoutedEventArgs e) => ToggleMiniPlayer();
+    private void Pip_Click(object sender, RoutedEventArgs e) => PopOut();
+
+    private void AddToMultiView_Click(object sender, RoutedEventArgs e)
+    {
+        if (_request is { } r)
+            MultiViewPage.Add(r);
+    }
+
+    /// <summary>Moves playback into the picture-in-picture window and returns to browsing.</summary>
+    private void PopOut()
+    {
+        if (_request is not { } r)
+            return;
+        PipWindow.Open(r with { StartAtMs = r.IsLive ? 0 : _lastTime });
+        GoBack();
+    }
     private void Mute_Click(object sender, RoutedEventArgs e) => ToggleMute();
     private void ChannelUp_Click(object sender, RoutedEventArgs e) => Zap(+1);
     private void ChannelDown_Click(object sender, RoutedEventArgs e) => Zap(-1);
@@ -496,6 +510,7 @@ public sealed partial class PlayerPage : Page
     private void ChannelDown_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () => Zap(-1));
     private void Back_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, GoBack);
     private void Info_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () => _ = ShowInfoAsync());
+    private void Pip_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, PopOut);
 
     private void ChannelList_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () =>
     {

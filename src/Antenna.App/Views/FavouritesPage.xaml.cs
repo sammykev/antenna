@@ -32,7 +32,17 @@ public sealed partial class FavouritesPage : Page
         EmptyState.Visibility = Visibility.Collapsed;
         var tab = Tab;
         Favourites.Visibility = tab == "fav" ? Visibility.Visible : Visibility.Collapsed;
-        History.Visibility = tab == "fav" ? Visibility.Collapsed : Visibility.Visible;
+        History.Visibility = tab is "continue" or "recent" ? Visibility.Visible : Visibility.Collapsed;
+        Pinned.Visibility = tab == "pinned" ? Visibility.Visible : Visibility.Collapsed;
+
+        if (tab == "pinned")
+        {
+            var pinned = AppServices.Library.GetFlaggedGroups(GroupFlag.Pinned);
+            Pinned.ItemsSource = pinned.Select(p => new PinnedRow(p.Kind, p.Group)).ToList();
+            if (pinned.Count == 0)
+                ShowEmpty("No pinned categories", "Right-click a category in Live TV, Movies or Series and choose “Pin to top”.");
+            return;
+        }
         ClearButton.Visibility = tab == "recent" ? Visibility.Visible : Visibility.Collapsed;
 
         if (tab == "fav")
@@ -78,6 +88,19 @@ public sealed partial class FavouritesPage : Page
     private void Favourites_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
         ItemMenu.OnRightTapped(sender, e, _favourites);
+    }
+
+    /// <summary>A pinned category; ToString is what the list shows.</summary>
+    private sealed record PinnedRow(MediaKind Kind, string Group)
+    {
+        public override string ToString() =>
+            $"📌 {(Group.Length == 0 ? "Uncategorised" : Group)}  ·  {Kind switch { MediaKind.Live => "Live TV", MediaKind.Movie => "Movies", _ => "Series" }}";
+    }
+
+    private void Pinned_ItemClick(object sender, ItemClickEventArgs e)
+    {
+        if (e.ClickedItem is PinnedRow row)
+            Frame.Navigate(typeof(BrowsePage), new BrowseTarget(row.Kind, row.Group));
     }
 
     private void History_ItemClick(object sender, ItemClickEventArgs e)

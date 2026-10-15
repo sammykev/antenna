@@ -20,8 +20,14 @@ public sealed partial class PlaylistsPage : Page
         Reload();
     }
 
-    private void Reload() =>
-        Sources.ItemsSource = AppServices.Library.GetSources().Select(s => new SourceViewModel(s)).ToList();
+    private void Reload()
+    {
+        var sources = AppServices.Library.GetSources().Select(s => new SourceViewModel(s)).ToList();
+        Sources.ItemsSource = sources;
+        Welcome.Visibility = sources.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (sources.Count == 0 && WelcomeLogo.Source is null)
+            WelcomeLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Logo-256.png")));
+    }
 
     private async void Add_Click(object sender, RoutedEventArgs e)
     {
