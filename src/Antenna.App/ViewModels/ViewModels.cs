@@ -86,6 +86,17 @@ public sealed class CachedImage(string? url, int decodeHeight) : Observable
         {
             _source = Ui.FromFile(path, decodeHeight);
             Raise(nameof(Source));
+            Raise(nameof(FallbackVisibility));
+        }
+    }
+
+    /// <summary>Show placeholder initials only while there's no image (logos are often transparent).</summary>
+    public Microsoft.UI.Xaml.Visibility FallbackVisibility
+    {
+        get
+        {
+            _ = Source; // Starts loading if nothing has asked yet.
+            return _source is null ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
         }
     }
 }

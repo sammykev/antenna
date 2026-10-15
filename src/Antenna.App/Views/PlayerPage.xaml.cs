@@ -61,6 +61,19 @@ public sealed partial class PlayerPage : Page
         _historyTimer = Timer(TimeSpan.FromSeconds(10), SaveProgress, repeat: true);
         _numberTimer = Timer(TimeSpan.FromSeconds(1.5), CommitTypedNumber);
 
+        // Gamepad/remote buttons. Added in code: XAML can't parse the Gamepad* key names.
+        AddKey(VirtualKey.GamepadRightShoulder, () => Zap(+1));
+        AddKey(VirtualKey.GamepadLeftShoulder, () => Zap(-1));
+        AddKey(VirtualKey.GamepadB, GoBack);
+        AddKey(VirtualKey.GamepadMenu, () =>
+        {
+            if (_request is { CanZap: true })
+            {
+                ShowControls();
+                ChannelFlyout.ShowAt(ChannelListButton);
+            }
+        });
+
         // Digit keys (top row and keypad) type a channel number.
         for (var i = 0; i <= 9; i++)
         {
@@ -76,6 +89,17 @@ public sealed partial class PlayerPage : Page
                 KeyboardAccelerators.Add(accelerator);
             }
         }
+    }
+
+    private void AddKey(VirtualKey key, Action action)
+    {
+        var accelerator = new KeyboardAccelerator { Key = key };
+        accelerator.Invoked += (_, a) =>
+        {
+            action();
+            a.Handled = true;
+        };
+        KeyboardAccelerators.Add(accelerator);
     }
 
     private DispatcherQueueTimer Timer(TimeSpan interval, Action tick, bool repeat = false)

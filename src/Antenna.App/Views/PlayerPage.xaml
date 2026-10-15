@@ -16,10 +16,6 @@
         <KeyboardAccelerator Key="M" Invoked="ToggleMute_Invoked" />
         <KeyboardAccelerator Key="PageUp" Invoked="ChannelUp_Invoked" />
         <KeyboardAccelerator Key="PageDown" Invoked="ChannelDown_Invoked" />
-        <KeyboardAccelerator Key="GamepadRightShoulder" Invoked="ChannelUp_Invoked" />
-        <KeyboardAccelerator Key="GamepadLeftShoulder" Invoked="ChannelDown_Invoked" />
-        <KeyboardAccelerator Key="GamepadB" Invoked="Back_Invoked" />
-        <KeyboardAccelerator Key="GamepadMenu" Invoked="ChannelList_Invoked" />
         <KeyboardAccelerator Key="L" Invoked="ChannelList_Invoked" />
         <KeyboardAccelerator Key="I" Invoked="Info_Invoked" />
         <KeyboardAccelerator Key="P" Invoked="Pip_Invoked" />

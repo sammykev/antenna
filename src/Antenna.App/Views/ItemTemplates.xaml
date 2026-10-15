@@ -17,7 +17,7 @@
 
             <Border Background="{ThemeResource SubtleFillColorSecondaryBrush}">
                 <Grid>
-                    <TextBlock Text="{x:Bind Initials}" FontSize="28" FontWeight="SemiBold" Opacity="0.4"
+                    <TextBlock Text="{x:Bind Initials}" Visibility="{x:Bind Logo.FallbackVisibility, Mode=OneWay}" FontSize="28" FontWeight="SemiBold" Opacity="0.4"
                                HorizontalAlignment="Center" VerticalAlignment="Center" />
                     <Image Source="{x:Bind Logo.Source, Mode=OneWay}" Stretch="Uniform" Margin="14" />
                     <TextBlock Text="{x:Bind NumberText}" Margin="10,6" FontSize="12" Opacity="0.6"
@@ -51,7 +51,7 @@
             </Grid.RowDefinitions>
             <Grid CornerRadius="8" Background="{ThemeResource SubtleFillColorSecondaryBrush}"
                   BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1">
-                <TextBlock Text="{x:Bind Initials}" FontSize="32" FontWeight="SemiBold" Opacity="0.35"
+                <TextBlock Text="{x:Bind Initials}" Visibility="{x:Bind Logo.FallbackVisibility, Mode=OneWay}" FontSize="32" FontWeight="SemiBold" Opacity="0.35"
                            HorizontalAlignment="Center" VerticalAlignment="Center" />
                 <Image Source="{x:Bind Logo.Source, Mode=OneWay}" Stretch="UniformToFill" />
                 <Border Height="4" VerticalAlignment="Bottom" Background="{x:Bind SourceBrush}" />
@@ -76,7 +76,7 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
             <Grid Height="54" CornerRadius="6" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
-                <TextBlock Text="{x:Bind Initials}" Opacity="0.4" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <TextBlock Text="{x:Bind Initials}" Visibility="{x:Bind Logo.FallbackVisibility, Mode=OneWay}" Opacity="0.4" HorizontalAlignment="Center" VerticalAlignment="Center" />
                 <Image Source="{x:Bind Logo.Source, Mode=OneWay}" Stretch="UniformToFill" />
             </Grid>
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
