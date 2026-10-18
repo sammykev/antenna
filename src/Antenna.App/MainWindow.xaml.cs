@@ -39,8 +39,10 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         TitleLogo.Source = new Microsoft.UI.Xaml.Media.Imaging.BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Logo-64.png")));
         ApplyTheme();
+        // Set up before the window is shown: moving the navigation view while it's loading can
+        // crash WinUI natively (it did, on every restart, in 0.1.9).
         if (AppSettings.TvMode)
-            RootGrid.Loaded += (_, _) => ApplyTvMode(true);
+            ApplyTvMode(true);
 
         _suggestTimer = DispatcherQueue.CreateTimer();
         _suggestTimer.Interval = TimeSpan.FromMilliseconds(250);

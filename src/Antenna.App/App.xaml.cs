@@ -14,6 +14,9 @@ public partial class App : Application
     /// </summary>
     public static bool SmokeTest { get; set; }
 
+    /// <summary>--smoke-test --tv: the smoke test, starting with TV mode on (as after a restart with it saved).</summary>
+    public static bool SmokeTestTv { get; set; }
+
     public App()
     {
         // Log everything that escapes, and keep running where the platform allows it.
@@ -56,6 +59,11 @@ public partial class App : Application
         // Locked categories stay hidden until the PIN is entered in this session.
         Step("library", Parental.Apply);
 
+        // A crashed start last time turns off the risky optional features for this one.
+        SafeStart.Begin();
+        if (SmokeTest && SmokeTestTv)
+            AppSettings.TvMode = true;
+
         Step("window", () =>
         {
             Window = new MainWindow();
@@ -71,6 +79,10 @@ public partial class App : Application
             Updater.UpdateReady += update => Window.ShowUpdateReady(update.TargetFullRelease.Version.ToString());
             Updater.Start(Window.DispatcherQueue);
         });
+        SafeStart.Running(Window.DispatcherQueue);
+        if (SafeStart.Recovering)
+            Window.ShowNotice(InfoBarSeverity.Warning,
+                "Antenna didn't start properly last time, so TV mode and background channel buffering were switched off. You can turn them back on in Settings.");
         _ = Task.Run(ImageCache.Trim);
         _ = Task.Run(Views.PlayerPage.CleanUpTimeshiftFolders);
         Log.Info("Started");

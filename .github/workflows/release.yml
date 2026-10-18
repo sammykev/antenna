@@ -59,15 +59,20 @@ jobs:
         shell: pwsh
         run: |
           $log = Join-Path $env:LOCALAPPDATA "AntennaData\logs\antenna.log"
-          Remove-Item $log -ErrorAction SilentlyContinue
-          $app = Start-Process publish\Antenna.App.exe -ArgumentList "--smoke-test" -PassThru
-          $null = $app.Handle  # keeps the exit code readable after the process ends
-          if (-not $app.WaitForExit(120000)) { Stop-Process $app -Force; $failed = "it was still running after 2 minutes" }
-          if (Test-Path $log) { Get-Content $log } else { Write-Host "No log was written." }
-          if (-not $failed -and $app.ExitCode -ne 0) { $failed = "it exited with code $($app.ExitCode)" }
-          if (-not $failed -and -not (Select-String -Path $log -Pattern "Smoke test passed" -Quiet)) { $failed = "it never reported 'Smoke test passed'" }
-          if (-not $failed -and (Select-String -Path $log -Pattern " ERROR " -Quiet)) { $failed = "errors were logged" }
-          if ($failed) { throw "Smoke test failed: $failed." }
+          # Twice: a normal start, then a start with TV mode already on (as after a restart with it saved).
+          foreach ($run in @("--smoke-test", "--smoke-test --tv")) {
+            Write-Host "=== Antenna.App.exe $run"
+            Remove-Item $log -ErrorAction SilentlyContinue
+            $failed = $null
+            $app = Start-Process publish\Antenna.App.exe -ArgumentList $run -PassThru
+            $null = $app.Handle  # keeps the exit code readable after the process ends
+            if (-not $app.WaitForExit(120000)) { Stop-Process $app -Force; $failed = "it was still running after 2 minutes" }
+            if (Test-Path $log) { Get-Content $log } else { Write-Host "No log was written." }
+            if (-not $failed -and $app.ExitCode -ne 0) { $failed = "it exited with code $($app.ExitCode)" }
+            if (-not $failed -and -not (Select-String -Path $log -Pattern "Smoke test passed" -Quiet)) { $failed = "it never reported 'Smoke test passed'" }
+            if (-not $failed -and (Select-String -Path $log -Pattern " ERROR " -Quiet)) { $failed = "errors were logged" }
+            if ($failed) { throw "Smoke test ($run) failed: $failed." }
+          }
 
       - name: Write release notes
         shell: pwsh

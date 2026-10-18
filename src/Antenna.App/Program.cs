@@ -50,6 +50,7 @@ public static class Program
             Log.Info("First start after installing");
 
         App.SmokeTest = args.Contains("--smoke-test");
+        App.SmokeTestTv = args.Contains("--tv");
 
         WinRT.ComWrappersSupport.InitializeComWrappers();
         Application.Start(p =>

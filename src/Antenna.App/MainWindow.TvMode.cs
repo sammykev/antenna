@@ -45,8 +45,12 @@ public sealed partial class MainWindow
                 }
             };
             RootGrid.KeyboardAccelerators.Add(_tvBack);
-            if (AppWindow.Presenter is OverlappedPresenter presenter)
-                presenter.Maximize();
+            // Maximise once the window is up (this can run before it's shown).
+            DispatcherQueue.TryEnqueue(() =>
+            {
+                if (AppWindow.Presenter is OverlappedPresenter presenter)
+                    presenter.Maximize();
+            });
         }
         else
         {

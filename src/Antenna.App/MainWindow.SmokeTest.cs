@@ -47,6 +47,11 @@ public sealed partial class MainWindow
             Log.Error(ex, "smoke test: TV mode");
         }
 
+        if (App.SmokeTestTv)
+        {
+            Log.Info("smoke test: started with TV mode on");
+            AppSettings.TvMode = false;
+        }
         Log.Info(failed.Count == 0 ? "Smoke test passed" : $"Smoke test failed: {string.Join(", ", failed)}");
         Environment.Exit(failed.Count == 0 ? 0 : 1);
     }
