@@ -9,9 +9,10 @@ public sealed partial class LibraryStore
     /// Guide programmes matching an event search within [from, to): what's on now first,
     /// then by start time. Programmes shown on several channels come back once, with all of them.
     /// </summary>
-    public IReadOnlyList<EventHit> SearchEvents(string query, DateTimeOffset from, DateTimeOffset to, int limit = 200)
+    /// <param name="keepAllWords">Programme search: keep words event searches skip (see <see cref="EventSearch.BuildExpression"/>).</param>
+    public IReadOnlyList<EventHit> SearchEvents(string query, DateTimeOffset from, DateTimeOffset to, int limit = 200, bool keepAllWords = false)
     {
-        var match = EventSearch.BuildExpression(query);
+        var match = EventSearch.BuildExpression(query, keepAllWords);
         if (match is null)
             return [];
 

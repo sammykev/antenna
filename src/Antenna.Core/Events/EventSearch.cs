@@ -79,7 +79,11 @@ public static class EventSearch
     /// Builds an FTS5 expression. Terms are ANDed; "OR" between words in the input makes
     /// alternatives ("ufc OR boxing"). Returns null if nothing searchable is left.
     /// </summary>
-    public static string? BuildExpression(string query)
+    /// <param name="keepAllWords">
+    /// For programme titles ("Match of the Day", "Game of Thrones"): keep words that event searches
+    /// ignore. Nicknames like "utd" still match their full names.
+    /// </param>
+    public static string? BuildExpression(string query, bool keepAllWords = false)
     {
         var alternatives = new List<List<string>>();
         var current = new List<string>();
@@ -94,7 +98,7 @@ public static class EventSearch
             }
             var word = raw.ToLowerInvariant();
             // Single letters match nearly everything and make searches slow; skip them.
-            if (StopWords.Contains(word) || word.Length < 2)
+            if ((!keepAllWords && StopWords.Contains(word)) || word.Length < 2)
                 continue;
             current.Add(Term(word));
         }

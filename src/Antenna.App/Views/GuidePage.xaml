@@ -29,6 +29,8 @@
             </StackPanel>
             <ComboBox x:Name="SourceFilter" HorizontalAlignment="Stretch" SelectionChanged="SourceFilter_SelectionChanged" />
             <TextBox x:Name="ChannelFilter" PlaceholderText="Filter channels" TextChanged="ChannelFilter_TextChanged" />
+            <AutoSuggestBox x:Name="ProgrammeSearch" PlaceholderText="Search programmes (e.g. news, Arsenal, film title)" QueryIcon="Find"
+                            TextChanged="ProgrammeSearch_TextChanged" QuerySubmitted="ProgrammeSearch_QuerySubmitted" />
         </StackPanel>
 
         <!-- ===== List view ===== -->

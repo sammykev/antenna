@@ -12,6 +12,15 @@ namespace Antenna.App.ViewModels;
 
 internal static class Ui
 {
+    /// <summary>"Today", "Tomorrow", "Yesterday" or "Sat 18".</summary>
+    public static string Day(DateTime when) => (when.Date - DateTime.Today).Days switch
+    {
+        0 => "Today",
+        1 => "Tomorrow",
+        -1 => "Yesterday",
+        _ => when.ToString("ddd d", CultureInfo.CurrentCulture),
+    };
+
     public static SolidColorBrush Brush(string hex)
     {
         var h = hex.TrimStart('#');
@@ -213,20 +222,26 @@ public sealed class EpisodeViewModel
 /// <summary>One row in the guide's programme list.</summary>
 public sealed class ProgrammeViewModel
 {
-    internal ProgrammeViewModel(Programme programme, bool isLive, bool canReplay)
+    internal ProgrammeViewModel(Programme programme, bool isLive, bool canReplay, string? channelTitle = null)
     {
         Programme = programme;
         IsLive = isLive;
         CanReplay = canReplay;
+        ChannelTitle = channelTitle;
     }
+
+    /// <summary>Set for search results, which mix channels and days.</summary>
+    internal string? ChannelTitle { get; }
 
     internal Programme Programme { get; }
     internal bool IsLive { get; }
     internal bool CanReplay { get; }
 
-    public string Time => $"{Programme.Start.LocalDateTime:HH:mm} – {Programme.Stop.LocalDateTime:HH:mm}";
+    public string Time => ChannelTitle is null
+        ? $"{Programme.Start.LocalDateTime:HH:mm} – {Programme.Stop.LocalDateTime:HH:mm}"
+        : $"{Ui.Day(Programme.Start.LocalDateTime)} {Programme.Start.LocalDateTime:HH:mm}";
     public string Title => Programme.Title;
-    public string Description => Programme.Description ?? "";
+    public string Description => ChannelTitle is null ? Programme.Description ?? "" : $"{ChannelTitle}  ·  {Programme.Description}".TrimEnd(' ', '·');
     public string State => IsLive ? "● LIVE" : CanReplay ? "▶ Catch-up" : Programme.Start > DateTimeOffset.Now ? "" : "";
     public double Opacity => IsLive || CanReplay || Programme.Start > DateTimeOffset.Now ? 1.0 : 0.5;
 }

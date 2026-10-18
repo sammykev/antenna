@@ -118,4 +118,20 @@ public sealed class EventSearchTests : IDisposable
         using var reopened = new LibraryStore(_path);
         Assert.NotEmpty(reopened.SearchEvents("tennis", Now, Now.AddHours(6)));
     }
+
+    [Fact]
+    public void Programme_search_keeps_words_event_search_skips()
+    {
+        Assert.Null(EventSearch.BuildExpression("the match"));
+        Assert.Equal(Normalize("\"match\"* AND \"of\"* AND \"the\"* AND \"day\"*"), Normalize(EventSearch.BuildExpression("Match of the Day", keepAllWords: true)!));
+        Assert.Contains("united", EventSearch.BuildExpression("man utd", keepAllWords: true));
+    }
+
+    [Fact]
+    public void Finds_programmes_by_title_in_the_past_and_future()
+    {
+        Seed();
+        var hits = _store.SearchEvents("tennis final", Now.AddDays(-7), Now.AddDays(7), keepAllWords: true);
+        Assert.Contains(hits, h => h.Programme.Title == "Tennis: Final");
+    }
 }

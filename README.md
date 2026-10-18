@@ -31,6 +31,8 @@ Xtream Codes login). It doesn't include or find any content itself.
 **Guide and catch-up**
 - XMLTV guide (.xml / .xml.gz), matched to channels by id then by name
 - List view per channel/day, or a timeline grid of every channel
+- **Search programmes** in the guide (last week for catch-up, next week ahead), and filter channels
+- In the player, the channel's guide appears when a channel starts and with **G**: replay earlier programmes, set reminders for upcoming ones
 - Catch-up for Xtream (time-zone aware) and M3U catchup modes (default, append, shift, flussonic, xc)
 
 **Reminders**
@@ -180,6 +182,7 @@ To remove the warning for everyone, switch to a public certificate (e.g. Azure T
 | ← / → | Seek 10 s (live TV: jump 30 s back/forward in the pause buffer) |
 | Z | Aspect ratio: Auto, 16:9, 4:3, 21:9, Zoom to fill |
 | S | Stream stats (resolution, bitrate, dropped frames) |
+| G | This channel's guide |
 | M | Mute |
 | Gamepad B | Back |
 

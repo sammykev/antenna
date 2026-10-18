@@ -39,6 +39,16 @@ public sealed partial class GuidePage : Page
 
     private ItemViewModel? SelectedChannel => Channels.SelectedItem as ItemViewModel;
 
+    /// <summary>Search results mix channels: which channel each row belongs to.</summary>
+    private Dictionary<ProgrammeViewModel, ItemViewModel> _searchChannels = [];
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _searchTimer;
+    private int _searchVersion;
+
+    private bool Searching => !string.IsNullOrWhiteSpace(ProgrammeSearch.Text);
+
+    private ItemViewModel? ChannelFor(ProgrammeViewModel row) =>
+        _searchChannels.TryGetValue(row, out var channel) ? channel : SelectedChannel;
+
     private string? SelectedSourceId => SourceFilter.SelectedIndex > 0 ? _sources[SourceFilter.SelectedIndex - 1].Id : null;
 
     private static DateTimeOffset DefaultWindowStart()
@@ -387,6 +397,92 @@ public sealed partial class GuidePage : Page
 
     private void Channels_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (SelectedChannel is not { } channel)
+            return;
+        // Picking a channel leaves the search and shows its day.
+        if (Searching)
+        {
+            ProgrammeSearch.Text = "";
+            EndSearch();
+        }
+        ShowChannel(channel);
+    }
+
+    // ---- Programme search ----
+
+    private void ProgrammeSearch_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)
+            return;
+        if (_searchTimer is null)
+        {
+            _searchTimer = DispatcherQueue.CreateTimer();
+            _searchTimer.Interval = TimeSpan.FromMilliseconds(300);
+            _searchTimer.IsRepeating = false;
+            _searchTimer.Tick += (_, _) => _ = SearchAsync();
+        }
+        _searchTimer.Stop();
+        _searchTimer.Start();
+    }
+
+    private void ProgrammeSearch_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        _searchTimer?.Stop();
+        _ = SearchAsync();
+    }
+
+    /// <summary>Programmes matching the search on any channel: the last week (for catch-up) and the next one.</summary>
+    private async Task SearchAsync()
+    {
+        var query = ProgrammeSearch.Text.Trim();
+        if (query.Length == 0)
+        {
+            EndSearch();
+            return;
+        }
+        if (IsTimeline)
+            foreach (var item in ViewMode.Items)
+                item.IsSelected = (item.Tag as string) == "list";
+
+        var version = ++_searchVersion;
+        var now = DateTimeOffset.Now;
+        var source = SelectedSourceId;
+        var hits = await Task.Run(() => AppServices.Library.SearchEvents(query, now.AddDays(-7), now.AddDays(7), 300, keepAllWords: true));
+        if (version != _searchVersion)
+            return;
+
+        var rows = new List<ProgrammeViewModel>();
+        var channels = new Dictionary<ProgrammeViewModel, ItemViewModel>();
+        foreach (var hit in hits)
+        {
+            var entry = hit.Channels.FirstOrDefault(c => source is null || c.Item.SourceId == source);
+            if (entry is null)
+                continue;
+            var p = hit.Programme;
+            var row = new ProgrammeViewModel(p, p.IsOnAt(now), !p.IsOnAt(now) && Catchup.IsAvailable(entry.Item, p, now), entry.Item.Title);
+            rows.Add(row);
+            channels[row] = new ItemViewModel(entry);
+        }
+        // Now first, then what's coming up, then the past (most recent first).
+        rows = [.. rows.Where(r => r.IsLive),
+                .. rows.Where(r => !r.IsLive && r.Programme.Start > now).OrderBy(r => r.Programme.Start),
+                .. rows.Where(r => !r.IsLive && r.Programme.Start <= now).OrderByDescending(r => r.Programme.Start)];
+
+        _searchChannels = channels;
+        ChannelTitle.Text = rows.Count == 0 ? $"No programmes match “{query}”" : $"{rows.Count} programme{(rows.Count == 1 ? "" : "s")} matching “{query}”";
+        Days.Visibility = Visibility.Collapsed;
+        Schedule.ItemsSource = rows;
+        if (rows.Count == 0)
+            ShowEmpty("No matches", "Try other words. The search covers the last week (for catch-up) and the next week.");
+        else
+            EmptyState.Visibility = Visibility.Collapsed;
+    }
+
+    private void EndSearch()
+    {
+        _searchVersion++;
+        _searchChannels = [];
+        Days.Visibility = Visibility.Visible;
         if (SelectedChannel is { } channel)
             ShowChannel(channel);
     }
@@ -399,13 +495,13 @@ public sealed partial class GuidePage : Page
 
     private void Schedule_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is ProgrammeViewModel row && SelectedChannel is { } channel)
+        if (e.ClickedItem is ProgrammeViewModel row && ChannelFor(row) is { } channel)
             _ = ActivateAsync(channel, row);
     }
 
     private void Schedule_RightTapped(object sender, RightTappedRoutedEventArgs e)
     {
-        if ((e.OriginalSource as FrameworkElement)?.DataContext is not ProgrammeViewModel row || SelectedChannel is not { } channel)
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is not ProgrammeViewModel row || ChannelFor(row) is not { } channel)
             return;
         ProgrammeMenu(channel, row).ShowAt((UIElement)sender, new FlyoutShowOptions { Position = e.GetPosition((UIElement)sender) });
         e.Handled = true;
