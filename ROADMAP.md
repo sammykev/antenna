@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.9** (everything on this list except Microsoft Store and winget). Remaining: Store, winget, app-side tests, analyzers for the app project, recently added on Home.
+Current release: **v0.1.10** (crash fix for TV mode at start-up, safe start, guide in the player, guide search). Remaining: Store, winget, app-side tests, analyzers for the app project, recently added on Home.
 
 ---
 
@@ -118,6 +118,7 @@ Current release: **v0.1.9** (everything on this list except Microsoft Store and 
 - Installed copies update in-app (`Services/Updater.cs`, GitHub source, checks ~20 s after start then every 6 h).
 
 **Pitfalls already hit (don't reintroduce)**
+- Never move big parts of the visual tree (e.g. NavView into TV mode's Viewbox) inside a Loaded handler during start-up: it crashed natively on every start in 0.1.9. Do it before the window is shown. `SafeStart` turns risky options off after a crashed start-up.
 - `EnableMsixTooling` must stay `true`, or published builds lose `resources.pri` and can't open any window.
 - `Program.cs` is the entry point (`DISABLE_XAML_GENERATED_MAIN`); `VelopackApp.Build().Run()` must run first.
 - Data lives in `%LOCALAPPDATA%\AntennaData` (library.db, logs, images). The installer owns
