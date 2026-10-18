@@ -53,6 +53,9 @@ internal static class AppSettings
     /// <summary>Buffer live TV to disk so it can be paused and rewound.</summary>
     public static bool Timeshift { get => Get("player.timeshift") != "0"; set => Set("player.timeshift", value ? "1" : "0"); }
 
+    /// <summary>When a channel starts, show its guide over the video for a few seconds.</summary>
+    public static bool ShowGuideOnChannelStart { get => Get("player.guide") != "0"; set => Set("player.guide", value ? "1" : "0"); }
+
     /// <summary>Buffer the next channel in the background so Ch+/Ch− is near instant (uses a second connection).</summary>
     public static bool PreloadNextChannel { get => Get("player.preload") == "1"; set => Set("player.preload", value ? "1" : "0"); }
 

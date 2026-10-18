@@ -194,6 +194,7 @@ public sealed partial class PlayerPage : Page
         ResumePanel.Visibility = Visibility.Collapsed;
         UpdateRecordingState();
         _ = ShowInfoAsync();
+        OnChannelLoadedForGuide();
         Start();
     }
 
@@ -425,7 +426,9 @@ public sealed partial class PlayerPage : Page
     {
         if (_request is not { CanZap: true } r)
             return;
-        ChannelList.ItemsSource = r.Channels.Select((c, i) => $"{i + 1}.  {c.Title}").ToList();
+        var now = GuideService.CachedNowPlaying();
+        ChannelList.ItemsSource = r.Channels.Select((c, i) =>
+            GuideService.NowOn(c, now) is { } on ? $"{i + 1}.  {c.Title}  ·  {on.Title}" : $"{i + 1}.  {c.Title}").ToList();
         ChannelList.SelectedIndex = r.ChannelIndex;
         if (r.ChannelIndex >= 0)
             ChannelList.ScrollIntoView(ChannelList.SelectedItem, ScrollIntoViewAlignment.Leading);

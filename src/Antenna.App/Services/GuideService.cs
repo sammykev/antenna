@@ -27,6 +27,9 @@ internal static class GuideService
         return map;
     }
 
+    /// <summary>What's on now from the cache, without waiting (empty if it hasn't been loaded yet).</summary>
+    public static Dictionary<(string SourceId, string ChannelId), Programme> CachedNowPlaying() => _nowPlaying ?? [];
+
     public static Programme? NowOn(MediaItem item, Dictionary<(string, string), Programme> now) =>
         item is { Kind: MediaKind.Live, EpgChannelId: { } channel } && now.TryGetValue((item.SourceId, channel), out var p) ? p : null;
 

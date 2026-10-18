@@ -41,6 +41,7 @@
                            Text="Lower starts channels faster; higher survives a shaky connection. 1500 suits most providers." />
                 <ToggleSwitch x:Name="HardwareToggle" Header="Hardware video decoding" Toggled="Hardware_Toggled" />
                 <ToggleSwitch x:Name="TimeshiftToggle" Header="Pause and rewind live TV (buffers up to 30 minutes on disk)" Toggled="Timeshift_Toggled" />
+                <ToggleSwitch x:Name="GuideOnStartToggle" Header="Show the channel's guide for a few seconds when a channel starts (G opens it any time)" Toggled="GuideOnStart_Toggled" />
                 <ToggleSwitch x:Name="PreloadToggle" Header="Faster channel switching: buffer the next channel in the background" Toggled="Preload_Toggled" />
                 <TextBlock Opacity="0.7" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"
                            Text="Uses a second connection to your provider, so it only runs on Xtream accounts that allow at least 2 streams at once, and needs pause and rewind on." />

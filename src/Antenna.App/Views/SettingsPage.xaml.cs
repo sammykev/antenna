@@ -40,6 +40,7 @@ public sealed partial class SettingsPage : Page
         HardwareToggle.IsOn = AppSettings.HardwareDecoding;
         TimeshiftToggle.IsOn = AppSettings.Timeshift;
         PreloadToggle.IsOn = AppSettings.PreloadNextChannel;
+        GuideOnStartToggle.IsOn = AppSettings.ShowGuideOnChannelStart;
         RefreshChoice.ItemsSource = RefreshOptions.Select(o => o.Label).ToList();
         var refreshIndex = Array.FindIndex(RefreshOptions, o => o.Hours == AppSettings.AutoRefreshHours);
         RefreshChoice.SelectedIndex = refreshIndex >= 0 ? refreshIndex : 3;
@@ -168,6 +169,12 @@ public sealed partial class SettingsPage : Page
     {
         if (!_loading && !double.IsNaN(args.NewValue))
             AppSettings.NetworkCachingMs = (int)args.NewValue;
+    }
+
+    private void GuideOnStart_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            AppSettings.ShowGuideOnChannelStart = GuideOnStartToggle.IsOn;
     }
 
     private void Preload_Toggled(object sender, RoutedEventArgs e)
