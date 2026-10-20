@@ -57,6 +57,8 @@ Current release: **v0.1.10** (crash fix for TV mode at start-up, safe start, gui
 - [x] **One channel, several sources.** *(v0.1.8: player switches to the same channel on another playlist after repeated failures, and offers "Watch on another playlist" in the Picture and sound menu. v0.1.9: Live TV with all playlists lists each channel once (`UniquePager` + `ChannelMatch`; Settings toggle); the others are in the player's Watch on another playlist.)* Group the same channel across playlists (EPG id, then normalised
   name), show it once with a source picker, and fall back to the next source automatically on failure.
 
+- [x] **Matches page.** *(v0.1.11: `Core/Sports/EspnFixtures` (ESPN's public scoreboard, no key, unofficial: parse defensively) + `FixtureMatcher` (guide around kick-off, then per-event channel names); `Views/MatchesPage`; user Links (none built in). Decided not to integrate unlicensed streaming sites.)*
+
 ## 3. Looks
 
 - [x] **Movie and series artwork.** *(v0.1.8: movie and series pages fill missing poster, backdrop, plot, rating, cast from TMDB when a key is set; `Core/Metadata/TmdbClient.cs`, `TitleCleaner.cs`. v0.1.9: grid tiles without a poster get one from a single TMDB search, loaded lazily for visible tiles, 4 at a time.)* Fill missing posters, backdrops, plot, rating, cast from TMDB (user

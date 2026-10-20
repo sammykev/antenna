@@ -60,6 +60,11 @@
                         <FontIcon Glyph="&#xE787;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="Matches" Tag="matches">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7FC;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
                 <NavigationViewItem Content="Live events" Tag="events">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE909;" />

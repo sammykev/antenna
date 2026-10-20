@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
         ["live"] = (typeof(BrowsePage), MediaKind.Live),
         ["guide"] = (typeof(GuidePage), null),
         ["events"] = (typeof(EventsPage), null),
+        ["matches"] = (typeof(MatchesPage), null),
         ["movies"] = (typeof(BrowsePage), MediaKind.Movie),
         ["series"] = (typeof(BrowsePage), MediaKind.Series),
         ["favourites"] = (typeof(FavouritesPage), null),

@@ -35,6 +35,9 @@ internal static class AppSettings
     /// <summary>Nav tag of the page shown at start-up.</summary>
     public static string StartPage { get => Get("ui.start") ?? "live"; set => Set("ui.start", value); }
 
+    /// <summary>The user's own links, as JSON (see UserLinks).</summary>
+    public static string? Links { get => Get("links"); set => Set("links", value); }
+
     /// <summary>Saved multi-view presets, as JSON (see MultiViewPresets).</summary>
     public static string? MultiViewPresets { get => Get("multiview.presets"); set => Set("multiview.presets", value); }
 
