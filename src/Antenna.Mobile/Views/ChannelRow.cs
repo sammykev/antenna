@@ -25,7 +25,7 @@ public sealed class ChannelRow(LibraryEntry entry, Programme? now)
 }
 
 /// <summary>A category chip above the channel list.</summary>
-public sealed record GroupChip(string Name, string? Group, bool Favourites = false);
+public sealed record GroupChip(string Name, string? Group, bool Favourites = false, bool Continue = false);
 
 /// <summary>A programme in a guide list, in local time.</summary>
 public sealed class GuideRow(Programme programme, LibraryEntry? channel = null)
@@ -45,4 +45,37 @@ public sealed class GuideRow(Programme programme, LibraryEntry? channel = null)
     public string Subtitle => channel is null ? "" : IsOnNow ? $"On now · {channel.Item.Title}" : channel.Item.Title;
 
     public bool IsOnNow => programme.IsOnAt(DateTimeOffset.Now);
+}
+
+/// <summary>A poster in the movies or series grid.</summary>
+public sealed class PosterRow(LibraryEntry entry, double progress = 0)
+{
+    public LibraryEntry Entry => entry;
+
+    public string Title => entry.Item.Title;
+
+    public string? Poster => string.IsNullOrWhiteSpace(entry.Item.LogoUrl) ? null : entry.Item.LogoUrl;
+
+    public double Progress => progress;
+
+    public bool HasProgress => progress > 0;
+}
+
+/// <summary>An episode on a series page, with how much of it has been watched.</summary>
+public sealed class EpisodeRow(Episode episode, WatchRecord? watch)
+{
+    public Episode Episode => episode;
+
+    public string Title => $"{episode.Number}. {episode.Title}";
+
+    public string? Plot => episode.Plot;
+
+    public bool HasPlot => !string.IsNullOrWhiteSpace(episode.Plot);
+
+    public double Progress => watch?.IsResumable == true ? watch.Progress : 0;
+
+    public bool HasProgress => Progress > 0;
+
+    /// <summary>Finished: the player saves a finished episode with no position, or it got past 95%.</summary>
+    public string Watched => watch is { IsResumable: false } w && (w.LengthMs == 0 || w.PositionMs >= w.LengthMs * 0.95) ? "✓" : "";
 }

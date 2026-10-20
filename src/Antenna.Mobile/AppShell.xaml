@@ -6,7 +6,9 @@
        Shell.NavBarHasShadow="False">
     <TabBar>
         <ShellContent Title="Live TV" Route="live" ContentTemplate="{DataTemplate views:LiveTvPage}" />
-        <ShellContent Title="Guide" Route="guide" ContentTemplate="{DataTemplate views:GuideSearchPage}" />
+        <ShellContent Title="Movies" Route="movies" ContentTemplate="{DataTemplate views:MoviesPage}" />
+        <ShellContent Title="Series" Route="series" ContentTemplate="{DataTemplate views:SeriesPage}" />
+        <ShellContent Title="Matches" Route="matches" ContentTemplate="{DataTemplate views:MatchesPage}" />
         <ShellContent Title="Playlists" Route="playlists" ContentTemplate="{DataTemplate views:PlaylistsPage}" />
     </TabBar>
 </Shell>

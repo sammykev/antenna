@@ -1,3 +1,4 @@
+using System.Globalization;
 using Android.Content.PM;
 using AndroidX.Core.View;
 using Antenna.Core;
@@ -6,7 +7,10 @@ using LibVLCSharp.Shared;
 
 namespace Antenna.Mobile.Views;
 
-/// <summary>Full-screen player: landscape, tap for controls, swipe or ⏮/⏭ to change channel.</summary>
+/// <summary>
+/// Full-screen player: landscape, tap for controls. Live TV: swipe or ⏮/⏭ to change channel, now/next and the
+/// channel's guide. Films and episodes: seek bar, skip back/forward, resume where you stopped, next episode.
+/// </summary>
 public partial class PlayerPage : ContentPage
 {
     private const int MaxAttempts = 5;
@@ -20,9 +24,12 @@ public partial class PlayerPage : ContentPage
     private static readonly string[] AspectModes = ["Fit", "Fill", "16:9", "4:3"];
 
     private MediaPlayer? _player;
-    private MediaItem? _item;
+    private PlayItem? _item;
     private int _attempts;
     private int _aspect;
+    private long _resumeAt;
+    private bool _seeking;
+    private int _ticks;
     private IDispatcherTimer? _hideTimer;
     private IDispatcherTimer? _clock;
 
@@ -43,16 +50,16 @@ public partial class PlayerPage : ContentPage
         }
 
         _player = new MediaPlayer(Vlc.Value);
-        _player.Playing += (_, _) => OnUi(() => { _attempts = 0; ShowStatus(null); PauseButton.Text = "⏸"; });
+        _player.Playing += (_, _) => OnUi(Started);
         _player.Paused += (_, _) => OnUi(() => PauseButton.Text = "▶");
         _player.Buffering += (_, e) => OnUi(() => ShowStatus(e.Cache < 100 ? $"Buffering {e.Cache:0}%" : null));
         _player.EncounteredError += (_, _) => OnUi(() => Failed("The stream failed"));
-        _player.EndReached += (_, _) => OnUi(() => Failed("The stream ended"));
+        _player.EndReached += (_, _) => OnUi(Ended);
         Video.MediaPlayer = _player;
 
         _clock = Dispatcher.CreateTimer();
-        _clock.Interval = TimeSpan.FromSeconds(30);
-        _clock.Tick += (_, _) => ShowNowNext();
+        _clock.Interval = TimeSpan.FromSeconds(1);
+        _clock.Tick += (_, _) => Tick();
         _clock.Start();
 
         Play(Playback.Current);
@@ -62,6 +69,7 @@ public partial class PlayerPage : ContentPage
     protected override void OnDisappearing()
     {
         base.OnDisappearing();
+        SaveProgress();
         _clock?.Stop();
         _hideTimer?.Stop();
         if (Window is { } window)
@@ -88,46 +96,78 @@ public partial class PlayerPage : ContentPage
 
     // ---- Playing ----
 
-    private void Play(MediaItem? item)
+    private void Play(PlayItem? item, bool resume = true)
     {
-        if (item?.StreamUrl is not { } url || _player is not { } player)
+        if (item is null || item.Url.Length == 0 || _player is not { } player)
             return;
+        if (_item is not null && _item != item)
+            SaveProgress();
         _item = item;
         ChannelTitle.Text = item.Title;
-        ChannelGroup.Text = item.Group;
-        FavouriteButton.Text = MobileServices.Library.IsFavourite(item) ? "★" : "☆";
+        ChannelGroup.Text = item.Subtitle;
+        FavouriteButton.IsVisible = item.Item is not null;
+        FavouriteButton.Text = item.Item is { } fav && MobileServices.Library.IsFavourite(fav) ? "★" : "☆";
+        GuideButton.IsVisible = item.IsLive && item.Item?.EpgChannelId is not null;
         GuidePanel.IsVisible = false;
+        LiveInfo.IsVisible = item.IsLive;
+        SeekBar.IsVisible = SkipBackButton.IsVisible = SkipForwardButton.IsVisible = !item.IsLive;
+        PreviousButton.IsVisible = NextButton.IsVisible = Playback.Queue.Count > 1;
+        Seek.Value = 0;
+        PositionText.Text = LengthText.Text = "0:00";
         ShowNowNext();
         ShowStatus("Connecting…");
         Log.Info($"Playing {item.Title}");
 
+        _resumeAt = resume && !item.IsLive && MobileServices.Library.GetWatch(item.SourceId, item.HistoryId) is { IsResumable: true } w
+            ? w.PositionMs : 0;
         string[] options = [":network-caching=1500", ":http-reconnect", .. item.Options];
         Task.Run(() =>
         {
-            using var media = new Media(Vlc.Value, url, FromType.FromLocation, options);
+            using var media = new Media(Vlc.Value, item.Url, FromType.FromLocation, options);
             player.Play(media);
         });
+        if (item.IsLive)
+            Task.Run(() => Remember(item, 0, 0));
+    }
 
-        Task.Run(() =>
+    private void Started()
+    {
+        _attempts = 0;
+        ShowStatus(null);
+        PauseButton.Text = "⏸";
+        if (_resumeAt > 0 && _player is { } player)
         {
-            try
-            {
-                MobileServices.Library.RecordWatch(new WatchRecord
-                {
-                    SourceId = item.SourceId,
-                    ExternalId = item.ExternalId,
-                    Kind = item.Kind,
-                    Title = item.Title,
-                    StreamUrl = url,
-                    LogoUrl = item.LogoUrl,
-                    PlayerOptions = item.PlayerOptions,
-                });
-            }
-            catch (Exception ex)
-            {
-                Log.Error("Saving history failed", ex);
-            }
-        });
+            var at = _resumeAt;
+            _resumeAt = 0;
+            Task.Run(() => player.Time = at);
+            ShowStatus($"Continuing from {Clock(at)}");
+            Dispatcher.DispatchDelayed(TimeSpan.FromSeconds(3), () => ShowStatus(null));
+        }
+    }
+
+    private void Ended()
+    {
+        if (_item is not { } item)
+            return;
+        if (item.IsLive)
+        {
+            Failed("The stream ended");
+            return;
+        }
+        // Finished: forget the position, then go on to the next episode or close.
+        Task.Run(() => Remember(item, 0, 0));
+        if (item.Kind == MediaKind.Series && Playback.Index + 1 < Playback.Queue.Count)
+        {
+            Playback.Index++;
+            _item = null;
+            Play(Playback.Current, resume: false);
+            ShowOverlay();
+        }
+        else
+        {
+            _item = null;
+            Shell.Current.GoToAsync("..");
+        }
     }
 
     private async void Failed(string what)
@@ -135,10 +175,11 @@ public partial class PlayerPage : ContentPage
         if (_item is not { } item || _player is null)
             return;
         Log.Info($"{what} ({item.Title}, attempt {_attempts + 1})");
-        if (++_attempts > MaxAttempts)
+        if (++_attempts > MaxAttempts || !item.IsLive && _attempts > 2)
         {
-            ShowStatus($"{what}. Tap ⏸ to try again.");
+            ShowStatus($"{what}. Tap ↻ to try again.");
             PauseButton.Text = "↻";
+            _attempts = MaxAttempts + 1;
             ShowOverlay(stay: true);
             return;
         }
@@ -149,7 +190,7 @@ public partial class PlayerPage : ContentPage
             Play(item);
     }
 
-    private void Zap(int delta)
+    private void Step(int delta)
     {
         if (Playback.Queue.Count < 2)
             return;
@@ -159,9 +200,65 @@ public partial class PlayerPage : ContentPage
         ShowOverlay();
     }
 
+    /// <summary>Every second: the seek bar; every 15 s: save the position; every 30 s: now/next.</summary>
+    private void Tick()
+    {
+        _ticks++;
+        if (_player is not { } player || _item is not { } item)
+            return;
+        if (!item.IsLive && !_seeking && Overlay.IsVisible)
+        {
+            var length = player.Length;
+            var time = player.Time;
+            if (length > 0)
+            {
+                Seek.Value = Math.Clamp((double)time / length, 0, 1);
+                PositionText.Text = Clock(time);
+                LengthText.Text = Clock(length);
+            }
+        }
+        if (_ticks % 15 == 0)
+            SaveProgress();
+        if (item.IsLive && _ticks % 30 == 0)
+            ShowNowNext();
+    }
+
+    private void SaveProgress()
+    {
+        if (_item is not { IsLive: false } item || _player is not { } player)
+            return;
+        var (time, length) = (player.Time, player.Length);
+        if (length > 0 && time > 0)
+            Task.Run(() => Remember(item, time, length));
+    }
+
+    private static void Remember(PlayItem item, long position, long length)
+    {
+        try
+        {
+            MobileServices.Library.RecordWatch(new WatchRecord
+            {
+                SourceId = item.SourceId,
+                ExternalId = item.HistoryId,
+                Kind = item.Kind,
+                Title = item.Kind == MediaKind.Series && item.Subtitle is { } series ? $"{series} · {item.Title}" : item.Title,
+                StreamUrl = item.Url,
+                LogoUrl = item.LogoUrl,
+                PlayerOptions = item.PlayerOptions,
+                PositionMs = position,
+                LengthMs = length,
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Saving history failed", ex);
+        }
+    }
+
     private void Window_Stopped(object? sender, EventArgs e)
     {
-        // Leaving the app: stop live TV rather than keep streaming in the background.
+        SaveProgress();
+        // Leaving the app: stop rather than keep streaming in the background. Films resume from the saved position.
         if (_player is { } player)
             Task.Run(player.Stop);
     }
@@ -177,9 +274,39 @@ public partial class PlayerPage : ContentPage
 
     private void Back_Clicked(object? sender, EventArgs e) => Shell.Current.GoToAsync("..");
 
-    private void Previous_Clicked(object? sender, EventArgs e) => Zap(-1);
+    private void Previous_Clicked(object? sender, EventArgs e) => Step(-1);
 
-    private void Next_Clicked(object? sender, EventArgs e) => Zap(1);
+    private void Next_Clicked(object? sender, EventArgs e) => Step(1);
+
+    private void SkipBack_Clicked(object? sender, EventArgs e) => SkipBy(-10_000);
+
+    private void SkipForward_Clicked(object? sender, EventArgs e) => SkipBy(30_000);
+
+    private void SkipBy(long ms)
+    {
+        if (_player is not { } player || _item is not { IsLive: false })
+            return;
+        Task.Run(() => player.Time = Math.Clamp(player.Time + ms, 0, Math.Max(0, player.Length - 1000)));
+        ShowOverlay();
+    }
+
+    private void Seek_DragStarted(object? sender, EventArgs e)
+    {
+        _seeking = true;
+        ShowOverlay(stay: true);
+    }
+
+    private void Seek_DragCompleted(object? sender, EventArgs e)
+    {
+        _seeking = false;
+        if (_player is { } player && player.Length > 0)
+        {
+            var target = (long)(Seek.Value * player.Length);
+            PositionText.Text = Clock(target);
+            Task.Run(() => player.Time = target);
+        }
+        ShowOverlay();
+    }
 
     private void Pause_Clicked(object? sender, EventArgs e)
     {
@@ -199,7 +326,7 @@ public partial class PlayerPage : ContentPage
 
     private void Favourite_Clicked(object? sender, EventArgs e)
     {
-        if (_item is not { } item)
+        if (_item?.Item is not { } item)
             return;
         var favourite = !MobileServices.Library.IsFavourite(item);
         MobileServices.Library.SetFavourite(item, favourite);
@@ -233,7 +360,7 @@ public partial class PlayerPage : ContentPage
     private void Guide_Clicked(object? sender, EventArgs e)
     {
         GuidePanel.IsVisible = !GuidePanel.IsVisible;
-        if (GuidePanel.IsVisible && _item is { EpgChannelId: { } channel } item)
+        if (GuidePanel.IsVisible && _item?.Item is { EpgChannelId: { } channel } item)
         {
             var now = DateTimeOffset.Now;
             GuideList.ItemsSource = MobileServices.Library.GetProgrammes(item.SourceId, channel, now, now.AddHours(24))
@@ -270,7 +397,7 @@ public partial class PlayerPage : ContentPage
         timer.IsRepeating = false;
         timer.Tick += (_, _) =>
         {
-            if (!GuidePanel.IsVisible && _attempts <= MaxAttempts)
+            if (!GuidePanel.IsVisible && !_seeking && _attempts <= MaxAttempts)
                 Overlay.IsVisible = false;
         };
         return timer;
@@ -281,7 +408,7 @@ public partial class PlayerPage : ContentPage
         NowText.Text = NextText.Text = "";
         NowProgress.Progress = 0;
         NowProgress.IsVisible = false;
-        if (_item is not { EpgChannelId: { } channel } item)
+        if (_item?.Item is not { Kind: MediaKind.Live, EpgChannelId: { } channel } item)
             return;
         var now = DateTimeOffset.Now;
         var programmes = MobileServices.Library.GetProgrammes(item.SourceId, channel, now.AddHours(-6), now.AddHours(12));
@@ -301,6 +428,12 @@ public partial class PlayerPage : ContentPage
     {
         Status.Text = text;
         Status.IsVisible = text is not null;
+    }
+
+    private static string Clock(long ms)
+    {
+        var t = TimeSpan.FromMilliseconds(Math.Max(0, ms));
+        return t.TotalHours >= 1 ? t.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture) : t.ToString(@"m\:ss", CultureInfo.InvariantCulture);
     }
 
     private void OnUi(Action action) => MainThread.BeginInvokeOnMainThread(() =>

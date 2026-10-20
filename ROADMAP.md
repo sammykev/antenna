@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.13** (first Android phone app). Remaining: Android features (section 6), Store, winget, app-side tests, analyzers for the app project, recently added on Home.
+Current release: **v0.1.13** (first Android phone app; v0.1.14 adds movies, series and Matches to it). Remaining: Android features (section 6), Store, winget, app-side tests, analyzers for the app project, recently added on Home.
 
 ---
 
@@ -90,8 +90,11 @@ Built by `build.yml` (debug-signed artifact) and added to each GitHub release by
 - [x] **First version.** *(v0.1.13: Live TV with category chips, search and now playing; full-screen landscape player with
   swipe/⏮⏭ zapping, now/next, channel guide, aspect/fill, favourites, reconnect; guide search; add M3U link/file or Xtream;
   refresh, delete, share log; update prompt from GitHub releases. Passwords encrypted with the Android Keystore.)*
-- [ ] Movies and series (posters, episodes, resume).
-- [ ] Home (continue watching, favourites on now), Matches page, reminders as notifications.
+- [x] **Movies, series and Matches.** *(v0.1.14: `MediaGridPage` poster grids (Continue watching and Favourites chips,
+  categories, search); `DetailsPage` (Xtream VOD/series info, seasons, episodes, Continue SxxEyy, Start over); player seek
+  bar, skip −10/+30 s, resume, next episode; `MatchesPage` with day, sport and My channels filters, live scores every
+  minute. Guide search moved to a Live TV toolbar button: Android's bottom bar holds five tabs.)*
+- [ ] Home (continue watching, favourites on now), reminders as notifications, TMDB artwork for M3U films.
 - [ ] Picture-in-picture, Chromecast, timeshift, volume boost (libvlc volume above 100).
 - [ ] Move playlists between devices (export/import via `BackupService`).
 - [ ] 16 KB page size: libvlc 3.6.5's native libraries aren't 16 KB aligned (build warning XA0141). Only Android 15+ devices

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:Antenna.Mobile.Views"
+             x:Class="Antenna.Mobile.Views.DetailsPage"
+             x:DataType="views:DetailsPage">
+    <CollectionView x:Name="Episodes" SelectionMode="None">
+        <CollectionView.Header>
+            <VerticalStackLayout Spacing="12" Padding="0,0,0,8">
+                <Grid HeightRequest="200">
+                    <Image x:Name="Backdrop" Aspect="AspectFill" Opacity="0.55" />
+                    <Grid ColumnDefinitions="110,*" ColumnSpacing="16" Padding="16" VerticalOptions="End">
+                        <Border StrokeThickness="0" StrokeShape="RoundRectangle 8" HeightRequest="160" BackgroundColor="{StaticResource Surface}">
+                            <Image x:Name="Poster" Aspect="AspectFill" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="End" Spacing="4">
+                            <Label x:Name="TitleText" FontSize="22" FontAttributes="Bold" TextColor="White" />
+                            <Label x:Name="MetaText" FontSize="13" TextColor="#DDFFFFFF" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </Grid>
+
+                <HorizontalStackLayout Spacing="8" Padding="16,0">
+                    <Button x:Name="PlayButton" Text="Play" Clicked="Play_Clicked" />
+                    <Button x:Name="RestartButton" Text="Start over" IsVisible="False" Clicked="Restart_Clicked"
+                            BackgroundColor="{StaticResource Surface}" TextColor="White" />
+                    <Button x:Name="FavouriteButton" Text="☆ Favourite" Clicked="Favourite_Clicked"
+                            BackgroundColor="{StaticResource Surface}" TextColor="White" />
+                </HorizontalStackLayout>
+
+                <ActivityIndicator x:Name="Busy" />
+                <Label x:Name="PlotText" Padding="16,0" />
+                <Label x:Name="CreditsText" Padding="16,0" FontSize="13" TextColor="{StaticResource Muted}" />
+                <Label x:Name="ErrorText" Padding="16,0" TextColor="#FF7A7A" IsVisible="False" />
+
+                <CollectionView x:Name="Seasons" SelectionMode="Single" HeightRequest="48" IsVisible="False" Margin="16,0"
+                                SelectionChanged="Seasons_SelectionChanged">
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Horizontal" ItemSpacing="8" />
+                    </CollectionView.ItemsLayout>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="views:GroupChip">
+                            <Border StrokeShape="RoundRectangle 16" Padding="14,6" Margin="0,6" StrokeThickness="0"
+                                    BackgroundColor="{StaticResource Surface}">
+                                <VisualStateManager.VisualStateGroups>
+                                    <VisualStateGroup Name="CommonStates">
+                                        <VisualState Name="Normal" />
+                                        <VisualState Name="Selected">
+                                            <VisualState.Setters>
+                                                <Setter Property="BackgroundColor" Value="{StaticResource Primary}" />
+                                            </VisualState.Setters>
+                                        </VisualState>
+                                    </VisualStateGroup>
+                                </VisualStateManager.VisualStateGroups>
+                                <Label Text="{Binding Name}" VerticalOptions="Center" />
+                            </Border>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+        </CollectionView.Header>
+        <CollectionView.ItemTemplate>
+            <DataTemplate x:DataType="views:EpisodeRow">
+                <Grid ColumnDefinitions="*,Auto" Padding="16,8" ColumnSpacing="8">
+                    <Grid.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="Episode_Tapped" />
+                    </Grid.GestureRecognizers>
+                    <VerticalStackLayout Spacing="2">
+                        <Label Text="{Binding Title}" FontAttributes="Bold" LineBreakMode="TailTruncation" />
+                        <Label Text="{Binding Plot}" IsVisible="{Binding HasPlot}" FontSize="13" TextColor="{StaticResource Muted}"
+                               MaxLines="2" LineBreakMode="TailTruncation" />
+                        <ProgressBar Progress="{Binding Progress}" IsVisible="{Binding HasProgress}" HeightRequest="3" />
+                    </VerticalStackLayout>
+                    <Label Grid.Column="1" Text="{Binding Watched}" TextColor="{StaticResource Primary}" VerticalOptions="Center" />
+                </Grid>
+            </DataTemplate>
+        </CollectionView.ItemTemplate>
+    </CollectionView>
+</ContentPage>

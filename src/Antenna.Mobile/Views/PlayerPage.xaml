@@ -39,22 +39,30 @@
                 </VerticalStackLayout>
                 <Button x:Name="FavouriteButton" Grid.Column="2" Text="☆" FontSize="22" BackgroundColor="Transparent" TextColor="White" Clicked="Favourite_Clicked" />
                 <Button x:Name="AspectButton" Grid.Column="3" Text="Fit" BackgroundColor="Transparent" TextColor="White" Clicked="Aspect_Clicked" />
-                <Button Grid.Column="4" Text="Guide" BackgroundColor="Transparent" TextColor="White" Clicked="Guide_Clicked" />
+                <Button x:Name="GuideButton" Grid.Column="4" Text="Guide" BackgroundColor="Transparent" TextColor="White" Clicked="Guide_Clicked" />
             </Grid>
 
-            <!-- Middle: zapping and pause -->
-            <HorizontalStackLayout Grid.Row="1" HorizontalOptions="Center" VerticalOptions="Center" Spacing="40">
-                <Button Text="⏮" FontSize="28" BackgroundColor="Transparent" TextColor="White" Clicked="Previous_Clicked" />
+            <!-- Middle: previous/next (channel or episode), skip back/forward (films and episodes), pause -->
+            <HorizontalStackLayout Grid.Row="1" HorizontalOptions="Center" VerticalOptions="Center" Spacing="28">
+                <Button x:Name="PreviousButton" Text="⏮" FontSize="28" BackgroundColor="Transparent" TextColor="White" Clicked="Previous_Clicked" />
+                <Button x:Name="SkipBackButton" Text="↺10" FontSize="20" BackgroundColor="Transparent" TextColor="White" Clicked="SkipBack_Clicked" />
                 <Button x:Name="PauseButton" Text="⏸" FontSize="36" BackgroundColor="Transparent" TextColor="White" Clicked="Pause_Clicked" />
-                <Button Text="⏭" FontSize="28" BackgroundColor="Transparent" TextColor="White" Clicked="Next_Clicked" />
+                <Button x:Name="SkipForwardButton" Text="30↻" FontSize="20" BackgroundColor="Transparent" TextColor="White" Clicked="SkipForward_Clicked" />
+                <Button x:Name="NextButton" Text="⏭" FontSize="28" BackgroundColor="Transparent" TextColor="White" Clicked="Next_Clicked" />
             </HorizontalStackLayout>
 
-            <!-- Bottom: now and next -->
-            <VerticalStackLayout Grid.Row="2" Spacing="2">
+            <!-- Bottom: now and next (live), or the seek bar -->
+            <VerticalStackLayout x:Name="LiveInfo" Grid.Row="2" Spacing="2">
                 <Label x:Name="NowText" TextColor="White" LineBreakMode="TailTruncation" />
                 <ProgressBar x:Name="NowProgress" HeightRequest="3" ProgressColor="{StaticResource Primary}" />
                 <Label x:Name="NextText" FontSize="13" TextColor="#CCFFFFFF" LineBreakMode="TailTruncation" />
             </VerticalStackLayout>
+            <Grid x:Name="SeekBar" Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" IsVisible="False">
+                <Label x:Name="PositionText" TextColor="White" VerticalOptions="Center" Text="0:00" />
+                <Slider x:Name="Seek" Grid.Column="1" Minimum="0" Maximum="1" DragStarted="Seek_DragStarted" DragCompleted="Seek_DragCompleted"
+                        MinimumTrackColor="{StaticResource Primary}" />
+                <Label x:Name="LengthText" Grid.Column="2" TextColor="White" VerticalOptions="Center" Text="0:00" />
+            </Grid>
 
             <!-- This channel's guide -->
             <Border x:Name="GuidePanel" Grid.Column="1" Grid.RowSpan="3" WidthRequest="300" IsVisible="False"

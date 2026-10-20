@@ -5,6 +5,9 @@
              x:Class="Antenna.Mobile.Views.LiveTvPage"
              x:DataType="views:LiveTvPage"
              Title="Live TV">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Search guide" Clicked="SearchGuide_Clicked" />
+    </ContentPage.ToolbarItems>
     <Grid RowDefinitions="Auto,Auto,*">
         <SearchBar x:Name="SearchBox" Placeholder="Search channels" TextChanged="SearchBox_TextChanged" />
 

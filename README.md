@@ -97,9 +97,15 @@ Copies run from a folder or with `dotnet run` don't update themselves.
 ### Android
 
 An early phone version (Android 8 or later) shares the Windows app's playlist, guide and search code:
-Live TV with categories and search, a full-screen player (swipe or ⏮/⏭ to change channel, now/next,
-this channel's guide, aspect and fill, favourites, auto-reconnect), guide search, and M3U (link or
-file) and Xtream Codes playlists. Your playlists aren't shared with the Windows app yet: add them on the phone.
+- **Live TV** with categories, search and what's on now; **Search guide** finds programmes on all your channels
+- **Movies** and **Series** as poster grids with categories, search, favourites and Continue watching; details
+  (plot, cast, rating) and seasons and episodes from Xtream Codes accounts; films and episodes resume where you
+  stopped, and the next episode plays on
+- **Matches**: today's and the next two days' fixtures with live scores, matched to your channels, filtered by day,
+  sport and "My channels"; tap one to watch it
+- Full-screen player: swipe or ⏮/⏭ to change channel (or episode), seek bar and skip back 10 s / forward 30 s for
+  films, now/next and this channel's guide, aspect and fill, favourites, auto-reconnect
+- M3U (link or file) and Xtream Codes playlists. Your playlists aren't shared with the Windows app yet: add them on the phone.
 
 1. On the phone, open **[Releases](https://github.com/sammykev/antenna/releases/latest)** and download **Antenna-x.y.z.apk**.
 2. Open it and allow your browser to install apps when Android asks (it's not from the Play Store).

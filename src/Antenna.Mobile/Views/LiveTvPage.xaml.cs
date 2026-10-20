@@ -127,6 +127,8 @@ public partial class LiveTvPage : ContentPage
         }
     }
 
+    private async void SearchGuide_Clicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("guidesearch");
+
     private async void Channel_Tapped(object? sender, TappedEventArgs e)
     {
         if ((sender as BindableObject)?.BindingContext is not ChannelRow row)

@@ -9,5 +9,6 @@ public partial class AppShell : Shell
         InitializeComponent();
         Routing.RegisterRoute("player", typeof(PlayerPage));
         Routing.RegisterRoute("addplaylist", typeof(AddPlaylistPage));
+        Routing.RegisterRoute("guidesearch", typeof(GuideSearchPage));
     }
 }
