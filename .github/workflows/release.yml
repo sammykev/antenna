@@ -1,7 +1,8 @@
 name: Release
 
 # Push a tag like v0.2.0 to build, sign, package and publish an installer plus update files to
-# GitHub Releases. Installed copies of Antenna pick the new version up from there.
+# GitHub Releases, then add the Android APK to the same release. Installed copies of Antenna (Windows
+# and Android) pick the new version up from there.
 on:
   push:
     tags: ["v*"]
@@ -24,6 +25,8 @@ env:
 jobs:
   release:
     runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -160,3 +163,53 @@ jobs:
         run: |
           Remove-Item (Join-Path $env:RUNNER_TEMP "antenna-signing.pfx") -ErrorAction SilentlyContinue
           Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | ForEach-Object { Remove-Item $_.PSPath -ErrorAction SilentlyContinue }
+
+  android:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install the Android workload and SDK parts
+        run: |
+          dotnet workload install maui-android
+          dotnet build src/Antenna.Mobile -t:InstallAndroidDependencies -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME_21_X64" -p:AcceptAndroidSdkLicenses=True
+
+      # Every release must be signed with the same key, or phones refuse to install it over the last one.
+      # ANDROID_KEYSTORE is the base64 of the keystore, ANDROID_KEYSTORE_PASSWORD its password (alias "antenna").
+      - name: Prepare signing key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::error::The ANDROID_KEYSTORE and ANDROID_KEYSTORE_PASSWORD secrets are missing, so the Android app can't be signed."
+            exit 1
+          fi
+          echo "$KEYSTORE" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/antenna.keystore" || { echo "::error::ANDROID_KEYSTORE isn't valid base64. Paste the whole of keystore.base64.txt."; exit 1; }
+          echo "Keystore is $(stat -c %s "$RUNNER_TEMP/antenna.keystore") bytes."
+
+      - name: Build the Android app
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: >
+          dotnet publish src/Antenna.Mobile -c Release -o android
+          -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME_21_X64"
+          -p:ApplicationDisplayVersion=${{ needs.release.outputs.version }}
+          -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$RUNNER_TEMP/antenna.keystore" -p:AndroidSigningKeyAlias=antenna
+          -p:AndroidSigningStorePass=env:KEYSTORE_PASSWORD -p:AndroidSigningKeyPass=env:KEYSTORE_PASSWORD
+
+      - name: Add the APK to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          apk="Antenna-${{ needs.release.outputs.version }}.apk"
+          cp android/*-Signed.apk "$apk"
+          gh release upload "v${{ needs.release.outputs.version }}" "$apk" --repo "${{ github.repository }}" --clobber
+
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/antenna.keystore"

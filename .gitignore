@@ -9,3 +9,7 @@ AppPackages/
 # Signing certificate files from scripts/New-SigningCert.ps1: never commit these.
 *.pfx
 *.pfx.txt
+
+# Android release keystore: never commit it.
+*.keystore
+*.jks

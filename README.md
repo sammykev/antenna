@@ -2,7 +2,8 @@
 
 # Antenna
 
-An IPTV player for Windows, built with WinUI 3 and LibVLC. It is an independent, clean-room
+An IPTV player for Windows, built with WinUI 3 and LibVLC, with an early Android phone version
+(see [Android](#android)). It is an independent, clean-room
 app with a feature set modelled on players like UHF on Apple platforms. It contains no code
 or assets from any of them.
 
@@ -92,6 +93,21 @@ version in the background (only the changed files when possible), and show **Res
 If you don't restart, the update installs the next time you open Antenna.
 **Settings → Updates** shows your version, has **Check for updates**, and can turn automatic downloads off.
 Copies run from a folder or with `dotnet run` don't update themselves.
+
+### Android
+
+An early phone version (Android 8 or later) shares the Windows app's playlist, guide and search code:
+Live TV with categories and search, a full-screen player (swipe or ⏮/⏭ to change channel, now/next,
+this channel's guide, aspect and fill, favourites, auto-reconnect), guide search, and M3U (link or
+file) and Xtream Codes playlists. Your playlists aren't shared with the Windows app yet: add them on the phone.
+
+1. On the phone, open **[Releases](https://github.com/sammykev/antenna/releases/latest)** and download **Antenna-x.y.z.apk**.
+2. Open it and allow your browser to install apps when Android asks (it's not from the Play Store).
+3. When a new version is released, Antenna offers to download it on start; install it over the old one
+   and your playlists stay.
+
+Build it with the .NET 10 SDK and `dotnet workload install maui-android`:
+`dotnet build src/Antenna.Mobile -t:Run` with a phone connected (USB debugging on).
 
 ### Build from source
 

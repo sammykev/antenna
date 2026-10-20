@@ -54,3 +54,26 @@ jobs:
         with:
           name: Antenna-win-x64
           path: publish
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install the Android workload and SDK parts
+        run: |
+          dotnet workload install maui-android
+          dotnet build src/Antenna.Mobile -t:InstallAndroidDependencies -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME_21_X64" -p:AcceptAndroidSdkLicenses=True
+
+      # Signed with a throwaway debug key: fine for trying a build, but it won't install over a release.
+      - name: Build the Android app
+        run: dotnet publish src/Antenna.Mobile -c Release -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME_21_X64" -o android
+
+      - uses: actions/upload-artifact@v6
+        with:
+          name: Antenna-android
+          path: android/*-Signed.apk

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vlc="clr-namespace:LibVLCSharp.MAUI;assembly=LibVLCSharp.MAUI"
+             xmlns:views="clr-namespace:Antenna.Mobile.Views"
+             x:Class="Antenna.Mobile.Views.PlayerPage"
+             x:DataType="views:PlayerPage"
+             Shell.NavBarIsVisible="False"
+             Shell.TabBarIsVisible="False"
+             BackgroundColor="Black">
+    <Grid>
+        <vlc:VideoView x:Name="Video" />
+
+        <!-- Catches taps and swipes over the video (the video surface itself doesn't). -->
+        <BoxView x:Name="TouchLayer" Color="Transparent">
+            <BoxView.GestureRecognizers>
+                <TapGestureRecognizer Tapped="Surface_Tapped" />
+                <SwipeGestureRecognizer Direction="Left" Swiped="Next_Clicked" />
+                <SwipeGestureRecognizer Direction="Right" Swiped="Previous_Clicked" />
+            </BoxView.GestureRecognizers>
+        </BoxView>
+
+        <Label x:Name="Status" HorizontalOptions="Center" VerticalOptions="Center" TextColor="White"
+               BackgroundColor="#99000000" Padding="16,8" IsVisible="False" InputTransparent="True" />
+
+        <Grid x:Name="Overlay" RowDefinitions="Auto,*,Auto" ColumnDefinitions="*,Auto" BackgroundColor="#80000000" Padding="16,8">
+            <Grid.GestureRecognizers>
+                <TapGestureRecognizer Tapped="Surface_Tapped" />
+                <SwipeGestureRecognizer Direction="Left" Swiped="Next_Clicked" />
+                <SwipeGestureRecognizer Direction="Right" Swiped="Previous_Clicked" />
+            </Grid.GestureRecognizers>
+
+            <!-- Top bar -->
+            <Grid Grid.ColumnSpan="2" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="4">
+                <Button Text="←" FontSize="22" BackgroundColor="Transparent" TextColor="White" Clicked="Back_Clicked" />
+                <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                    <Label x:Name="ChannelTitle" FontSize="18" FontAttributes="Bold" TextColor="White" LineBreakMode="TailTruncation" />
+                    <Label x:Name="ChannelGroup" FontSize="12" TextColor="#CCFFFFFF" LineBreakMode="TailTruncation" />
+                </VerticalStackLayout>
+                <Button x:Name="FavouriteButton" Grid.Column="2" Text="☆" FontSize="22" BackgroundColor="Transparent" TextColor="White" Clicked="Favourite_Clicked" />
+                <Button x:Name="AspectButton" Grid.Column="3" Text="Fit" BackgroundColor="Transparent" TextColor="White" Clicked="Aspect_Clicked" />
+                <Button Grid.Column="4" Text="Guide" BackgroundColor="Transparent" TextColor="White" Clicked="Guide_Clicked" />
+            </Grid>
+
+            <!-- Middle: zapping and pause -->
+            <HorizontalStackLayout Grid.Row="1" HorizontalOptions="Center" VerticalOptions="Center" Spacing="40">
+                <Button Text="⏮" FontSize="28" BackgroundColor="Transparent" TextColor="White" Clicked="Previous_Clicked" />
+                <Button x:Name="PauseButton" Text="⏸" FontSize="36" BackgroundColor="Transparent" TextColor="White" Clicked="Pause_Clicked" />
+                <Button Text="⏭" FontSize="28" BackgroundColor="Transparent" TextColor="White" Clicked="Next_Clicked" />
+            </HorizontalStackLayout>
+
+            <!-- Bottom: now and next -->
+            <VerticalStackLayout Grid.Row="2" Spacing="2">
+                <Label x:Name="NowText" TextColor="White" LineBreakMode="TailTruncation" />
+                <ProgressBar x:Name="NowProgress" HeightRequest="3" ProgressColor="{StaticResource Primary}" />
+                <Label x:Name="NextText" FontSize="13" TextColor="#CCFFFFFF" LineBreakMode="TailTruncation" />
+            </VerticalStackLayout>
+
+            <!-- This channel's guide -->
+            <Border x:Name="GuidePanel" Grid.Column="1" Grid.RowSpan="3" WidthRequest="300" IsVisible="False"
+                    BackgroundColor="#E6101318" StrokeThickness="0" Margin="8,48,0,0" Padding="8">
+                <CollectionView x:Name="GuideList" SelectionMode="None">
+                    <CollectionView.EmptyView>
+                        <Label Text="No guide for this channel." TextColor="#CCFFFFFF" Margin="8" />
+                    </CollectionView.EmptyView>
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="views:GuideRow">
+                            <VerticalStackLayout Padding="4,6">
+                                <Label TextColor="White" FontAttributes="Bold" LineBreakMode="TailTruncation"
+                                       Text="{Binding Time}" />
+                                <Label TextColor="White" Text="{Binding Title}" LineBreakMode="WordWrap" />
+                                <Label TextColor="#CCFFFFFF" FontSize="12" Text="{Binding Description}" MaxLines="2" LineBreakMode="TailTruncation" />
+                            </VerticalStackLayout>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </Border>
+        </Grid>
+    </Grid>
+</ContentPage>

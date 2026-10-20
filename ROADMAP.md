@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.10** (crash fix for TV mode at start-up, safe start, guide in the player, guide search). Remaining: Store, winget, app-side tests, analyzers for the app project, recently added on Home.
+Current release: **v0.1.13** (first Android phone app). Remaining: Android features (section 6), Store, winget, app-side tests, analyzers for the app project, recently added on Home.
 
 ---
 
@@ -82,7 +82,22 @@ Current release: **v0.1.10** (crash fix for TV mode at start-up, safe start, gui
   and gives Store updates (one-time developer account). Keep Velopack for direct downloads.
 - [ ] **winget** manifest pointing at the GitHub release's Setup.exe.
 
-## 6. Housekeeping
+## 6. Android (phone)
+
+`src/Antenna.Mobile`: .NET MAUI, Android only, LibVLCSharp.MAUI + VideoLAN.LibVLC.Android, reusing `Antenna.Core`.
+Built by `build.yml` (debug-signed artifact) and added to each GitHub release by `release.yml` as `Antenna-X.Y.Z.apk`.
+
+- [x] **First version.** *(v0.1.13: Live TV with category chips, search and now playing; full-screen landscape player with
+  swipe/⏮⏭ zapping, now/next, channel guide, aspect/fill, favourites, reconnect; guide search; add M3U link/file or Xtream;
+  refresh, delete, share log; update prompt from GitHub releases. Passwords encrypted with the Android Keystore.)*
+- [ ] Movies and series (posters, episodes, resume).
+- [ ] Home (continue watching, favourites on now), Matches page, reminders as notifications.
+- [ ] Picture-in-picture, Chromecast, timeshift, volume boost (libvlc volume above 100).
+- [ ] Move playlists between devices (export/import via `BackupService`).
+- [ ] 16 KB page size: libvlc 3.6.5's native libraries aren't 16 KB aligned (build warning XA0141). Only Android 15+ devices
+  with 16 KB pages need it; update VideoLAN.LibVLC.Android when a release fixes it.
+
+## 7. Housekeeping
 
 - [x] GitHub Actions moved to Node 24 versions (checkout v7, setup-dotnet v6, upload-artifact v6). *(Dependabot deliberately not used: its PRs would add `dependabot[bot]` as a contributor. Update versions by hand.)*
 - [ ] Unit tests for app-side logic that doesn't need UI (move it into `Antenna.Core` where possible).
@@ -110,6 +125,10 @@ Current release: **v0.1.10** (crash fix for TV mode at start-up, safe start, gui
     | grep -v "InitializeComponent\|XamlTypeInfo\|PasswordBox.Password" | grep -vP "The name '($names)' does not exist" | sort -u
   ```
   CI (`build.yml`, windows-latest) is the real check.
+- Android: `dotnet workload install maui-android`, then
+  `dotnet build src/Antenna.Mobile -t:InstallAndroidDependencies -p:AndroidSdkDirectory=$HOME/android-sdk -p:AcceptAndroidSdkLicenses=True`
+  once (set `USER` if it's unset, or the SDK installer fails), then build with `-p:AndroidSdkDirectory=...`. It isn't in
+  `Antenna.slnx`, so building the solution on Windows doesn't need the Android workload.
 
 **Releasing**
 - `release.yml`: push a tag `vX.Y.Z`, or run the **Release** workflow with input `version` (use this when tag
@@ -117,6 +136,10 @@ Current release: **v0.1.10** (crash fix for TV mode at start-up, safe start, gui
   the `SIGNING_CERT_PFX` / `SIGNING_CERT_PASSWORD` secrets (self-signed cert from `scripts/New-SigningCert.ps1`),
   packs with Velopack (`vpk` 1.2.161, packId `Antenna`) and publishes a GitHub release with Setup.exe,
   portable zip, full + delta packages. Versions must increase.
+- Android: the `android` job signs with the `ANDROID_KEYSTORE` (base64 keystore, alias `antenna`) and
+  `ANDROID_KEYSTORE_PASSWORD` secrets and uploads the APK to the release. Never change the key: phones refuse an update
+  signed with a different one (the user would have to uninstall and lose their data). versionCode is derived from the
+  version (0.1.13 → 113), so versions must keep increasing.
 - Installed copies update in-app (`Services/Updater.cs`, GitHub source, checks ~20 s after start then every 6 h).
 
 **Pitfalls already hit (don't reintroduce)**
