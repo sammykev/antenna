@@ -29,7 +29,7 @@ public sealed partial class HomePage : Page
         base.OnNavigatedTo(e);
         try
         {
-            var counts = await Task.Run(AppServices.Library.CountItems);
+            var counts = await Task.Run(() => AppServices.Library.CountItems());
             LiveCount.Text = Format(counts.Live);
             MovieCount.Text = Format(counts.Movies);
             SeriesCount.Text = Format(counts.Series);
