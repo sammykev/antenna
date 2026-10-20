@@ -53,6 +53,12 @@ internal static class AppSettings
     /// <summary>Download new versions in the background and offer a restart (installed copies only).</summary>
     public static bool AutoUpdate { get => Get("app.autoupdate") != "0"; set => Set("app.autoupdate", value ? "1" : "0"); }
 
+    /// <summary>Player volume in percent, 0–200 (above 100 is boosted, like VLC).</summary>
+    public static int PlayerVolume { get => Math.Clamp(GetInt("player.volume", 100), 0, 200); set => SetInt("player.volume", Math.Clamp(value, 0, 200)); }
+
+    /// <summary>Even out loud and quiet audio (VLC's volume normaliser).</summary>
+    public static bool NormaliseVolume { get => Get("player.normvol") == "1"; set => Set("player.normvol", value ? "1" : "0"); }
+
     /// <summary>Buffer live TV to disk so it can be paused and rewound.</summary>
     public static bool Timeshift { get => Get("player.timeshift") != "0"; set => Set("player.timeshift", value ? "1" : "0"); }
 

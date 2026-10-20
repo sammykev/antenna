@@ -19,6 +19,7 @@ Xtream Codes login). It doesn't include or find any content itself.
 - Continue watching: movies and episodes resume where you stopped
 - Audio tracks, embedded subtitles, subtitle files, and OpenSubtitles.com search
 - Picture and sound menu: aspect ratio and zoom-to-fill, audio delay for out-of-sync streams, deinterlacing, stream stats
+- Volume boost up to 200% (like VLC), remembered between channels, and a volume normaliser for loud adverts and quiet channels
 - Live TV with all playlists shows each channel once (switch off in Settings)
 - When a live channel keeps failing, Antenna switches to the same channel on another of your playlists (or pick one: Picture and sound → Watch on another playlist)
 - Playback speed for VOD, mini player (always on top), full screen, auto-reconnect
@@ -185,6 +186,7 @@ To remove the warning for everyone, switch to a public certificate (e.g. Azure T
 | S | Stream stats (resolution, bitrate, dropped frames) |
 | G | This channel's guide |
 | M | Mute |
+| Ctrl + ↑ / ↓, mouse wheel | Volume, boost up to 200% like VLC |
 | Gamepad B | Back |
 
 ## Licences

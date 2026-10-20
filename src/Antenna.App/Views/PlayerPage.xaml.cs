@@ -193,6 +193,7 @@ public sealed partial class PlayerPage : Page
         StatusPanel.Visibility = Visibility.Collapsed;
         ResumePanel.Visibility = Visibility.Collapsed;
         UpdateRecordingState();
+        RestoreVolume();
         _ = ShowInfoAsync();
         OnChannelLoadedForGuide();
         Start();
@@ -226,6 +227,8 @@ public sealed partial class PlayerPage : Page
             ":http-reconnect",
             AppSettings.HardwareDecoding ? ":avcodec-hw=any" : ":avcodec-hw=none",
         };
+        if (AppSettings.NormaliseVolume)
+            options.Add(":audio-filter=normvol");
         options.AddRange(request.Options);
         return options;
     }
@@ -576,8 +579,12 @@ public sealed partial class PlayerPage : Page
 
     private void VolumeSlider_ValueChanged(object sender, Microsoft.UI.Xaml.Controls.Primitives.RangeBaseValueChangedEventArgs e)
     {
+        var volume = (int)e.NewValue;
+        ShowVolume(volume);
+        if (_volumeReady)
+            AppSettings.PlayerVolume = volume;
         if (_player is { } p)
-            p.Volume = (int)e.NewValue;
+            Worker.Run(() => p.Volume = volume, "volume");
     }
 
     private void Surface_PointerMoved(object sender, PointerRoutedEventArgs e) => ShowControls();

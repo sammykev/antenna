@@ -48,6 +48,18 @@ public sealed partial class PlayerPage
         delay.Items.Add(reset);
         PictureMenu.Items.Add(delay);
 
+        var normalise = new ToggleMenuFlyoutItem { Text = "Normalise volume (evens out loud adverts and quiet channels)", IsChecked = AppSettings.NormaliseVolume };
+        normalise.Click += (_, _) =>
+        {
+            AppSettings.NormaliseVolume = !AppSettings.NormaliseVolume;
+            ShowStatusBriefly(AppSettings.NormaliseVolume ? "Normalising volume" : "Volume normaliser off");
+            // An audio filter is part of how the stream is opened: reopen it (live picks up where it is).
+            if (_request is { IsLive: false })
+                _resumeAt = _lastTime;
+            Start();
+        };
+        PictureMenu.Items.Add(normalise);
+
         var deinterlace = new ToggleMenuFlyoutItem { Text = "Deinterlace (fixes combing on sports)", IsChecked = _deinterlace };
         deinterlace.Click += (_, _) => SetDeinterlace(!_deinterlace);
         PictureMenu.Items.Add(deinterlace);
