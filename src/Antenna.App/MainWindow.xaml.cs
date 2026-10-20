@@ -2,6 +2,7 @@ using Antenna.App.Services;
 using Antenna.App.ViewModels;
 using Antenna.App.Views;
 using Antenna.Core;
+using Antenna.Core.Playlists;
 using Microsoft.UI.Dispatching;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;

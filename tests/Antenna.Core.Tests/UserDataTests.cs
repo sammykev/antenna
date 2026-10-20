@@ -68,6 +68,19 @@ public sealed class UserDataTests : IDisposable
     }
 
     [Fact]
+    public void Counts_one_playlist()
+    {
+        _store.SaveSource(Xtream("a"));
+        _store.SaveSource(Xtream("b"));
+        _store.ReplaceItems("a", [Item("a", "1"), Item("a", "2"), Item("a", "3", MediaKind.Movie)]);
+        _store.ReplaceItems("b", [Item("b", "1")]);
+
+        Assert.Equal(new LibraryCounts(2, 1, 0, 2), _store.CountItems("a"));
+        Assert.Equal(new LibraryCounts(1, 0, 0, 2), _store.CountItems("b"));
+        Assert.Equal(new LibraryCounts(3, 1, 0, 2), _store.CountItems());
+    }
+
+    [Fact]
     public void Passwords_are_encrypted_at_rest_and_urls_hold_no_credentials()
     {
         _store.SaveSource(Xtream());

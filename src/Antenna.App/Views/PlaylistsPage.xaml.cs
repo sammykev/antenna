@@ -1,6 +1,7 @@
 using Antenna.App.Services;
 using Antenna.App.ViewModels;
 using Antenna.Core;
+using Antenna.Core.Playlists;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Navigation;

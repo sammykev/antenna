@@ -447,13 +447,16 @@ public sealed partial class LibraryStore : IDisposable
             return ReadEntries(cmd, credentials);
         });
 
-    /// <summary>Visible channels, movies and series across all playlists (hidden and locked categories excluded).</summary>
-    public LibraryCounts CountItems() =>
+    /// <summary>
+    /// Visible channels, movies and series across all playlists, or in one (hidden and locked categories excluded).
+    /// </summary>
+    public LibraryCounts CountItems(string? sourceId = null) =>
         ReadAside((db, _) =>
         {
             using var cmd = Command(db, $"""
-                SELECT i.kind, COUNT(*) FROM items i WHERE {VisibleFilter} GROUP BY i.kind
+                SELECT i.kind, COUNT(*) FROM items i WHERE ($source IS NULL OR i.source_id = $source) AND {VisibleFilter} GROUP BY i.kind
                 """);
+            cmd.Parameters.AddWithValue("$source", (object?)sourceId ?? DBNull.Value);
             AddVisibility(cmd);
             var counts = new int[3];
             using (var r = cmd.ExecuteReader())

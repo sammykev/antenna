@@ -6,8 +6,6 @@ using Antenna.Core.Playlists;
 
 namespace Antenna.App.Services;
 
-public sealed record RefreshResult(int Items, int Programmes, string? GuideError);
-
 /// <summary>App-wide singletons. Small enough that a DI container would be overkill.</summary>
 public static class AppServices
 {
@@ -19,6 +17,8 @@ public static class AppServices
 
     public static EpgImporter Guide { get; } = new(Http, Library);
 
+    public static SourceRefresher Refresher { get; } = CreateRefresher();
+
     /// <summary>Raised (on a background thread) when part of a playlist's catalogue has been saved.</summary>
     public static event Action<PlaylistSource, MediaKind, int>? CatalogPartLoaded;
 
@@ -27,42 +27,19 @@ public static class AppServices
     /// A guide failure doesn't undo the catalogue; it's reported in <see cref="RefreshResult.GuideError"/>.
     /// </summary>
     public static Task<RefreshResult> RefreshSourceAsync(PlaylistSource source, CancellationToken ct = default) =>
-        Task.Run(async () =>
-        {
-            // Xtream catalogues arrive in parts: save each as it lands so Live TV is usable while
-            // movies and series are still downloading.
-            var savedParts = new HashSet<MediaKind>();
-            var result = await Importer.ImportAsync(source, (kind, items) =>
-            {
-                Library.ReplaceItems(source.Id, items, kind);
-                lock (savedParts)
-                    savedParts.Add(kind);
-                GuideService.InvalidateNowPlaying();
-                CatalogPartLoaded?.Invoke(source, kind, items.Count);
-            }, ct);
-            // Xtream guide URLs embed the password, so they're derived at import time, never stored.
-            var saved = source with
-            {
-                EpgUrl = source.Kind != SourceKind.Xtream ? result.EpgUrl
-                    : source.EpgUrl?.Contains("xmltv.php", StringComparison.OrdinalIgnoreCase) == true ? null : source.EpgUrl,
-                LastRefreshed = DateTimeOffset.Now,
-            };
-            Library.SaveSource(saved);
-            if (savedParts.Count == 0)
-                Library.ReplaceItems(source.Id, result.Items);
-            GuideService.InvalidateNowPlaying();
+        Refresher.RefreshAsync(source, ct);
 
-            try
-            {
-                var programmes = await Guide.ImportAsync(saved with { EpgUrl = result.EpgUrl }, result.Items, ct);
-                GuideService.InvalidateNowPlaying();
-                return new RefreshResult(result.Items.Count, programmes, null);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                return new RefreshResult(result.Items.Count, 0, ex.Message);
-            }
-        }, ct);
+    private static SourceRefresher CreateRefresher()
+    {
+        var refresher = new SourceRefresher(Importer, Guide, Library);
+        refresher.Saved += (source, kind, count) =>
+        {
+            GuideService.InvalidateNowPlaying();
+            if (kind is { } part)
+                CatalogPartLoaded?.Invoke(source, part, count);
+        };
+        return refresher;
+    }
 
     private static HttpClient CreateHttpClient()
     {
