@@ -22,8 +22,4 @@
     <ProjectReference Include="..\..\src\Antenna.Core\Antenna.Core.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="licence-fixture.json" CopyToOutputDirectory="PreserveNewest" />
-  </ItemGroup>
-
 </Project>

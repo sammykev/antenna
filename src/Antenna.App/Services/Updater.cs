@@ -1,19 +1,17 @@
 using Microsoft.UI.Dispatching;
 using Velopack;
-using Velopack.Logging;
 using Velopack.Sources;
 
 namespace Antenna.App.Services;
 
 /// <summary>
-/// In-app updates from GitHub Releases (built and uploaded by the release workflow with Velopack): the public
-/// antenna-releases repository, or the source repository for releases made before it existed. Only active when Antenna was installed with Setup.exe; a copy
+/// In-app updates from the GitHub Releases of the Antenna repository (built and uploaded by the
+/// release workflow with Velopack). Only active when Antenna was installed with Setup.exe; a copy
 /// run from a folder or with "dotnet run" reports that updates are unavailable.
 /// </summary>
 internal static class Updater
 {
-    public const string RepositoryUrl = "https://github.com/sammykev/antenna-releases";
-    public const string SourceRepositoryUrl = "https://github.com/sammykev/antenna";
+    public const string RepositoryUrl = "https://github.com/sammykev/antenna";
 
     private static readonly TimeSpan FirstCheck = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
@@ -36,8 +34,7 @@ internal static class Updater
                 return _manager;
             try
             {
-                _manager = new UpdateManager(new FallbackSource(new GithubSource(RepositoryUrl, null, false),
-                    new GithubSource(SourceRepositoryUrl, null, false)));
+                _manager = new UpdateManager(new GithubSource(RepositoryUrl, null, false));
             }
             catch (Exception ex)
             {
@@ -121,34 +118,4 @@ internal static class Updater
             manager.ApplyUpdatesAndRestart(update.TargetFullRelease);
         }
     }
-}
-
-/// <summary>Reads releases from the first source that has any; downloads come from the one that answered.</summary>
-internal sealed class FallbackSource(IUpdateSource primary, IUpdateSource fallback) : IUpdateSource
-{
-    private IUpdateSource? _used;
-
-    public async Task<VelopackAssetFeed> GetReleaseFeed(IVelopackLogger logger, string? appId, string channel, Guid? stagingId = null,
-        VelopackAsset? latestLocalRelease = null)
-    {
-        try
-        {
-            var feed = await primary.GetReleaseFeed(logger, appId, channel, stagingId, latestLocalRelease);
-            if (feed.Assets.Length > 0)
-            {
-                _used = primary;
-                return feed;
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Info($"updates: {Updater.RepositoryUrl} unavailable ({ex.Message}), trying the source repository");
-        }
-        _used = fallback;
-        return await fallback.GetReleaseFeed(logger, appId, channel, stagingId, latestLocalRelease);
-    }
-
-    public Task DownloadReleaseEntry(IVelopackLogger logger, VelopackAsset releaseEntry, string localFile, Action<int> progress,
-        CancellationToken cancelToken = default) =>
-        (_used ?? primary).DownloadReleaseEntry(logger, releaseEntry, localFile, progress, cancelToken);
 }

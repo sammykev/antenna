@@ -171,11 +171,6 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        // No playing past the paywall (a trial that ended while the player was in the background, say).
-        if (io.github.sammykev.antenna.licence.Licensing.status(this) != io.github.sammykev.antenna.licence.LicenceStatus.Active) {
-            finish()
-            return
-        }
         // The video layout is attached while visible; libVLC draws into it (as VLC for Android does).
         player.attachViews(videoLayout, null, false, false)
         player.videoScale = scales[scale].second
@@ -188,7 +183,6 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onStop() {
         super.onStop()
-        if (isFinishing && item == null) return
         saveProgress()
         // Leaving (or closing the picture-in-picture window): stop rather than stream in the background. A cast carries on.
         if (casting == null) {

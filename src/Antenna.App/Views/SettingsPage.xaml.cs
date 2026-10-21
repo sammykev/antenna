@@ -52,8 +52,6 @@ public sealed partial class SettingsPage : Page
         FolderBox.Text = AppSettings.RecordingsFolder;
         AutoUpdateSwitch.IsOn = AppSettings.AutoUpdate;
         ShowUpdateState();
-        AccountSection.Visibility = Licensing.Enabled ? Visibility.Visible : Visibility.Collapsed;
-        AccountText.Text = Licensing.Summary;
         SyncFolderBox.Text = AppSettings.SyncFolder ?? "";
         SyncPassBox.Password = AppSettings.SyncPassphrase ?? "";
         ShowSyncState(null, null);
@@ -431,20 +429,4 @@ public sealed partial class SettingsPage : Page
             CloudSync.LastSynced is { } at ? $"Last synced {at:HH:mm}. {summary} File: {CloudSync.FilePath}" :
             $"Syncs every few minutes. File: {CloudSync.FilePath}";
     }
-
-    // ---- Account ----
-
-    private void ManageAccount_Click(object sender, RoutedEventArgs e) =>
-        _ = Windows.System.Launcher.LaunchUriAsync(new Uri(Licensing.Client.AccountUrl));
-
-    private void Subscribe_Click(object sender, RoutedEventArgs e) =>
-        _ = Windows.System.Launcher.LaunchUriAsync(new Uri(Licensing.Client.PricingUrl));
-
-    private async void RefreshLicence_Click(object sender, RoutedEventArgs e)
-    {
-        await Licensing.RefreshAsync();
-        AccountText.Text = Licensing.Summary;
-    }
-
-    private void SignOutLicence_Click(object sender, RoutedEventArgs e) => Licensing.SignOut();
 }

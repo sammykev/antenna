@@ -106,20 +106,6 @@ file made by the Windows code).
 - [ ] 16 KB page size: libvlc 3.6.5's native libraries aren't 16 KB aligned. Only Android 15+ devices with 16 KB pages
   need it; move to a libvlc-all release that is.
 
-## 7. Accounts and paywall
-
-`site/` (Next.js 15 on Vercel, Clerk, Paystack, Upstash; see `site/README.md`): 7-day trial, then monthly (₦3,000) or
-yearly (₦30,000), up to 3 devices; apps sign in with a code and check a signed licence offline (ECDSA P-256, same
-format in `site/lib/licence.ts`, `Antenna.Core/Licensing/Licence.cs`, `android/…/licence/Licence.kt`; a fixture made
-by the site's code is checked by both apps' tests). The paywall is only built in when the `LICENCE_SERVER` and
-`LICENCE_PUBLIC_KEY` repository variables exist. Admin dashboard at `/admin`.
-
-Releases move to the public `sammykev/antenna-releases` once the `RELEASES_TOKEN` secret exists (apps from 0.1.18 check
-there first, then here), so this repository can be private.
-
-- [ ] Paystack subscriptions (automatic renewal) instead of one-off payments per period.
-- [ ] Promo codes; referral.
-
 ## 7. Housekeeping
 
 - [x] GitHub Actions moved to Node 24 versions (checkout v7, setup-dotnet v6, upload-artifact v6). *(Dependabot deliberately not used: its PRs would add `dependabot[bot]` as a contributor. Update versions by hand.)*

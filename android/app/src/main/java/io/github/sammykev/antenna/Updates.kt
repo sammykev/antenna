@@ -11,17 +11,11 @@ import okhttp3.Request
 data class Update(val version: String, val url: String)
 
 object Updates {
-    /** The public releases repository first; the source repository had the releases before it existed. */
-    private val latest = listOf(
-        "https://api.github.com/repos/sammykev/antenna-releases/releases/latest",
-        "https://api.github.com/repos/sammykev/antenna/releases/latest",
-    )
+    private const val LATEST = "https://api.github.com/repos/sammykev/antenna/releases/latest"
 
     /** The latest release if it's newer than this app and has an APK, else null. */
-    fun check(): Update? = latest.firstNotNullOfOrNull(::check)
-
-    private fun check(url: String): Update? = try {
-        Services.http.newCall(Request.Builder().url(url).header("Accept", "application/vnd.github+json").build()).execute().use { r ->
+    fun check(): Update? = try {
+        Services.http.newCall(Request.Builder().url(LATEST).header("Accept", "application/vnd.github+json").build()).execute().use { r ->
             if (!r.isSuccessful) return null
             val root = Json.parseToJsonElement(r.body!!.string()).jsonObject
             val tag = root["tag_name"]?.jsonPrimitive?.content?.trimStart('v') ?: return null

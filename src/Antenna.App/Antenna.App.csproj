@@ -33,13 +33,6 @@
     <Copyright>© Okechukwu Nkwocha</Copyright>
   </PropertyGroup>
 
-  <!-- Accounts and the paywall: the release workflow passes the site and its licence public key
-       (-p:LicenceServer=… -p:LicencePublicKey=…). Without both, the app runs without accounts. -->
-  <ItemGroup>
-    <AssemblyMetadata Include="LicenceServer" Value="$(LicenceServer)" />
-    <AssemblyMetadata Include="LicencePublicKey" Value="$(LicencePublicKey)" />
-  </ItemGroup>
-
   <!-- Precompiled release builds start noticeably faster. -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <PublishReadyToRun>true</PublishReadyToRun>

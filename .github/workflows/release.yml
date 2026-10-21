@@ -27,8 +27,6 @@ jobs:
     runs-on: windows-latest
     outputs:
       version: ${{ steps.version.outputs.value }}
-      repo: ${{ steps.target.outputs.repo }}
-      split: ${{ steps.target.outputs.split }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -47,26 +45,11 @@ jobs:
           if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Version '$v' must look like 1.2.3" }
           "value=$v" >> $env:GITHUB_OUTPUT
 
-      # Releases go to the public sammykev/antenna-releases (so the source can be private) once the RELEASES_TOKEN
-      # secret exists: a token that can write to that repository. While this repository is public they go here too,
-      # so copies older than 0.1.18 (which only look here) still find the update. Without the token, only here.
-      - name: Where releases go
-        id: target
-        shell: pwsh
-        env:
-          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-        run: |
-          if ($env:RELEASES_TOKEN) { "repo=https://github.com/sammykev/antenna-releases`nsplit=true" >> $env:GITHUB_OUTPUT }
-          else { "repo=https://github.com/${{ github.repository }}`nsplit=false" >> $env:GITHUB_OUTPUT }
-
       - name: Test core library
         run: dotnet test tests/Antenna.Core.Tests
 
       - name: Publish Windows app
-        # The site and key for accounts (repository variables); without them the app has no paywall.
-        run: >
-          dotnet publish src/Antenna.App -c Release -p:Platform=x64 -r win-x64 --self-contained -p:Version=${{ steps.version.outputs.value }} -o publish
-          "-p:LicenceServer=${{ vars.LICENCE_SERVER }}" "-p:LicencePublicKey=${{ vars.LICENCE_PUBLIC_KEY }}"
+        run: dotnet publish src/Antenna.App -c Release -p:Platform=x64 -r win-x64 --self-contained -p:Version=${{ steps.version.outputs.value }} -o publish
 
       - name: Check the published app has its XAML resources
         shell: pwsh
@@ -112,9 +95,7 @@ jobs:
       # Lets vpk build a small delta update from the previous release.
       - name: Download previous release
         continue-on-error: true
-        env:
-          TOKEN: ${{ steps.target.outputs.split == 'true' && secrets.RELEASES_TOKEN || secrets.GITHUB_TOKEN }}
-        run: vpk download github --repoUrl ${{ steps.target.outputs.repo }} --token $env:TOKEN
+        run: vpk download github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }}
 
       # Signs when the SIGNING_CERT_PFX (base64 .pfx) and SIGNING_CERT_PASSWORD secrets exist;
       # otherwise the release is unsigned. See scripts/New-SigningCert.ps1.
@@ -174,22 +155,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Publish GitHub release
-        if: steps.target.outputs.split != 'true' || !github.event.repository.private
         run: vpk upload github --repoUrl https://github.com/${{ github.repository }} --token ${{ secrets.GITHUB_TOKEN }} --publish --releaseName "Antenna ${{ steps.version.outputs.value }}" --tag v${{ steps.version.outputs.value }} --targetCommitish ${{ github.sha }}
-
-      - name: Publish to the public releases repository
-        if: steps.target.outputs.split == 'true'
-        env:
-          TOKEN: ${{ secrets.RELEASES_TOKEN }}
-        run: vpk upload github --repoUrl https://github.com/sammykev/antenna-releases --token $env:TOKEN --publish --releaseName "Antenna ${{ steps.version.outputs.value }}" --tag v${{ steps.version.outputs.value }} --targetCommitish main
-
-      # Releases only in antenna-releases still tag this commit here, so the next release notes start from it.
-      - name: Tag the release here
-        if: steps.target.outputs.split == 'true' && github.event.repository.private
-        shell: pwsh
-        run: |
-          $tag = "v${{ steps.version.outputs.value }}"
-          if (-not (git tag --list $tag)) { git tag $tag ${{ github.sha }}; git push origin $tag }
 
       - name: Remove signing certificate
         if: always()
@@ -224,9 +190,7 @@ jobs:
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/antenna.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        run: >
-          ./gradlew testReleaseUnitTest assembleRelease --no-daemon -PappVersion=${{ needs.release.outputs.version }}
-          "-PlicenceServer=${{ vars.LICENCE_SERVER }}" "-PlicencePublicKey=${{ vars.LICENCE_PUBLIC_KEY }}"
+        run: ./gradlew testReleaseUnitTest assembleRelease --no-daemon -PappVersion=${{ needs.release.outputs.version }}
 
       - name: Check the APK is signed with the release key
         run: |
@@ -237,19 +201,10 @@ jobs:
       - name: Add the APK to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-          SPLIT: ${{ needs.release.outputs.split }}
-          PRIVATE: ${{ github.event.repository.private }}
         run: |
           apk="Antenna-${{ needs.release.outputs.version }}.apk"
           cp app/build/outputs/apk/release/app-release.apk "$apk"
-          tag="v${{ needs.release.outputs.version }}"
-          if [ "$SPLIT" = "true" ]; then
-            GH_TOKEN="$RELEASES_TOKEN" gh release upload "$tag" "$apk" --repo sammykev/antenna-releases --clobber
-          fi
-          if [ "$SPLIT" != "true" ] || [ "$PRIVATE" != "true" ]; then
-            gh release upload "$tag" "$apk" --repo "${{ github.repository }}" --clobber
-          fi
+          gh release upload "v${{ needs.release.outputs.version }}" "$apk" --repo "${{ github.repository }}" --clobber
 
       - name: Remove signing key
         if: always()

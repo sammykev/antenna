@@ -23,7 +23,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,14 +40,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.sammykev.antenna.alerts.ScoreAlertScheduler
 import io.github.sammykev.antenna.data.MediaKind
-import io.github.sammykev.antenna.licence.LicenceStatus
-import io.github.sammykev.antenna.licence.Licensing
 import io.github.sammykev.antenna.sync.MobileSync
 import io.github.sammykev.antenna.ui.AddPlaylistScreen
 import io.github.sammykev.antenna.ui.AntennaTheme
 import io.github.sammykev.antenna.ui.DetailsScreen
 import io.github.sammykev.antenna.ui.GuideSearchScreen
-import io.github.sammykev.antenna.ui.LicenceScreen
 import io.github.sammykev.antenna.ui.LiveTvScreen
 import io.github.sammykev.antenna.ui.MatchesScreen
 import io.github.sammykev.antenna.ui.MediaGridScreen
@@ -80,18 +76,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent {
-            AntennaTheme {
-                // The paywall, when accounts are on: until signed in with a trial or plan running.
-                val licenceVersion by Licensing.version.collectAsState()
-                val status = remember(licenceVersion) { Licensing.status(this@MainActivity) }
-                if (status == LicenceStatus.Active) AppContent() else LicenceScreen(status)
-            }
-        }
+        setContent { AntennaTheme { AppContent() } }
         handleIntent(intent)
-
-        // The licence refreshes whenever Antenna comes to the front.
-        lifecycleScope.launch { repeatOnLifecycle(Lifecycle.State.STARTED) { Licensing.refresh(this@MainActivity) } }
 
         // Sync with the PC while Antenna is open: now, and every five minutes.
         lifecycleScope.launch {
