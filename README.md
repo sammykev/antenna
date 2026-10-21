@@ -2,7 +2,7 @@
 
 # Antenna
 
-An IPTV player for Windows, built with WinUI 3 and LibVLC, with an early Android phone version
+An IPTV player for Windows, built with WinUI 3 and LibVLC, and for Android phones, built natively in Kotlin
 (see [Android](#android)). It is an independent, clean-room
 app with a feature set modelled on players like UHF on Apple platforms. It contains no code
 or assets from any of them.
@@ -96,7 +96,7 @@ Copies run from a folder or with `dotnet run` don't update themselves.
 
 ### Android
 
-An early phone version (Android 8 or later) shares the Windows app's playlist, guide and search code:
+A native Kotlin app for phones (Android 8 or later) with the same playlists, guide, search and sync as the Windows app:
 - **Live TV** with categories, search and what's on now; **Search guide** finds programmes on all your channels
 - **Movies** and **Series** as poster grids with categories, search, favourites and Continue watching; details
   (plot, cast, rating) and seasons and episodes from Xtream Codes accounts; films and episodes resume where you
@@ -112,6 +112,11 @@ An early phone version (Android 8 or later) shares the Windows app's playlist, g
 - M3U (link or file) and Xtream Codes playlists
 - **Sync with the PC** (see below)
 
+1. On the phone, open **[Releases](https://github.com/sammykev/antenna/releases/latest)** and download **Antenna-x.y.z.apk**.
+2. Open it and allow your browser to install apps when Android asks (it's not from the Play Store).
+3. When a new version is released, Antenna offers to download it on start; install it over the old one
+   and your playlists stay.
+
 ### Sync between PC and phone
 
 Keeps playlists, favourites and where you stopped films and episodes the same on every device, through one file in
@@ -126,13 +131,8 @@ choose, so the playlist logins in it are safe.
 After that both sync on start and every few minutes. Additions, changes and deletions carry over; if both devices
 changed the same playlist, the device syncing first wins.
 
-1. On the phone, open **[Releases](https://github.com/sammykev/antenna/releases/latest)** and download **Antenna-x.y.z.apk**.
-2. Open it and allow your browser to install apps when Android asks (it's not from the Play Store).
-3. When a new version is released, Antenna offers to download it on start; install it over the old one
-   and your playlists stay.
-
-Build it with the .NET 10 SDK and `dotnet workload install maui-android`:
-`dotnet build src/Antenna.Mobile -t:Run` with a phone connected (USB debugging on).
+Build it with JDK 17+ and the Android SDK: `cd android && ./gradlew installDebug` with a phone connected (USB
+debugging on), or open the `android` folder in Android Studio.
 
 ### Build from source
 

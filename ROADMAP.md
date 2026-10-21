@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.13** (first Android phone app; v0.1.14 adds movies, series and Matches to it). Remaining: Android features (section 6), Store, winget, app-side tests, analyzers for the app project, recently added on Home.
+Current release: **v0.1.17** (the Android app rebuilt natively in Kotlin). Remaining: Android features (section 6), Store, winget, app-side tests, analyzers for the app project, recently added on Home.
 
 ---
 
@@ -84,32 +84,27 @@ Current release: **v0.1.13** (first Android phone app; v0.1.14 adds movies, seri
 
 ## 6. Android (phone)
 
-`src/Antenna.Mobile`: .NET MAUI, Android only, LibVLCSharp.MAUI + VideoLAN.LibVLC.Android, reusing `Antenna.Core`.
-Built by `build.yml` (debug-signed artifact) and added to each GitHub release by `release.yml` as `Antenna-X.Y.Z.apk`.
+`android/`: a native **Kotlin** app (Jetpack Compose, libVLC for Android `org.videolan.android:libvlc-all`, bundled
+SQLite with FTS5 `androidx.sqlite:sqlite-bundled`). v0.1.17 replaced the earlier .NET MAUI app (v0.1.13–0.1.16), which
+played sound but no picture on the owner's phone. The Kotlin app is a port of `Antenna.Core` (models, M3U, Xtream, XMLTV,
+store, event search, fixtures, score alerts, sync), so keep the two in step when changing shared behaviour. It keeps the
+same application id and signing key, opens the MAUI app's `files/library.db` in place (same schema; passwords decrypt with
+the same Keystore alias `antenna.secrets`), and reads/writes the same sync file as Windows (`WindowsSyncCompatTest` checks a
+file made by the Windows code).
 
-- [x] **First version.** *(v0.1.13: Live TV with category chips, search and now playing; full-screen landscape player with
-  swipe/⏮⏭ zapping, now/next, channel guide, aspect/fill, favourites, reconnect; guide search; add M3U link/file or Xtream;
-  refresh, delete, share log; update prompt from GitHub releases. Passwords encrypted with the Android Keystore.)*
-- [x] **Movies, series and Matches.** *(v0.1.14: `MediaGridPage` poster grids (Continue watching and Favourites chips,
-  categories, search); `DetailsPage` (Xtream VOD/series info, seasons, episodes, Continue SxxEyy, Start over); player seek
-  bar, skip −10/+30 s, resume, next episode; `MatchesPage` with day, sport and My channels filters, live scores every
-  minute. Guide search moved to a Live TV toolbar button: Android's bottom bar holds five tabs.)*
+- [x] **Live TV, guide search, Movies, Series, Matches, Playlists** (category chips, search, now playing; poster grids with
+  Continue watching and Favourites; details with seasons, episodes, Continue SxxEyy; Matches with day, sport and My
+  channels filters, live scores, follow).
+- [x] **Player** (`player/PlayerActivity`: libVLC on `VLCVideoLayout`, attached in onStart, detached in onStop; swipe and
+  ⏮/⏭ zapping, now/next, channel guide, Fit/Fill/16:9/4:3, favourites, reconnect; seek bar, skip −10/+30 s, resume,
+  next episode; picture-in-picture (auto-enter on 12+); Chromecast via libVLC renderers with a Wi-Fi multicast lock).
+- [x] **Goal alerts** (`alerts/ScoreAlertService` foreground service polling each minute while a followed team plays,
+  started by an exact alarm 10 min before kick-off), **sync with the PC** (`sync/MobileSync`, Storage Access Framework
+  document, passphrase encrypted with the Keystore), update prompt from GitHub releases, share log.
 - [ ] Home (continue watching, favourites on now), reminders as notifications, TMDB artwork for M3U films.
-- [x] **Picture-in-picture and Chromecast.** *(v0.1.16: `MainActivity` PiP (auto-enter on Android 12+, ⧉ button,
-  `OnUserLeaveHint` before 12); the player only restarts after a real stop, not after PiP. Cast: libvlc renderer
-  discovery with a Wi-Fi multicast lock, "Play on" sheet, keeps casting with the app in the background.)*
-- [x] **Goal alerts.** *(v0.1.16: `Core/Sports/ScoreAlerts` (followed teams in setting `sports.follow`, kick-off/score/
-  full-time diff). Android: `ScoreAlertService` foreground service polling each minute while a followed team plays,
-  started by an exact alarm 10 min before kick-off (`ScoreAlertScheduler`); notification Watch opens the channel.
-  Windows: `Services/GoalAlerts` while the app is open; ★ on Matches rows.)*
-- [ ] Timeshift and volume boost (libvlc volume above 100) on Android.
-- [x] **Sync between PC and phone.** *(v0.1.15: `Core/Sync/SyncService`: one AES-256-GCM file (PBKDF2 passphrase) in the
-  user's Drive/OneDrive; three-way merge of playlists and favourites against a hash-only base kept in the store
-  (`sync.base`), latest-wins history. Windows: `Services/CloudSync` + Settings section (folder, DPAPI-stored passphrase).
-  Android: `Services/MobileSync` (Storage Access Framework document with a persisted permission, passphrase in
-  SecureStorage) + `Views/SyncPage`.)*
-- [ ] 16 KB page size: libvlc 3.6.5's native libraries aren't 16 KB aligned (build warning XA0141). Only Android 15+ devices
-  with 16 KB pages need it; update VideoLAN.LibVLC.Android when a release fixes it.
+- [ ] Timeshift and volume boost on Android.
+- [ ] 16 KB page size: libvlc 3.6.5's native libraries aren't 16 KB aligned. Only Android 15+ devices with 16 KB pages
+  need it; move to a libvlc-all release that is.
 
 ## 7. Housekeeping
 
@@ -139,19 +134,16 @@ Built by `build.yml` (debug-signed artifact) and added to each GitHub release by
     | grep -v "InitializeComponent\|XamlTypeInfo\|PasswordBox.Password" | grep -vP "The name '($names)' does not exist" | sort -u
   ```
   CI (`build.yml`, windows-latest) is the real check.
-- Android: `dotnet workload install maui-android`, then
-  `dotnet build src/Antenna.Mobile -t:InstallAndroidDependencies -p:AndroidSdkDirectory=$HOME/android-sdk -p:AcceptAndroidSdkLicenses=True`
-  once (set `USER` if it's unset, or the SDK installer fails), then build with `-p:AndroidSdkDirectory=...`. It isn't in
-  `Antenna.slnx`, so building the solution on Windows doesn't need the Android workload.
-
-**Releasing**
+- Android: `cd android && ./gradlew testReleaseUnitTest assembleRelease` (JDK 17+, Android SDK with platform 36;
+  put `sdk.dir=…` in `android/local.properties`). Unit tests run the store and sync on the JVM (bundled SQLite's desktop
+  build). `-PemulatorAbi` adds x86_64 libraries for trying a build on an emulator; releases are ARM only.
 - `release.yml`: push a tag `vX.Y.Z`, or run the **Release** workflow with input `version` (use this when tag
   pushes are blocked). It tests, publishes self-contained win-x64, checks the app's `.pri` exists, signs with
   the `SIGNING_CERT_PFX` / `SIGNING_CERT_PASSWORD` secrets (self-signed cert from `scripts/New-SigningCert.ps1`),
   packs with Velopack (`vpk` 1.2.161, packId `Antenna`) and publishes a GitHub release with Setup.exe,
   portable zip, full + delta packages. Versions must increase.
-- Android: the `android` job signs with the `ANDROID_KEYSTORE` (base64 keystore, alias `antenna`) and
-  `ANDROID_KEYSTORE_PASSWORD` secrets and uploads the APK to the release. Never change the key: phones refuse an update
+- Android: the `android` job builds with Gradle (`-PappVersion`), signs with the `ANDROID_KEYSTORE` (base64 keystore,
+  alias `antenna`) and `ANDROID_KEYSTORE_PASSWORD` secrets, checks the signer, and uploads the APK to the release. Never change the key: phones refuse an update
   signed with a different one (the user would have to uninstall and lose their data). versionCode is derived from the
   version (0.1.13 → 113), so versions must keep increasing.
 - Installed copies update in-app (`Services/Updater.cs`, GitHub source, checks ~20 s after start then every 6 h).

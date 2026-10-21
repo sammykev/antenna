@@ -167,17 +167,11 @@ jobs:
   android:
     needs: release
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android
     steps:
       - uses: actions/checkout@v7
-
-      - uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Install the Android workload and SDK parts
-        run: |
-          dotnet workload install maui-android
-          dotnet build src/Antenna.Mobile -t:InstallAndroidDependencies -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME_21_X64" -p:AcceptAndroidSdkLicenses=True
 
       # Every release must be signed with the same key, or phones refuse to install it over the last one.
       # ANDROID_KEYSTORE is the base64 of the keystore, ANDROID_KEYSTORE_PASSWORD its password (alias "antenna").
@@ -192,22 +186,24 @@ jobs:
           echo "$KEYSTORE" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/antenna.keystore" || { echo "::error::ANDROID_KEYSTORE isn't valid base64. Paste the whole of keystore.base64.txt."; exit 1; }
           echo "Keystore is $(stat -c %s "$RUNNER_TEMP/antenna.keystore") bytes."
 
-      - name: Build the Android app
+      - name: Test and build the Android app
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-        run: >
-          dotnet publish src/Antenna.Mobile -c Release -o android
-          -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME_21_X64"
-          -p:ApplicationDisplayVersion=${{ needs.release.outputs.version }}
-          -p:AndroidKeyStore=true -p:AndroidSigningKeyStore="$RUNNER_TEMP/antenna.keystore" -p:AndroidSigningKeyAlias=antenna
-          -p:AndroidSigningStorePass=env:KEYSTORE_PASSWORD -p:AndroidSigningKeyPass=env:KEYSTORE_PASSWORD
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/antenna.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: ./gradlew testReleaseUnitTest assembleRelease --no-daemon -PappVersion=${{ needs.release.outputs.version }}
+
+      - name: Check the APK is signed with the release key
+        run: |
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner
+          "$apksigner" verify --print-certs app/build/outputs/apk/release/app-release.apk | tee signer.txt
+          grep -q "CN=Okechukwu Nkwocha" signer.txt || { echo "::error::The APK isn't signed with the release key."; exit 1; }
 
       - name: Add the APK to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           apk="Antenna-${{ needs.release.outputs.version }}.apk"
-          cp android/*-Signed.apk "$apk"
+          cp app/build/outputs/apk/release/app-release.apk "$apk"
           gh release upload "v${{ needs.release.outputs.version }}" "$apk" --repo "${{ github.repository }}" --clobber
 
       - name: Remove signing key

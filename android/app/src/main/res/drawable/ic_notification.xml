@@ -1,0 +1,6 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+    <!-- A simple antenna mast with signal arcs. -->
+    <path android:fillColor="#FFFFFFFF" android:pathData="M11,10h2v12h-2z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12,6a3,3 0,1 1,0 6a3,3 0,1 1,0 -6z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M6.3,3.3L7.7,4.7C6.6,5.8 6,7.3 6,9s0.6,3.2 1.7,4.3L6.3,14.7C4.9,13.3 4,11.2 4,9S4.9,4.7 6.3,3.3zM17.7,3.3C19.1,4.7 20,6.8 20,9s-0.9,4.3 -2.3,5.7L16.3,13.3C17.4,12.2 18,10.7 18,9s-0.6,-3.2 -1.7,-4.3L17.7,3.3z" />
+</vector>
