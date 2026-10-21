@@ -31,7 +31,7 @@
             </Grid.GestureRecognizers>
 
             <!-- Top bar -->
-            <Grid Grid.ColumnSpan="2" ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="4">
+            <Grid Grid.ColumnSpan="2" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="4">
                 <Button Text="←" FontSize="22" BackgroundColor="Transparent" TextColor="White" Clicked="Back_Clicked" />
                 <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
                     <Label x:Name="ChannelTitle" FontSize="18" FontAttributes="Bold" TextColor="White" LineBreakMode="TailTruncation" />
@@ -39,6 +39,8 @@
                 </VerticalStackLayout>
                 <Button x:Name="FavouriteButton" Grid.Column="2" Text="☆" FontSize="22" BackgroundColor="Transparent" TextColor="White" Clicked="Favourite_Clicked" />
                 <Button x:Name="AspectButton" Grid.Column="3" Text="Fit" BackgroundColor="Transparent" TextColor="White" Clicked="Aspect_Clicked" />
+                <Button x:Name="CastButton" Grid.Column="6" Text="Cast" BackgroundColor="Transparent" TextColor="White" Clicked="Cast_Clicked" />
+                <Button Grid.Column="5" Text="⧉" FontSize="20" BackgroundColor="Transparent" TextColor="White" Clicked="Pip_Clicked" />
                 <Button x:Name="GuideButton" Grid.Column="4" Text="Guide" BackgroundColor="Transparent" TextColor="White" Clicked="Guide_Clicked" />
             </Grid>
 

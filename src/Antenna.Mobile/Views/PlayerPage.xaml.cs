@@ -1,5 +1,7 @@
 using System.Globalization;
+using Android.Content;
 using Android.Content.PM;
+using Android.Net.Wifi;
 using AndroidX.Core.View;
 using Antenna.Core;
 using Antenna.Mobile.Services;
@@ -33,6 +35,11 @@ public partial class PlayerPage : ContentPage
     private IDispatcherTimer? _hideTimer;
     private IDispatcherTimer? _clock;
     private Task _stopping = Task.CompletedTask;
+    private bool _stoppedInBackground;
+    private RendererDiscoverer? _discoverer;
+    private readonly List<RendererItem> _renderers = [];
+    private RendererItem? _renderer;
+    private WifiManager.MulticastLock? _multicast;
 
     public PlayerPage()
     {
@@ -49,6 +56,7 @@ public partial class PlayerPage : ContentPage
             window.Stopped += Window_Stopped;
             window.Resumed += Window_Resumed;
         }
+        MainActivity.PipChanged += PipChanged;
 
         // Hardware decoding (Android's MediaCodec), as VideoLAN's own samples use: it draws straight into the surface.
         _player = new MediaPlayer(Vlc.Value) { EnableHardwareDecoding = true };
@@ -66,6 +74,7 @@ public partial class PlayerPage : ContentPage
 
         ShowOverlay();
         _ = StartAsync(Playback.Current);
+        StartDiscovery();
     }
 
     protected override void OnDisappearing()
@@ -79,9 +88,12 @@ public partial class PlayerPage : ContentPage
             window.Stopped -= Window_Stopped;
             window.Resumed -= Window_Resumed;
         }
+        MainActivity.PipChanged -= PipChanged;
+        MainActivity.WantPip(false);
         DeviceDisplay.Current.KeepScreenOn = false;
         EnterFullScreen(false);
 
+        StopDiscovery();
         var player = _player;
         _player = null;
         Video.MediaPlayer = null;
@@ -170,6 +182,10 @@ public partial class PlayerPage : ContentPage
         _attempts = 0;
         ShowStatus(null);
         PauseButton.Text = "⏸";
+        var (width, height) = VideoSize();
+        MainActivity.WantPip(_renderer is null, width, height);
+        if (_renderer is { } renderer)
+            ShowStatus($"Casting to {renderer.Name}");
         if (_resumeAt > 0 && _player is { } player)
         {
             var at = _resumeAt;
@@ -293,17 +309,169 @@ public partial class PlayerPage : ContentPage
     private void Window_Stopped(object? sender, EventArgs e)
     {
         SaveProgress();
-        // Leaving the app: stop rather than keep streaming in the background. Films resume from the saved position.
-        if (_player is { } player)
+        // Leaving the app (or closing the picture-in-picture window): stop rather than keep streaming in the
+        // background. Films resume from the saved position. A cast carries on: the TV is playing it.
+        if (_player is { } player && _renderer is null)
+        {
+            _stoppedInBackground = true;
             _stopping = Task.Run(player.Stop);
+        }
     }
 
     private void Window_Resumed(object? sender, EventArgs e)
     {
         EnterFullScreen(true);
+        if (!_stoppedInBackground)
+            return;  // only paused (back from picture-in-picture, the notification shade…): still playing
+        _stoppedInBackground = false;
         _attempts = 0;
         // The surface was destroyed in the background: wait for the new one.
         _ = StartAsync(_item);
+    }
+
+    private void PipChanged(bool inPip) => MainThread.BeginInvokeOnMainThread(() =>
+    {
+        // In the small window, just the picture.
+        if (inPip)
+        {
+            Overlay.IsVisible = false;
+            GuidePanel.IsVisible = false;
+            ShowStatus(null);
+        }
+        else
+        {
+            EnterFullScreen(true);
+            ShowOverlay();
+        }
+    });
+
+    private void Pip_Clicked(object? sender, EventArgs e)
+    {
+        var (width, height) = VideoSize();
+        MainActivity.EnterPip(width, height);
+    }
+
+    // ---- Chromecast ----
+
+    /// <summary>Looks for Chromecasts on the Wi-Fi while the player is open (libvlc's mDNS renderer discovery).</summary>
+    private void StartDiscovery()
+    {
+        try
+        {
+            if (Platform.AppContext.GetSystemService(Context.WifiService) is WifiManager wifi)
+            {
+                // Android drops multicast (mDNS) packets unless an app holds this lock.
+                _multicast = wifi.CreateMulticastLock("antenna-cast");
+                _multicast!.SetReferenceCounted(false);
+                _multicast.Acquire();
+            }
+            var name = Vlc.Value.RendererList.FirstOrDefault().Name;
+            if (string.IsNullOrEmpty(name))
+                return;
+            _discoverer = new RendererDiscoverer(Vlc.Value, name);
+            _discoverer.ItemAdded += (_, a) => MainThread.BeginInvokeOnMainThread(() => _renderers.Add(a.RendererItem));
+            _discoverer.ItemDeleted += (_, a) => MainThread.BeginInvokeOnMainThread(() => _renderers.RemoveAll(r => r.Name == a.RendererItem.Name));
+            _discoverer.Start();
+        }
+        catch (Exception ex)
+        {
+            // Casting is optional; playback works without it.
+            Log.Info($"Chromecast discovery unavailable: {ex.Message}");
+            _discoverer = null;
+        }
+    }
+
+    private void StopDiscovery()
+    {
+        var discoverer = _discoverer;
+        _discoverer = null;
+        _renderers.Clear();
+        _renderer = null;
+        if (discoverer is not null)
+        {
+            Task.Run(() =>
+            {
+                discoverer.Stop();
+                discoverer.Dispose();
+            });
+        }
+        if (_multicast is { IsHeld: true } multicast)
+            multicast.Release();
+        _multicast = null;
+    }
+
+    private async void Cast_Clicked(object? sender, EventArgs e)
+    {
+        ShowOverlay(stay: true);
+        if (_discoverer is null)
+        {
+            await DisplayAlertAsync("Cast", "Casting isn't available on this phone.", "OK");
+            ShowOverlay();
+            return;
+        }
+        // Give discovery a moment if nothing has turned up yet.
+        for (var waited = 0; _renderers.Count == 0 && waited < 4000; waited += 250)
+        {
+            ShowStatus("Looking for Chromecasts on your Wi-Fi…");
+            await Task.Delay(250);
+        }
+        ShowStatus(_renderer is { } current ? $"Casting to {current.Name}" : null);
+
+        var devices = _renderers.Where(r => r.CanRenderVideo).ToList();
+        if (devices.Count == 0)
+        {
+            await DisplayAlertAsync("No Chromecast found", "Make sure the phone and the Chromecast (or Google TV) are on the same Wi-Fi.", "OK");
+            ShowOverlay();
+            return;
+        }
+        const string Phone = "This phone";
+        var names = devices.Select(d => ReferenceEquals(d, _renderer) ? $"✓ {d.Name}" : d.Name).Prepend(_renderer is null ? $"✓ {Phone}" : Phone).ToArray();
+        var picked = await DisplayActionSheetAsync("Play on", "Cancel", null, names);
+        var index = Array.IndexOf(names, picked);
+        if (index < 0)
+        {
+            ShowOverlay();
+            return;
+        }
+        CastTo(index == 0 ? null : devices[index - 1]);
+    }
+
+    /// <summary>Switching renderer takes effect on the next play, so playback restarts (films resume where they were).</summary>
+    private void CastTo(RendererItem? renderer)
+    {
+        if (_player is not { } player || _item is not { } item || ReferenceEquals(renderer, _renderer))
+            return;
+        if (!item.IsLive && player.Length > 0 && player.Time > 0)
+            Remember(item, player.Time, player.Length);
+        _renderer = renderer;
+        CastButton.Text = renderer is null ? "Cast" : "Casting";
+        Log.Info(renderer is null ? "Casting stopped" : $"Casting to {renderer.Name}");
+        ShowStatus(renderer is null ? "Connecting…" : $"Connecting to {renderer.Name}…");
+        Task.Run(() =>
+        {
+            try
+            {
+                player.Stop();
+                player.SetRenderer(renderer!);
+            }
+            catch (Exception ex)
+            {
+                // A device that vanished mid-switch: carry on here.
+                Log.Info($"Couldn't switch renderer: {ex.Message}");
+            }
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                _attempts = 0;
+                Play(item);
+                ShowOverlay();
+            });
+        });
+    }
+
+    private (int Width, int Height) VideoSize()
+    {
+        uint width = 0, height = 0;
+        return _player?.Size(0, ref width, ref height) == true && width > 0 && height > 0 ? ((int)width, (int)height) : (16, 9);
     }
 
     // ---- Controls ----
@@ -419,6 +587,8 @@ public partial class PlayerPage : ContentPage
 
     private void ShowOverlay(bool stay = false)
     {
+        if (MainActivity.InPip)
+            return;
         Overlay.IsVisible = true;
         _hideTimer ??= CreateHideTimer();
         _hideTimer.Stop();
@@ -463,7 +633,7 @@ public partial class PlayerPage : ContentPage
     private void ShowStatus(string? text)
     {
         Status.Text = text;
-        Status.IsVisible = text is not null;
+        Status.IsVisible = text is not null && !MainActivity.InPip;
     }
 
     private static string Clock(long ms)
