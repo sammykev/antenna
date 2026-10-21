@@ -59,7 +59,10 @@
                             <TapGestureRecognizer Tapped="Match_Tapped" />
                         </Border.GestureRecognizers>
                         <Grid ColumnDefinitions="64,*" RowDefinitions="Auto,Auto" ColumnSpacing="12" RowSpacing="6">
-                            <Label Text="{Binding Time}" TextColor="{Binding TimeColour}" FontAttributes="Bold" VerticalOptions="Center" />
+                            <VerticalStackLayout VerticalOptions="Center">
+                                <Label Text="{Binding Time}" TextColor="{Binding TimeColour}" FontAttributes="Bold" />
+                                <Label Text="{Binding Star}" TextColor="#E8A33D" FontSize="16" />
+                            </VerticalStackLayout>
                             <VerticalStackLayout Grid.Column="1" Spacing="4" IsVisible="{Binding HasTeams}">
                                 <Grid ColumnDefinitions="22,*,Auto" ColumnSpacing="8">
                                     <Image Source="{Binding HomeLogo}" HeightRequest="20" WidthRequest="20" />

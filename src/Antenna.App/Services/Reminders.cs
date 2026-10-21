@@ -92,23 +92,29 @@ internal static class Reminders
             : $"Started at {reminder.Start.LocalDateTime:HH:mm} on {reminder.ChannelTitle}";
         Log.Info($"reminders: '{reminder.Title}', {when}");
 
-        App.Window.ShowReminder(reminder.Title, when, () => Watch(reminder.SourceId, reminder.ChannelId));
+        Notify(reminder.Title, when, reminder.SourceId, reminder.ChannelId);
+    }
+
+    /// <summary>
+    /// An in-app notice and a Windows notification, with Watch now when there's a channel (also used for goal alerts).
+    /// </summary>
+    public static void Notify(string title, string text, string? sourceId, string? channelId, string watchLabel = "Watch now")
+    {
+        App.Window.ShowReminder(title, text, sourceId is null || channelId is null ? null : () => Watch(sourceId, channelId));
         if (!_notifications)
             return;
         try
         {
-            var notification = new AppNotificationBuilder()
-                .AddArgument("action", "watch")
-                .AddArgument("source", reminder.SourceId)
-                .AddArgument("channel", reminder.ChannelId)
-                .AddText(reminder.Title)
-                .AddText(when)
-                .AddButton(new AppNotificationButton("Watch now")
-                    .AddArgument("action", "watch")
-                    .AddArgument("source", reminder.SourceId)
-                    .AddArgument("channel", reminder.ChannelId))
-                .BuildNotification();
-            AppNotificationManager.Default.Show(notification);
+            var builder = new AppNotificationBuilder().AddText(title).AddText(text);
+            if (sourceId is not null && channelId is not null)
+            {
+                builder.AddArgument("action", "watch").AddArgument("source", sourceId).AddArgument("channel", channelId)
+                    .AddButton(new AppNotificationButton(watchLabel)
+                        .AddArgument("action", "watch")
+                        .AddArgument("source", sourceId)
+                        .AddArgument("channel", channelId));
+            }
+            AppNotificationManager.Default.Show(builder.BuildNotification());
         }
         catch (Exception ex)
         {

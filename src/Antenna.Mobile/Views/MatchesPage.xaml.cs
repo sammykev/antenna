@@ -96,7 +96,8 @@ public partial class MatchesPage : ContentPage
             return;
 
         _rows.Clear();
-        _rows.AddRange(fixtures.Select(f => new MatchRow(f)));
+        var teams = ScoreAlerts.Followed(MobileServices.Library);
+        _rows.AddRange(fixtures.Select(f => new MatchRow(f) { IsFollowed = ScoreAlerts.Involves(f, teams) }));
         foreach (var row in _rows)
         {
             if (Found.TryGetValue(row.Fixture.Id, out var known))
@@ -172,11 +173,11 @@ public partial class MatchesPage : ContentPage
     {
         var sport = SportPicker.SelectedItem as string is { } s && s != AllSports ? s : null;
         var mine = MineOnly.IsToggled;
-        var groups = _rows
-            .Where(r => (sport is null || r.Fixture.Sport == sport) && (!mine || r.OnYourChannels))
-            .GroupBy(r => r.Fixture.League)
-            .Select(g => new MatchGroup(g.Key, g))
-            .ToList();
+        var shown = _rows.Where(r => (sport is null || r.Fixture.Sport == sport) && (!mine || r.OnYourChannels)).ToList();
+        var groups = new List<MatchGroup>();
+        if (shown.Any(r => r.IsFollowed))
+            groups.Add(new MatchGroup("★ Your teams", shown.Where(r => r.IsFollowed)));
+        groups.AddRange(shown.Where(r => !r.IsFollowed).GroupBy(r => r.Fixture.League).Select(g => new MatchGroup(g.Key, g)));
         List.ItemsSource = groups;
         EmptyText.Text = _rows.Count == 0 ? "" :
             mine ? "None of these fixtures are on your channels (yet: the guide may not list them until closer to the day)."
@@ -210,31 +211,43 @@ public partial class MatchesPage : ContentPage
 
     private async void Match_Tapped(object? sender, TappedEventArgs e)
     {
-        if ((sender as BindableObject)?.BindingContext is not MatchRow { Match: { } match } row)
+        if ((sender as BindableObject)?.BindingContext is not MatchRow row)
             return;
         var f = row.Fixture;
-        if (!match.OnYourChannels)
+        var match = row.Match;
+        var actions = new List<(string Label, Func<Task> Run)>();
+
+        if (match is { OnYourChannels: true })
         {
-            await DisplayAlertAsync(f.Title, $"{f.League}, {f.Start.LocalDateTime:ddd HH:mm}.\n\nIt isn't on any of your channels" +
-                (f.Broadcasts.Count > 0 ? $" (on TV: {string.Join(", ", f.Broadcasts)})." : "."), "OK");
-            return;
+            var when = f.State == FixtureState.Finished ? "finished" : row.IsOnSoon ? "on now" : $"starts {f.Start.LocalDateTime:ddd HH:mm}";
+            foreach (var channel in match.Channels.Take(6))
+                actions.Add(($"▶ Watch on {channel.Item.Title} ({when})", () => Playback.PlayAsync([channel.Item], 0)));
+        }
+        foreach (var team in new[] { f.Home, f.Away }.OfType<string>())
+        {
+            var followed = ScoreAlerts.IsFollowed(MobileServices.Library, team);
+            actions.Add((followed ? $"★ Stop following {team}" : $"☆ Follow {team} (goal alerts)", () => ToggleFollowAsync(team, f.FeedPath)));
         }
 
-        LibraryEntry? channel = match.Channels[0];
-        if (match.Channels.Count > 1)
-        {
-            var names = match.Channels.Select(c => $"{c.Item.Title} · {c.SourceName}").ToArray();
-            var picked = await DisplayActionSheetAsync($"Watch {f.Title} on", "Cancel", null, names);
-            channel = match.Channels.ElementAtOrDefault(Array.IndexOf(names, picked));
-        }
-        else if (!row.IsOnSoon)
-        {
-            var when = f.State == FixtureState.Finished ? "It's finished" : $"It starts {f.Start.LocalDateTime:ddd HH:mm}";
-            var programme = match.Programme is { } p ? $" ({p.Title})" : "";
-            if (!await DisplayAlertAsync(f.Title, $"{when} on {channel.Item.Title}{programme}.", "Watch channel now", "Close"))
-                return;
-        }
-        if (channel is not null)
-            await Playback.PlayAsync([channel.Item], 0);
+        var detail = match is { OnYourChannels: false }
+            ? $"Not on your channels{(f.Broadcasts.Count > 0 ? $" (on TV: {string.Join(", ", f.Broadcasts)})" : "")}."
+            : null;
+        var picked = await DisplayActionSheetAsync(detail is null ? f.Title : $"{f.Title}\n{detail}", "Close", null, [.. actions.Select(a => a.Label)]);
+        if (actions.FirstOrDefault(a => a.Label == picked).Run is { } run)
+            await run();
+    }
+
+    private async Task ToggleFollowAsync(string team, string feedPath)
+    {
+        var following = ScoreAlerts.Toggle(MobileServices.Library, team, feedPath);
+        if (following && OperatingSystem.IsAndroidVersionAtLeast(33))
+            await Permissions.RequestAsync<Permissions.PostNotifications>();
+        var teams = ScoreAlerts.Followed(MobileServices.Library);
+        foreach (var row in _rows)
+            row.SetFollowed(ScoreAlerts.Involves(row.Fixture, teams));
+        ApplyFilters();
+        _ = ScoreAlertScheduler.ScheduleAsync(Platform.AppContext);
+        if (following)
+            await DisplayAlertAsync($"Following {team}", $"You'll get a notification at kick-off, for each goal and at full time in {team}'s matches, even with Antenna closed.", "OK");
     }
 }

@@ -73,6 +73,7 @@ public partial class App : Application
         Step("auto refresh", () => AutoRefresh.Start(Window.DispatcherQueue));
         Step("recorder", () => Recorder.Start(Window.DispatcherQueue));
         Step("sync", () => CloudSync.Start(Window.DispatcherQueue));
+        Step("goal alerts", () => GoalAlerts.Start(Window.DispatcherQueue));
         if (!SmokeTest)
             Step("reminders", () => Reminders.Start(Window.DispatcherQueue));
         Step("updates", () =>

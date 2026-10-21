@@ -150,14 +150,18 @@ public sealed partial class MainWindow : Window
     }
 
     /// <summary>A reminder going off: the programme, when, and Watch now.</summary>
-    public void ShowReminder(string title, string when, Action watch)
+    public void ShowReminder(string title, string when, Action? watch)
     {
-        var button = new Button { Content = "Watch now" };
-        button.Click += (_, _) =>
+        Button? button = null;
+        if (watch is not null)
         {
-            Notice.IsOpen = false;
-            watch();
-        };
+            button = new Button { Content = "Watch now" };
+            button.Click += (_, _) =>
+            {
+                Notice.IsOpen = false;
+                watch();
+            };
+        }
         Notice.Severity = InfoBarSeverity.Informational;
         Notice.Title = title;
         Notice.Message = when;

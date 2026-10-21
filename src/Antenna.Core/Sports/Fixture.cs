@@ -36,6 +36,9 @@ public sealed record Fixture
     public IReadOnlyList<string> Broadcasts { get; init; } = [];
 
     public string Title => Home is not null && Away is not null ? $"{Home} vs {Away}" : Name;
+
+    /// <summary>The feed it came from ("soccer/eng.1"): ids are "{feed}/{event id}".</summary>
+    public string FeedPath => Id.LastIndexOf('/') is var cut and > 0 ? Id[..cut] : "";
 }
 
 /// <summary>A competition in the feed: its path ("soccer/eng.1") and how to label it.</summary>

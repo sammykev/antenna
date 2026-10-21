@@ -95,7 +95,14 @@ Built by `build.yml` (debug-signed artifact) and added to each GitHub release by
   bar, skip −10/+30 s, resume, next episode; `MatchesPage` with day, sport and My channels filters, live scores every
   minute. Guide search moved to a Live TV toolbar button: Android's bottom bar holds five tabs.)*
 - [ ] Home (continue watching, favourites on now), reminders as notifications, TMDB artwork for M3U films.
-- [ ] Picture-in-picture, Chromecast, timeshift, volume boost (libvlc volume above 100).
+- [x] **Picture-in-picture and Chromecast.** *(v0.1.16: `MainActivity` PiP (auto-enter on Android 12+, ⧉ button,
+  `OnUserLeaveHint` before 12); the player only restarts after a real stop, not after PiP. Cast: libvlc renderer
+  discovery with a Wi-Fi multicast lock, "Play on" sheet, keeps casting with the app in the background.)*
+- [x] **Goal alerts.** *(v0.1.16: `Core/Sports/ScoreAlerts` (followed teams in setting `sports.follow`, kick-off/score/
+  full-time diff). Android: `ScoreAlertService` foreground service polling each minute while a followed team plays,
+  started by an exact alarm 10 min before kick-off (`ScoreAlertScheduler`); notification Watch opens the channel.
+  Windows: `Services/GoalAlerts` while the app is open; ★ on Matches rows.)*
+- [ ] Timeshift and volume boost (libvlc volume above 100) on Android.
 - [x] **Sync between PC and phone.** *(v0.1.15: `Core/Sync/SyncService`: one AES-256-GCM file (PBKDF2 passphrase) in the
   user's Drive/OneDrive; three-way merge of playlists and favourites against a hash-only base kept in the store
   (`sync.base`), latest-wins history. Windows: `Services/CloudSync` + Settings section (folder, DPAPI-stored passphrase).

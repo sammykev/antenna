@@ -105,6 +105,10 @@ An early phone version (Android 8 or later) shares the Windows app's playlist, g
   sport and "My channels"; tap one to watch it
 - Full-screen player: swipe or ⏮/⏭ to change channel (or episode), seek bar and skip back 10 s / forward 30 s for
   films, now/next and this channel's guide, aspect and fill, favourites, auto-reconnect
+- **Picture-in-picture**: press Home while something plays (or tap ⧉) and it keeps playing in a small window
+- **Chromecast**: tap Cast in the player to play on a Chromecast or Google TV on the same Wi-Fi
+- **Goal alerts**: on Matches, tap a match and follow a team: notifications at kick-off, for each goal and at full
+  time, with Watch to open the channel, even with Antenna closed (the PC app alerts while it's open)
 - M3U (link or file) and Xtream Codes playlists
 - **Sync with the PC** (see below)
 

@@ -297,6 +297,7 @@ public sealed partial class MatchesPage : Page
         {
             row.Channel.Text = f.Broadcasts.Count > 0 ? $"Not on your channels (TV: {string.Join(", ", f.Broadcasts.Take(2))})" : "Not on your channels";
             row.Channel.Opacity = 0.5;
+            AddFollowButton(row);
             ApplyFilters();
             return;
         }
@@ -330,7 +331,35 @@ public sealed partial class MatchesPage : Page
             multi.Click += (_, _) => MultiViewPage.Add(PlayRequest.ForItem(first.Item) with { Title = f.Title });
             row.Actions.Children.Add(multi);
         }
+        AddFollowButton(row);
         ApplyFilters();
+    }
+
+    /// <summary>★ to follow either team: kick-off, goal and full-time notifications (Services/GoalAlerts).</summary>
+    private void AddFollowButton(Row row)
+    {
+        var f = row.Fixture;
+        if (f.Home is null || f.Away is null)
+            return;
+        var followed = ScoreAlerts.Involves(f, ScoreAlerts.Followed(AppServices.Library));
+        var button = Small(followed ? "\uE735" : "\uE734", "Follow a team: goal alerts");
+        var menu = new MenuFlyout();
+        foreach (var team in new[] { f.Home, f.Away })
+        {
+            var on = ScoreAlerts.IsFollowed(AppServices.Library, team);
+            menu.Items.Add(ItemMenu.Item(on ? $"Stop following {team}" : $"Follow {team} (kick-off, goals, full time)", on ? "\uE735" : "\uE734", () =>
+            {
+                var now = ScoreAlerts.Toggle(AppServices.Library, team, f.FeedPath);
+                GoalAlerts.CheckSoon();
+                App.Window.ShowNotice(InfoBarSeverity.Success, now
+                    ? $"Following {team}: you'll get a notification at kick-off, for each goal and at full time while Antenna is open."
+                    : $"Stopped following {team}.");
+                foreach (var r in _rows.Values.Where(r => r.Match is not null))
+                    ShowMatch(r, r.Match!);
+            }));
+        }
+        button.Flyout = menu;
+        row.Actions.Children.Add(button);
     }
 
     private UIElement WatchButton(FixtureMatch match)

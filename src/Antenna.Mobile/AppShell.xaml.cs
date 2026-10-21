@@ -12,5 +12,6 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("addplaylist", typeof(AddPlaylistPage));
         Routing.RegisterRoute("guidesearch", typeof(GuideSearchPage));
         MobileSync.Start(Dispatcher);
+        _ = ScoreAlertScheduler.ScheduleAsync(Platform.AppContext);
     }
 }

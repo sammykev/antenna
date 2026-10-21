@@ -19,6 +19,11 @@ public sealed class MatchRow(Fixture fixture) : INotifyPropertyChanged
 
     public bool HasNoTeams => !HasTeams;
 
+    /// <summary>One of the teams is followed: shown with a star, first in the list.</summary>
+    public bool IsFollowed { get; set; }
+
+    public string Star => IsFollowed ? "★" : "";
+
     public string Name => Fixture.Name;
 
     public string? Home => Fixture.Home;
@@ -71,6 +76,12 @@ public sealed class MatchRow(Fixture fixture) : INotifyPropertyChanged
     {
         Match = match with { Fixture = Fixture };
         Changed(nameof(Channel), nameof(ChannelColour), nameof(OnYourChannels));
+    }
+
+    public void SetFollowed(bool followed)
+    {
+        IsFollowed = followed;
+        Changed(nameof(IsFollowed), nameof(Star));
     }
 
     private void Changed(params string[] names)
