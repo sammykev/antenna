@@ -136,7 +136,8 @@ file made by the Windows code).
   CI (`build.yml`, windows-latest) is the real check.
 - Android: `cd android && ./gradlew testReleaseUnitTest assembleRelease` (JDK 17+, Android SDK with platform 36;
   put `sdk.dir=…` in `android/local.properties`). Unit tests run the store and sync on the JVM (bundled SQLite's desktop
-  build). `-PemulatorAbi` adds x86_64 libraries for trying a build on an emulator; releases are ARM only.
+  build). Debug builds (Android Studio's Run) are `io.github.sammykev.antenna.debug`, "Antenna (debug)", with x86_64
+  libraries for the emulator, so they install beside the release with their own data; releases are ARM only.
 - `release.yml`: push a tag `vX.Y.Z`, or run the **Release** workflow with input `version` (use this when tag
   pushes are blocked). It tests, publishes self-contained win-x64, checks the app's `.pri` exists, signs with
   the `SIGNING_CERT_PFX` / `SIGNING_CERT_PASSWORD` secrets (self-signed cert from `scripts/New-SigningCert.ps1`),

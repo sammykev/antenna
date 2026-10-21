@@ -16,7 +16,7 @@
     <!-- Most IPTV panels serve playlists and streams over plain http. -->
     <application
         android:name=".AntennaApp"
-        android:label="Antenna"
+        android:label="${appLabel}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:theme="@style/Theme.Antenna"

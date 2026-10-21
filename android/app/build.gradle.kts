@@ -23,12 +23,7 @@ android {
         targetSdk = 36
         versionCode = appVersionCode
         versionName = appVersion
-        // One APK for every phone (64- and 32-bit ARM); no emulator libraries, they only add size.
-        ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a")
-            // -PemulatorAbi adds x86_64 for trying builds on an emulator; releases are ARM only.
-            if (findProperty("emulatorAbi") != null) abiFilters += "x86_64"
-        }
+        manifestPlaceholders["appLabel"] = "Antenna"
     }
 
     signingConfigs {
@@ -45,7 +40,17 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Installs beside the released app (which is signed with another key), with its own data.
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+            manifestPlaceholders["appLabel"] = "Antenna (debug)"
+            // Phones and Android Studio's emulator.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+        }
         release {
+            // One APK for every phone (64- and 32-bit ARM); no emulator libraries, they only add size.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
