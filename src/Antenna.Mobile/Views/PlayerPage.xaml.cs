@@ -32,6 +32,7 @@ public partial class PlayerPage : ContentPage
     private int _ticks;
     private IDispatcherTimer? _hideTimer;
     private IDispatcherTimer? _clock;
+    private Task _stopping = Task.CompletedTask;
 
     public PlayerPage()
     {
@@ -49,21 +50,22 @@ public partial class PlayerPage : ContentPage
             window.Resumed += Window_Resumed;
         }
 
-        _player = new MediaPlayer(Vlc.Value);
+        // Hardware decoding (Android's MediaCodec), as VideoLAN's own samples use: it draws straight into the surface.
+        _player = new MediaPlayer(Vlc.Value) { EnableHardwareDecoding = true };
         _player.Playing += (_, _) => OnUi(Started);
         _player.Paused += (_, _) => OnUi(() => PauseButton.Text = "▶");
         _player.Buffering += (_, e) => OnUi(() => ShowStatus(e.Cache < 100 ? $"Buffering {e.Cache:0}%" : null));
         _player.EncounteredError += (_, _) => OnUi(() => Failed("The stream failed"));
         _player.EndReached += (_, _) => OnUi(Ended);
-        Video.MediaPlayer = _player;
+        _player.Vout += (_, e) => Log.Info($"Video outputs: {e.Count}");
 
         _clock = Dispatcher.CreateTimer();
         _clock.Interval = TimeSpan.FromSeconds(1);
         _clock.Tick += (_, _) => Tick();
         _clock.Start();
 
-        Play(Playback.Current);
         ShowOverlay();
+        _ = StartAsync(Playback.Current);
     }
 
     protected override void OnDisappearing()
@@ -95,6 +97,39 @@ public partial class PlayerPage : ContentPage
     }
 
     // ---- Playing ----
+
+    /// <summary>
+    /// Plays once the video surface exists. libvlc picks its video output when playback starts: started before the
+    /// surface is live (the page's native view isn't created yet, or the app is just coming back to the front), it
+    /// plays the sound with no picture.
+    /// </summary>
+    private async Task StartAsync(PlayItem? item, bool resume = true)
+    {
+        ShowStatus("Connecting…");
+        await _stopping;
+        var view = await SurfaceAsync();
+        if (_player is not { } player)
+            return;  // closed while waiting
+        if (view is null)
+            Log.Info("Video surface wasn't ready after 5 s; playing anyway");
+        // (Re)attach while nothing is playing, so libvlc has this surface and its size.
+        Video.MediaPlayer = null;
+        Video.MediaPlayer = player;
+        view?.TriggerLayoutChangeListener();
+        Play(item, resume);
+    }
+
+    private async Task<LibVLCSharp.Platforms.Android.VideoView?> SurfaceAsync()
+    {
+        for (var waited = 0; waited < 5000; waited += 50)
+        {
+            if (Video.Handler?.PlatformView is LibVLCSharp.Platforms.Android.VideoView view
+                && view.IsAttachedToWindow && view.Width > 0 && view.Height > 0 && view.Holder?.Surface?.IsValid == true)
+                return view;
+            await Task.Delay(50);
+        }
+        return null;
+    }
 
     private void Play(PlayItem? item, bool resume = true)
     {
@@ -260,14 +295,15 @@ public partial class PlayerPage : ContentPage
         SaveProgress();
         // Leaving the app: stop rather than keep streaming in the background. Films resume from the saved position.
         if (_player is { } player)
-            Task.Run(player.Stop);
+            _stopping = Task.Run(player.Stop);
     }
 
     private void Window_Resumed(object? sender, EventArgs e)
     {
         EnterFullScreen(true);
         _attempts = 0;
-        Play(_item);
+        // The surface was destroyed in the background: wait for the new one.
+        _ = StartAsync(_item);
     }
 
     // ---- Controls ----
