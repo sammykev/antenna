@@ -116,6 +116,17 @@
                 </StackPanel>
             </StackPanel>
 
+            <StackPanel x:Name="AccountSection" Style="{StaticResource SectionStyle}" Visibility="Collapsed">
+                <TextBlock Text="Account" Style="{StaticResource SubtitleTextBlockStyle}" />
+                <TextBlock x:Name="AccountText" TextWrapping="Wrap" />
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Manage account and devices" Click="ManageAccount_Click" />
+                    <Button Content="Subscribe or extend" Click="Subscribe_Click" />
+                    <Button Content="Refresh" Click="RefreshLicence_Click" />
+                    <Button Content="Sign out" Click="SignOutLicence_Click" />
+                </StackPanel>
+            </StackPanel>
+
             <StackPanel Style="{StaticResource SectionStyle}">
                 <TextBlock Text="Sync with your phone" Style="{StaticResource SubtitleTextBlockStyle}" />
                 <TextBlock Opacity="0.7" TextWrapping="Wrap" Style="{StaticResource CaptionTextBlockStyle}"

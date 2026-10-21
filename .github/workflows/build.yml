@@ -71,3 +71,27 @@ jobs:
         with:
           name: Antenna-android
           path: android/app/build/outputs/apk/release/app-release.apk
+
+  site:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Test and build the accounts site
+        env:
+          # Placeholders: the build only needs keys that look right; the real ones live in Vercel.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: pk_test_Y2xlcmsuZXhhbXBsZS5jb20k
+          CLERK_SECRET_KEY: sk_test_ci
+          NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY: pk_test_ci
+        run: |
+          npm ci
+          npm test
+          npx tsc --noEmit
+          npm run build

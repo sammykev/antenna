@@ -52,7 +52,16 @@ internal static class WhatsNew
     /// <summary>The GitHub release's description, for updates installed by running Setup.exe.</summary>
     private static async Task<string?> FetchNotesAsync(string version)
     {
-        var repo = new Uri(Updater.RepositoryUrl).AbsolutePath.Trim('/');
+        foreach (var url in new[] { Updater.RepositoryUrl, Updater.SourceRepositoryUrl })
+        {
+            if (await FetchNotesAsync(new Uri(url).AbsolutePath.Trim('/'), version) is { } notes)
+                return notes;
+        }
+        return null;
+    }
+
+    private static async Task<string?> FetchNotesAsync(string repo, string version)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{repo}/releases/tags/v{version}");
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("Antenna", version));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));

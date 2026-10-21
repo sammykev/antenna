@@ -70,6 +70,11 @@ public partial class App : Application
             Window.Activate();
         });
 
+        Step("licence", () =>
+        {
+            Licensing.Start(Window.DispatcherQueue);
+            Window.SetUpLicenceGate();
+        });
         Step("auto refresh", () => AutoRefresh.Start(Window.DispatcherQueue));
         Step("recorder", () => Recorder.Start(Window.DispatcherQueue));
         Step("sync", () => CloudSync.Start(Window.DispatcherQueue));

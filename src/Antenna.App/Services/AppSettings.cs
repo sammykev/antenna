@@ -98,6 +98,21 @@ internal static class AppSettings
         set => Set("subs.pass", Blank(value) is { } v ? new DpapiProtector().Protect(v) : null);
     }
 
+    /// <summary>The licence from the Antenna site, DPAPI-encrypted.</summary>
+    public static string? LicenceToken
+    {
+        get
+        {
+            var stored = Get("licence.token");
+            if (stored is null) return null;
+            try { return new DpapiProtector().Unprotect(stored); }
+            catch (Exception) { return null; }
+        }
+        set => Set("licence.token", string.IsNullOrEmpty(value) ? null : new DpapiProtector().Protect(value));
+    }
+
+    public static string? LicenceDevice { get => Get("licence.device"); set => Set("licence.device", value); }
+
     /// <summary>The folder holding the sync file (e.g. inside Google Drive or OneDrive), or null when sync is off.</summary>
     public static string? SyncFolder { get => Get("sync.folder"); set => Set("sync.folder", Blank(value)); }
 

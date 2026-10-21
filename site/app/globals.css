@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { @apply bg-base text-white antialiased; }
+.card { @apply rounded-xl bg-surface p-5; }
+.btn { @apply inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2 font-semibold text-white hover:opacity-90 disabled:opacity-50; }
+.btn-quiet { @apply inline-flex items-center justify-center rounded-lg border border-white/15 px-3 py-1.5 text-sm hover:bg-white/5 disabled:opacity-50; }
+.input { @apply w-full rounded-lg border border-white/15 bg-base px-3 py-2 outline-none focus:border-accent; }

@@ -24,6 +24,10 @@ android {
         versionCode = appVersionCode
         versionName = appVersion
         manifestPlaceholders["appLabel"] = "Antenna"
+        // Accounts and the paywall: the release workflow passes the site and its licence public key
+        // (-PlicenceServer=… -PlicencePublicKey=…). Without both, the app runs without accounts.
+        buildConfigField("String", "LICENCE_SERVER", "\"${findProperty("licenceServer") ?: ""}\"")
+        buildConfigField("String", "LICENCE_PUBLIC_KEY", "\"${findProperty("licencePublicKey") ?: ""}\"")
     }
 
     signingConfigs {

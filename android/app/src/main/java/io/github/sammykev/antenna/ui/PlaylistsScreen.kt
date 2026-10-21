@@ -141,6 +141,15 @@ fun PlaylistsScreen(add: () -> Unit, openSync: () -> Unit) {
                     }
                 }
             }
+            if (io.github.sammykev.antenna.licence.Licensing.enabled) {
+                val licenceVersion by io.github.sammykev.antenna.licence.Licensing.version.collectAsState()
+                val summary = remember(licenceVersion) { io.github.sammykev.antenna.licence.Licensing.summary(context) }
+                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(summary, color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { openSite(context, io.github.sammykev.antenna.licence.Licensing.client.accountUrl) }) { Text("Account") }
+                    TextButton(onClick = { io.github.sammykev.antenna.licence.Licensing.signOut(context) }) { Text("Sign out", color = Muted) }
+                }
+            }
             Text("Antenna ${BuildConfig.VERSION_NAME}", color = Muted, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp))
         }
