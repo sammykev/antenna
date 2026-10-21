@@ -52,6 +52,10 @@ public sealed partial class SettingsPage : Page
         FolderBox.Text = AppSettings.RecordingsFolder;
         AutoUpdateSwitch.IsOn = AppSettings.AutoUpdate;
         ShowUpdateState();
+        SyncFolderBox.Text = AppSettings.SyncFolder ?? "";
+        SyncPassBox.Password = AppSettings.SyncPassphrase ?? "";
+        ShowSyncState(null, null);
+        CloudSync.Synced += ShowSyncState;
 
         _loading = false;
         RefreshLists();
@@ -121,6 +125,12 @@ public sealed partial class SettingsPage : Page
     }
 
     private void RestartUpdate_Click(object sender, RoutedEventArgs e) => Updater.RestartToUpdate();
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        CloudSync.Synced -= ShowSyncState;
+    }
 
     private void Show(InfoBarSeverity severity, string message)
     {
@@ -367,5 +377,56 @@ public sealed partial class SettingsPage : Page
         {
             Show(InfoBarSeverity.Error, $"Couldn't restore: {ex.Message}");
         }
+    }
+
+    // ---- Sync ----
+
+    private async void SyncFolder_Click(object sender, RoutedEventArgs e)
+    {
+        var picker = new FolderPicker();
+        picker.FileTypeFilter.Add("*");
+        WinRT.Interop.InitializeWithWindow.Initialize(picker, WinRT.Interop.WindowNative.GetWindowHandle(App.Window));
+        if (await picker.PickSingleFolderAsync() is not { } folder)
+            return;
+        if (AppSettings.SyncFolder != folder.Path)
+            Antenna.Core.Sync.SyncService.ResetBase(AppServices.Library);  // a different file: merge into it, don't delete
+        AppSettings.SyncFolder = folder.Path;
+        SyncFolderBox.Text = folder.Path;
+        ShowSyncState(null, null);
+    }
+
+    private async void SyncNow_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(AppSettings.SyncFolder))
+        {
+            ShowSyncState(null, "Choose a folder first, ideally inside Google Drive or OneDrive.");
+            return;
+        }
+        if (SyncPassBox.Password.Length < 8)
+        {
+            ShowSyncState(null, "Choose a passphrase of at least 8 characters, and use the same one on your phone.");
+            return;
+        }
+        AppSettings.SyncPassphrase = SyncPassBox.Password;
+        SyncStatusText.Text = "Syncing…";
+        await CloudSync.RunAsync();
+    }
+
+    private void SyncOff_Click(object sender, RoutedEventArgs e)
+    {
+        CloudSync.TurnOff();
+        SyncFolderBox.Text = "";
+        SyncPassBox.Password = "";
+        ShowSyncState(null, null);
+    }
+
+    private void ShowSyncState(string? summary, string? error)
+    {
+        SyncOffButton.IsEnabled = CloudSync.IsOn || AppSettings.SyncFolder is not null;
+        SyncStatusText.Text =
+            error is not null ? $"Sync failed: {error}" :
+            !CloudSync.IsOn ? "Sync is off." :
+            CloudSync.LastSynced is { } at ? $"Last synced {at:HH:mm}. {summary} File: {CloudSync.FilePath}" :
+            $"Syncs every few minutes. File: {CloudSync.FilePath}";
     }
 }

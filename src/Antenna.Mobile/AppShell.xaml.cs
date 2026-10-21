@@ -1,3 +1,4 @@
+using Antenna.Mobile.Services;
 using Antenna.Mobile.Views;
 
 namespace Antenna.Mobile;
@@ -10,5 +11,6 @@ public partial class AppShell : Shell
         Routing.RegisterRoute("player", typeof(PlayerPage));
         Routing.RegisterRoute("addplaylist", typeof(AddPlaylistPage));
         Routing.RegisterRoute("guidesearch", typeof(GuideSearchPage));
+        MobileSync.Start(Dispatcher);
     }
 }

@@ -98,6 +98,22 @@ internal static class AppSettings
         set => Set("subs.pass", Blank(value) is { } v ? new DpapiProtector().Protect(v) : null);
     }
 
+    /// <summary>The folder holding the sync file (e.g. inside Google Drive or OneDrive), or null when sync is off.</summary>
+    public static string? SyncFolder { get => Get("sync.folder"); set => Set("sync.folder", Blank(value)); }
+
+    /// <summary>Stored DPAPI-encrypted, like the OpenSubtitles password.</summary>
+    public static string? SyncPassphrase
+    {
+        get
+        {
+            var stored = Get("sync.pass");
+            if (stored is null) return null;
+            try { return new DpapiProtector().Unprotect(stored); }
+            catch (Exception) { return null; }
+        }
+        set => Set("sync.pass", string.IsNullOrEmpty(value) ? null : new DpapiProtector().Protect(value));
+    }
+
     public static string RecordingsFolder
     {
         get => Get("rec.folder") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "Antenna");

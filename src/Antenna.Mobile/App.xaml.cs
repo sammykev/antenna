@@ -12,5 +12,11 @@ public partial class App : Application
         Log.Info($"Started {AppInfo.VersionString} on Android {DeviceInfo.VersionString} ({DeviceInfo.Manufacturer} {DeviceInfo.Model})");
     }
 
+    protected override void OnResume()
+    {
+        base.OnResume();
+        _ = MobileSync.RunAsync();
+    }
+
     protected override Window CreateWindow(IActivationState? activationState) => new(new AppShell());
 }

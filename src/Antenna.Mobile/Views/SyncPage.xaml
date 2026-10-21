@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:Antenna.Mobile.Views"
+             x:Class="Antenna.Mobile.Views.SyncPage"
+             x:DataType="views:SyncPage"
+             Title="Sync with your PC">
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="14">
+            <Label TextColor="{StaticResource Muted}"
+                   Text="Keeps playlists, favourites and where you stopped films and episodes the same here and in Antenna on your PC, through one encrypted file in your Google Drive or OneDrive." />
+            <Label TextColor="{StaticResource Muted}" FontSize="13"
+                   Text="On the PC: Settings → Sync with your phone, choose a folder inside Google Drive or OneDrive, enter a passphrase and Sync now. Then here: enter the same passphrase and choose that file (Antenna sync.antenna)." />
+
+            <Entry x:Name="PassBox" Placeholder="Sync passphrase (the same on every device)" IsPassword="True" />
+
+            <Button Text="Use the file from my PC…" Clicked="OpenFile_Clicked" />
+            <Button Text="Create a new sync file…" Clicked="CreateFile_Clicked"
+                    BackgroundColor="{StaticResource Surface}" TextColor="White" />
+
+            <Label x:Name="FileText" FontAttributes="Bold" />
+            <Button x:Name="SyncNowButton" Text="Sync now" Clicked="SyncNow_Clicked" />
+            <ActivityIndicator x:Name="Busy" />
+            <Label x:Name="StatusText" TextColor="{StaticResource Muted}" />
+            <Button x:Name="OffButton" Text="Turn sync off" Clicked="Off_Clicked"
+                    BackgroundColor="Transparent" TextColor="{StaticResource Muted}" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

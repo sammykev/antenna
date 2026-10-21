@@ -7,6 +7,7 @@
              Title="Playlists">
     <ContentPage.ToolbarItems>
         <ToolbarItem Text="Add" Clicked="Add_Clicked" />
+        <ToolbarItem Text="Sync with PC" Order="Secondary" Clicked="Sync_Clicked" />
         <ToolbarItem Text="Refresh all" Order="Secondary" Clicked="RefreshAll_Clicked" />
         <ToolbarItem Text="Share log" Order="Secondary" Clicked="ShareLog_Clicked" />
     </ContentPage.ToolbarItems>

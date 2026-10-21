@@ -96,7 +96,11 @@ Built by `build.yml` (debug-signed artifact) and added to each GitHub release by
   minute. Guide search moved to a Live TV toolbar button: Android's bottom bar holds five tabs.)*
 - [ ] Home (continue watching, favourites on now), reminders as notifications, TMDB artwork for M3U films.
 - [ ] Picture-in-picture, Chromecast, timeshift, volume boost (libvlc volume above 100).
-- [ ] Move playlists between devices (export/import via `BackupService`).
+- [x] **Sync between PC and phone.** *(v0.1.15: `Core/Sync/SyncService`: one AES-256-GCM file (PBKDF2 passphrase) in the
+  user's Drive/OneDrive; three-way merge of playlists and favourites against a hash-only base kept in the store
+  (`sync.base`), latest-wins history. Windows: `Services/CloudSync` + Settings section (folder, DPAPI-stored passphrase).
+  Android: `Services/MobileSync` (Storage Access Framework document with a persisted permission, passphrase in
+  SecureStorage) + `Views/SyncPage`.)*
 - [ ] 16 KB page size: libvlc 3.6.5's native libraries aren't 16 KB aligned (build warning XA0141). Only Android 15+ devices
   with 16 KB pages need it; update VideoLAN.LibVLC.Android when a release fixes it.
 

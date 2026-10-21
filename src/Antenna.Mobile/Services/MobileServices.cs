@@ -24,6 +24,13 @@ public static class MobileServices
 
     static MobileServices() => Refresher.Saved += (_, _, _) => LibraryChanged?.Invoke();
 
+    /// <summary>Tells the pages to reload, e.g. after a sync changed favourites or playlists.</summary>
+    public static void NotifyChanged()
+    {
+        InvalidateNowPlaying();
+        LibraryChanged?.Invoke();
+    }
+
     /// <summary>What's on now, cached for a minute: the channel list asks for it on every page.</summary>
     public static Dictionary<(string SourceId, string ChannelId), Programme> NowPlaying()
     {

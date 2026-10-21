@@ -105,7 +105,22 @@ An early phone version (Android 8 or later) shares the Windows app's playlist, g
   sport and "My channels"; tap one to watch it
 - Full-screen player: swipe or ⏮/⏭ to change channel (or episode), seek bar and skip back 10 s / forward 30 s for
   films, now/next and this channel's guide, aspect and fill, favourites, auto-reconnect
-- M3U (link or file) and Xtream Codes playlists. Your playlists aren't shared with the Windows app yet: add them on the phone.
+- M3U (link or file) and Xtream Codes playlists
+- **Sync with the PC** (see below)
+
+### Sync between PC and phone
+
+Keeps playlists, favourites and where you stopped films and episodes the same on every device, through one file in
+your own Google Drive or OneDrive (no Antenna server involved). The file is encrypted (AES-256) with a passphrase you
+choose, so the playlist logins in it are safe.
+
+1. On the PC: **Settings → Sync with your phone**, choose a folder inside your Google Drive or OneDrive folder, enter a
+   passphrase and click **Sync now**. This creates `Antenna sync.antenna` there.
+2. On the phone: **Playlists → ⋮ → Sync with PC**, enter the same passphrase, tap **Use the file from my PC…** and pick
+   that file in Drive or OneDrive.
+
+After that both sync on start and every few minutes. Additions, changes and deletions carry over; if both devices
+changed the same playlist, the device syncing first wins.
 
 1. On the phone, open **[Releases](https://github.com/sammykev/antenna/releases/latest)** and download **Antenna-x.y.z.apk**.
 2. Open it and allow your browser to install apps when Android asks (it's not from the Play Store).

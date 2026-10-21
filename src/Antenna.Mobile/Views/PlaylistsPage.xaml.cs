@@ -44,6 +44,8 @@ public partial class PlaylistsPage : ContentPage
         Sources.ItemsSource = rows;
     }
 
+    private async void Sync_Clicked(object? sender, EventArgs e) => await Navigation.PushAsync(new SyncPage());
+
     private async void Add_Clicked(object? sender, EventArgs e) => await Shell.Current.GoToAsync("addplaylist");
 
     private async void Refresh_Clicked(object? sender, EventArgs e)

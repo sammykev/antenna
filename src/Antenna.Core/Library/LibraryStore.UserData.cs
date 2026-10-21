@@ -95,6 +95,20 @@ public sealed partial class LibraryStore
         }
     }
 
+    /// <summary>Every favourite's key, including ones whose playlist hasn't been loaded (yet) on this device.</summary>
+    public IReadOnlyList<(string SourceId, string ExternalId, MediaKind Kind)> GetFavouriteKeys()
+    {
+        lock (_gate)
+        {
+            using var cmd = Command("SELECT source_id, external_id, kind FROM favourites ORDER BY added DESC");
+            using var r = cmd.ExecuteReader();
+            var list = new List<(string, string, MediaKind)>();
+            while (r.Read())
+                list.Add((r.GetString(0), r.GetString(1), (MediaKind)r.GetInt32(2)));
+            return list;
+        }
+    }
+
     /// <summary>Favourites that still exist in their playlist, newest first.</summary>
     public IReadOnlyList<LibraryEntry> GetFavourites(MediaKind? kind = null)
     {
