@@ -41,10 +41,13 @@ public sealed class EspnFixtures(HttpClient http)
     /// <summary>Every feed's fixtures on one (local) day, in start order. Failed feeds are left out.</summary>
     public async Task<IReadOnlyList<Fixture>> GetDayAsync(DateOnly day, IEnumerable<FixtureFeed>? feeds = null, CancellationToken ct = default)
     {
-        var date = day.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
-        using var throttle = new SemaphoreSlim(6);
-        var tasks = (feeds ?? Feeds).Select(async feed =>
+        using var throttle = new SemaphoreSlim(8);
+        // The feed files games under their US date: an NBA game at 8pm in New York is the next morning
+        // in Lagos or London. Ask for the days either side too and keep what starts on this local day.
+        var requests = (feeds ?? Feeds).SelectMany(feed => FeedDays(day).Select(d => (feed, date: d.ToString("yyyyMMdd", CultureInfo.InvariantCulture))));
+        var tasks = requests.Select(async request =>
         {
+            var (feed, date) = request;
             await throttle.WaitAsync(ct);
             try
             {
@@ -71,6 +74,9 @@ public sealed class EspnFixtures(HttpClient http)
                   .OrderBy(f => f.Start).ThenBy(f => f.League, StringComparer.Ordinal)
                   .ToList();
     }
+
+    /// <summary>The feed dates that can hold games starting on this local day: the day and its neighbours.</summary>
+    internal static IEnumerable<DateOnly> FeedDays(DateOnly day) => [day.AddDays(-1), day, day.AddDays(1)];
 
     internal static IReadOnlyList<Fixture> Parse(JsonElement root, FixtureFeed feed)
     {

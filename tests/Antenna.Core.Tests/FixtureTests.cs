@@ -129,4 +129,57 @@ public sealed class FixtureTests : IDisposable
         var other = Forest() with { Home = "Arsenal", Away = "Chelsea", Name = "Chelsea at Arsenal" };
         Assert.False(FixtureMatcher.Find(_store, other).OnYourChannels);
     }
+
+    [Fact]
+    public void Tennis_falls_back_to_the_tournament_then_tennis_coverage()
+    {
+        SeedChannels(("1", "Sky Sports Tennis", "sst"), ("2", "Tennis Channel", null), ("3", "BBC One", "bbc1"));
+        using (var w = _store.BeginGuideImport("s"))
+        {
+            w.Add(new Programme { ChannelId = "sst", Title = "Live ATP Tennis: European Open", Start = Kickoff.AddHours(-1), Stop = Kickoff.AddHours(4) });
+            w.Commit();
+        }
+        var match = new Fixture
+        {
+            Id = "tennis/atp/m1", Sport = "Tennis", League = "ATP · BNP Paribas Fortis European Open", Start = Kickoff, State = FixtureState.Scheduled,
+            Name = "BNP Paribas Fortis European Open", Home = "Federico Cina", Away = "Joel Schwaerzler",
+        };
+
+        var found = FixtureMatcher.Find(_store, match);
+        Assert.True(found.IsCoverage);
+        Assert.Equal("Sky Sports Tennis", Assert.Single(found.Channels).Item.Title);
+        Assert.Equal("european open", FixtureMatcher.CoverageQueries(match)[0]);
+
+        // Off air: a channel given over to tennis is still offered.
+        var later = FixtureMatcher.Find(_store, match with { Start = Kickoff.AddDays(1) });
+        Assert.True(later.IsCoverage);
+        Assert.Contains(later.Channels, c => c.Item.Title == "Tennis Channel");
+    }
+
+    [Fact]
+    public void Us_sports_use_the_listed_network_then_league_channels()
+    {
+        SeedChannels(("1", "US: ESPN HD", null), ("2", "NBA TV", null), ("3", "BBC One", "bbc1"));
+        var game = new Fixture
+        {
+            Id = "basketball/nba/1", Sport = "Basketball", League = "NBA", Start = Kickoff, State = FixtureState.Scheduled,
+            Name = "Denver Nuggets at Oklahoma City Thunder", Home = "Oklahoma City Thunder", Away = "Denver Nuggets", Broadcasts = ["ESPN"],
+        };
+
+        var onNetwork = FixtureMatcher.Find(_store, game);
+        Assert.False(onNetwork.IsCoverage);
+        Assert.Equal("US: ESPN HD", Assert.Single(onNetwork.Channels).Item.Title);
+
+        var leagueOnly = FixtureMatcher.Find(_store, game with { Broadcasts = [] });
+        Assert.True(leagueOnly.IsCoverage);
+        Assert.Equal("NBA TV", Assert.Single(leagueOnly.Channels).Item.Title);
+    }
+
+    [Fact]
+    public void Asks_the_feed_for_the_days_either_side()
+    {
+        // A game filed under the US date of the 22nd can start on the 23rd in Lagos.
+        Assert.Equal([new DateOnly(2026, 10, 22), new DateOnly(2026, 10, 23), new DateOnly(2026, 10, 24)],
+            EspnFixtures.FeedDays(new DateOnly(2026, 10, 23)));
+    }
 }

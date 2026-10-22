@@ -304,7 +304,9 @@ public sealed partial class MatchesPage : Page
 
         var first = match.Channels[0];
         var more = match.Channels.Count - 1;
-        row.Channel.Text = $"On {first.Item.Title}{(more > 0 ? $" +{more}" : "")}{(match.Programme is { } p ? $"\n{p.Title}" : "")}";
+        // Coverage of the sport or tournament may be another game: say so rather than promise this one.
+        var lead = match.IsCoverage ? $"{f.Sport} coverage on" : "On";
+        row.Channel.Text = $"{lead} {first.Item.Title}{(more > 0 ? $" +{more}" : "")}{(match.Programme is { } p ? $"\n{p.Title}" : "")}";
         row.Channel.Opacity = 1;
 
         var soon = f.State == FixtureState.Live || f.Start - DateTimeOffset.Now < TimeSpan.FromMinutes(20);

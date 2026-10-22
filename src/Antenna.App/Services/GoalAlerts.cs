@@ -44,7 +44,7 @@ internal static class GoalAlerts
             foreach (var e in ScoreAlerts.Changes(Before, fixtures, teams))
             {
                 if (!Channels.TryGetValue(e.Fixture.Id, out var channel))
-                    Channels[e.Fixture.Id] = channel = await Task.Run(() => FixtureMatcher.Find(AppServices.Library, e.Fixture).Channels.FirstOrDefault());
+                    Channels[e.Fixture.Id] = channel = await Task.Run(() => FixtureMatcher.Find(AppServices.Library, e.Fixture) is { IsCoverage: false } m ? m.Channels.FirstOrDefault() : null);
                 Log.Info($"goal alerts: {e.Title}: {e.Text}");
                 var watch = e.Kind == ScoreEventKind.FullTime ? null : channel;
                 Reminders.Notify(e.Title, e.Text, watch?.Item.SourceId, watch?.Item.ExternalId, watch is null ? "Watch now" : $"Watch on {watch.Item.Title}");
