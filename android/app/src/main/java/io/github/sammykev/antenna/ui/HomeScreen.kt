@@ -102,7 +102,7 @@ fun HomeScreen(openDetails: (LibraryEntry) -> Unit, openPlaylists: () -> Unit, o
     val d = data
     LazyColumn(Modifier.fillMaxSize()) {
         item {
-            LargeHeader(greeting(), subtitle = d?.let { if (it.playlists == 1) "1 playlist" else "${it.playlists} playlists" }) {
+            LargeHeader(greeting(), subtitle = d?.playlists?.takeIf { it > 0 }?.let { if (it == 1) "1 playlist" else "$it playlists" }) {
                 IconButton(onClick = openGuideSearch) { Icon(Icons.Default.EventNote, "Search the guide") }
                 IconButton(onClick = openPlaylists) { Icon(Icons.Default.PlaylistPlay, "Playlists") }
             }
