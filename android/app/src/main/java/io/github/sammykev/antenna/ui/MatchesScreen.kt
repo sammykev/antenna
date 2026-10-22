@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -23,13 +24,11 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -101,7 +100,6 @@ fun MatchesScreen() {
     var followTick by remember { mutableIntStateOf(0) }
     var open by remember { mutableStateOf<Fixture?>(null) }
     var followedNote by remember { mutableStateOf<String?>(null) }
-    var sportMenu by remember { mutableStateOf(false) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val teams = remember(followTick) { ScoreAlerts.followed(Services.library) }
     val version by Services.libraryVersion.collectAsState()
@@ -181,20 +179,14 @@ fun MatchesScreen() {
             }) { Icon(Icons.Default.Refresh, "Refresh") }
         }
         ChipRow(days, day, { d -> when (d) { days[0] -> "Today"; days[1] -> "Tomorrow"; else -> d.format(DateTimeFormatter.ofPattern("EEE d MMM")) } }) { day = it }
+        // Sports as chips, like the days above (and Live events on Windows).
+        ChipRow(listOf(ALL_SPORTS) + EspnFixtures.feeds.map { it.sport }.distinct(), sport, { it }) {
+            sport = it
+            prefs.edit().putString("matches.sport", it).apply()
+        }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.weight(1f)) {
-                OutlinedButton(onClick = { sportMenu = true }) { Text(sport) }
-                DropdownMenu(sportMenu, { sportMenu = false }) {
-                    (listOf(ALL_SPORTS) + EspnFixtures.feeds.map { it.sport }.distinct()).forEach { s ->
-                        DropdownMenuItem(text = { Text(s) }, onClick = {
-                            sport = s
-                            sportMenu = false
-                            prefs.edit().putString("matches.sport", s).apply()
-                        })
-                    }
-                }
-            }
-            Text("My channels", Modifier.padding(end = 8.dp))
+            Spacer(Modifier.weight(1f))
+            Text("Only my channels", Modifier.padding(end = 8.dp))
             Switch(mine, { mine = it; prefs.edit().putBoolean("matches.mine", it).apply() })
         }
         Text(status, color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))

@@ -39,10 +39,15 @@
             </StackPanel>
         </Grid>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="16">
-            <SelectorBar x:Name="Days" SelectionChanged="Days_SelectionChanged" />
-            <ComboBox x:Name="SportFilter" MinWidth="180" VerticalAlignment="Center" SelectionChanged="SportFilter_SelectionChanged" />
-            <ToggleSwitch x:Name="MineOnly" OnContent="Only on my channels" OffContent="Only on my channels" VerticalAlignment="Center" Toggled="MineOnly_Toggled" />
+        <StackPanel Grid.Row="1" Spacing="8">
+            <StackPanel Orientation="Horizontal" Spacing="16">
+                <SelectorBar x:Name="Days" SelectionChanged="Days_SelectionChanged" />
+                <ToggleSwitch x:Name="MineOnly" OnContent="Only on my channels" OffContent="Only on my channels" VerticalAlignment="Center" Toggled="MineOnly_Toggled" />
+            </StackPanel>
+            <!-- Sports as chips, like Live events: the highlighted one is shown. -->
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled" HorizontalScrollMode="Enabled">
+                <StackPanel x:Name="SportChips" Orientation="Horizontal" Spacing="6" Padding="0,0,0,6" />
+            </ScrollViewer>
         </StackPanel>
 
         <ScrollViewer x:Name="Scroller" Grid.Row="2">

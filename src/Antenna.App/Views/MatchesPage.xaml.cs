@@ -52,8 +52,7 @@ public sealed partial class MatchesPage : Page
         var today = DateTime.Today;
         for (var i = 0; i < DaysAhead; i++)
             Days.Items.Add(new SelectorBarItem { Text = Ui.Day(today.AddDays(i)), Tag = i, IsSelected = i == 0 });
-        SportFilter.ItemsSource = new[] { "All sports" }.Concat(EspnFixtures.Feeds.Select(f => f.Sport).Distinct()).ToList();
-        SportFilter.SelectedIndex = 0;
+        BuildSportChips();
         _ready = true;
     }
 
@@ -453,7 +452,7 @@ public sealed partial class MatchesPage : Page
 
     private void ApplyFilters()
     {
-        var sport = SportFilter.SelectedIndex > 0 ? SportFilter.SelectedItem as string : null;
+        var sport = _sport;
         var mine = MineOnly.IsOn;
         var any = false;
         foreach (var (header, rows) in _groups)
@@ -490,10 +489,32 @@ public sealed partial class MatchesPage : Page
             _ = LoadAsync(force: false);
     }
 
-    private void SportFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    /// <summary>The sport shown, or null for all.</summary>
+    private string? _sport;
+
+    private void BuildSportChips()
     {
-        if (_ready)
-            ApplyFilters();
+        SportChips.Children.Clear();
+        foreach (var sport in new string?[] { null }.Concat(EspnFixtures.Feeds.Select(f => f.Sport).Distinct()))
+        {
+            var chip = new Button
+            {
+                Content = sport ?? "All sports",
+                CornerRadius = new CornerRadius(14),
+                Padding = new Thickness(14, 4, 14, 4),
+                Tag = sport,
+            };
+            if (sport == _sport)
+                chip.Style = (Style)Application.Current.Resources["AccentButtonStyle"];
+            chip.Click += (_, _) =>
+            {
+                _sport = sport;
+                BuildSportChips();
+                if (_ready)
+                    ApplyFilters();
+            };
+            SportChips.Children.Add(chip);
+        }
     }
 
     private void MineOnly_Toggled(object sender, RoutedEventArgs e)
