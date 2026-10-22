@@ -222,7 +222,7 @@ public sealed partial class PlayerPage
     {
         var live = behind <= LiveTolerance;
         LiveBadge.Text = live ? "● LIVE" : $"● −{Behind(behind)} · Go live";
-        LiveBadge.Foreground = new SolidColorBrush(live ? Microsoft.UI.ColorHelper.FromArgb(255, 0xFF, 0x5A, 0x5F) : Microsoft.UI.ColorHelper.FromArgb(255, 0xC8, 0xC8, 0xC8));
+        LiveBadge.Foreground = new SolidColorBrush(live ? Microsoft.UI.ColorHelper.FromArgb(255, 0xFF, 0x45, 0x3A) : Microsoft.UI.ColorHelper.FromArgb(255, 0xC8, 0xC8, 0xC8));
         ToolTipService.SetToolTip(LiveBadge, live ? null : "Back to live");
     }
 

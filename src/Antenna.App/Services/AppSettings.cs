@@ -29,6 +29,9 @@ internal static class AppSettings
     /// <summary>In Live TV with all playlists shown, list a channel once even if several playlists have it.</summary>
     public static bool MergeDuplicateChannels { get => Get("live.merge") != "0"; set => Set("live.merge", value ? "1" : "0"); }
 
+    /// <summary>Live TV plays the selected channel in a preview beside the list; a second click goes full screen.</summary>
+    public static bool LivePreview { get => Get("live.preview") != "0"; set => Set("live.preview", value ? "1" : "0"); }
+
     /// <summary>Bigger layout for a TV: 1.5× scale, maximised window, D-pad / arrow-key focus, B goes back.</summary>
     public static bool TvMode { get => Get("ui.tv") == "1"; set => Set("ui.tv", value ? "1" : "0"); }
 

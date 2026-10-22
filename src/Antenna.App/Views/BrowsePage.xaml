@@ -13,48 +13,149 @@
         </ResourceDictionary>
     </Page.Resources>
 
-    <Grid Padding="24,16,0,0" RowSpacing="12">
+    <!--
+        Categories on the left. Movies and series fill the rest with posters; Live TV shows a channel
+        list with what's on, and the selected channel playing in a preview on the right (UHF style).
+    -->
+    <Grid Padding="32,20,0,0" RowSpacing="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="240" />
+            <ColumnDefinition Width="232" />
             <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="PreviewColumn" Width="0" />
         </Grid.ColumnDefinitions>
 
-        <StackPanel Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16">
-            <TextBlock x:Name="Header" Style="{StaticResource TitleTextBlockStyle}" />
-            <ComboBox x:Name="SourceFilter" MinWidth="200" VerticalAlignment="Center"
-                      SelectionChanged="SourceFilter_SelectionChanged" />
-            <AutoSuggestBox x:Name="ItemSearch" Width="320" VerticalAlignment="Center" QueryIcon="Find"
-                            TextChanged="ItemSearch_TextChanged" QuerySubmitted="ItemSearch_QuerySubmitted" />
-            <StackPanel x:Name="ScopePanel" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center" Visibility="Collapsed">
-                <TextBlock x:Name="ScopeText" Opacity="0.7" VerticalAlignment="Center" />
-                <HyperlinkButton x:Name="WidenButton" Click="Widen_Click" Padding="4,0" />
+        <Grid Grid.ColumnSpan="3" ColumnSpacing="16" Margin="0,0,24,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock x:Name="Header" Style="{StaticResource LargeTitleStyle}" VerticalAlignment="Center" />
+            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center" Margin="16,0,0,0">
+                <AutoSuggestBox x:Name="ItemSearch" Width="300" QueryIcon="Find"
+                                TextChanged="ItemSearch_TextChanged" QuerySubmitted="ItemSearch_QuerySubmitted" />
+                <StackPanel x:Name="ScopePanel" Orientation="Horizontal" Spacing="4" Visibility="Collapsed">
+                    <TextBlock x:Name="ScopeText" Style="{StaticResource MutedTextStyle}" FontSize="14" VerticalAlignment="Center" />
+                    <HyperlinkButton x:Name="WidenButton" Click="Widen_Click" Padding="4,0" />
+                </StackPanel>
+                <ProgressRing x:Name="Busy" Width="20" Height="20" IsActive="False" />
             </StackPanel>
-            <ProgressRing x:Name="Busy" Width="20" Height="20" IsActive="False" VerticalAlignment="Center" />
-        </StackPanel>
+            <ComboBox x:Name="SourceFilter" Grid.Column="2" MinWidth="200" VerticalAlignment="Center"
+                      SelectionChanged="SourceFilter_SelectionChanged" ToolTipService.ToolTip="Which playlist to show" />
+        </Grid>
 
         <Grid Grid.Row="1" RowSpacing="8">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
-            <TextBox x:Name="GroupFilter" PlaceholderText="Find a category" Margin="0,0,12,0" TextChanged="GroupFilter_TextChanged" />
-            <ListView x:Name="Groups" Grid.Row="1" SelectionMode="Single" SelectionChanged="Groups_SelectionChanged"
-                      RightTapped="Groups_RightTapped" ToolTipService.ToolTip="Right-click a category to hide or lock it" />
+            <TextBox x:Name="GroupFilter" PlaceholderText="Find a category" Margin="0,0,12,0" CornerRadius="8" TextChanged="GroupFilter_TextChanged" />
+            <ListView x:Name="Groups" Grid.Row="1" SelectionMode="Single" SelectionChanged="Groups_SelectionChanged" Padding="0,0,8,16"
+                      RightTapped="Groups_RightTapped" ToolTipService.ToolTip="Right-click a category to pin, hide or lock it" />
         </Grid>
 
-        <GridView x:Name="Items" Grid.Row="1" Grid.Column="1" Padding="8,0,16,16"
+        <!-- Movies and series. -->
+        <GridView x:Name="Items" Grid.Row="1" Grid.Column="1" Padding="16,0,8,16"
                   IsItemClickEnabled="True" SelectionMode="None" ItemClick="Items_ItemClick"
-                  RightTapped="Items_RightTapped"
-                  ItemTemplate="{StaticResource ItemTileTemplate}" />
+                  RightTapped="Items_RightTapped" ItemContainerStyle="{StaticResource CardContainerStyle}"
+                  ItemTemplate="{StaticResource PosterTileTemplate}" />
 
-        <StackPanel x:Name="EmptyState" Grid.Row="1" Grid.Column="1" Visibility="Collapsed"
+        <!-- Live TV: click to preview, click again (or double-click / Enter) for full screen. -->
+        <ListView x:Name="ChannelList" Grid.Row="1" Grid.Column="1" Padding="8,0,8,16" Visibility="Collapsed"
+                  IsItemClickEnabled="True" SelectionMode="Single" ItemClick="Items_ItemClick"
+                  SelectionChanged="ChannelList_SelectionChanged" DoubleTapped="ChannelList_DoubleTapped"
+                  RightTapped="Items_RightTapped" ItemTemplate="{StaticResource ChannelRowTemplate}" />
+
+        <ScrollViewer x:Name="PreviewPane" Grid.Row="1" Grid.Column="2" Visibility="Collapsed" Padding="8,0,32,24">
+            <StackPanel Spacing="18">
+                <Grid x:Name="PreviewFrame" CornerRadius="{StaticResource CardRadius}" Background="Black"
+                      BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1" SizeChanged="PreviewFrame_SizeChanged"
+                      DoubleTapped="PreviewFrame_DoubleTapped">
+                    <Grid x:Name="PreviewHost" />
+                    <StackPanel x:Name="PreviewHint" VerticalAlignment="Center" HorizontalAlignment="Center" Spacing="8" RequestedTheme="Dark">
+                        <FontIcon Glyph="&#xE7F4;" FontSize="28" Foreground="#80FFFFFF" />
+                        <TextBlock x:Name="PreviewHintText" Text="Pick a channel to preview it" Foreground="#B3FFFFFF" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="280" />
+                    </StackPanel>
+                    <ProgressRing x:Name="PreviewBusy" Width="40" Height="40" IsActive="False" IsHitTestVisible="False" />
+                    <Border Background="#80000000" CornerRadius="10" Margin="10" Padding="8,3" HorizontalAlignment="Left" VerticalAlignment="Top"
+                            x:Name="PreviewLiveBadge" Visibility="Collapsed" IsHitTestVisible="False">
+                        <TextBlock Text="● LIVE" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource LiveBrush}" />
+                    </Border>
+                    <StackPanel Orientation="Horizontal" Spacing="6" Margin="10" HorizontalAlignment="Right" VerticalAlignment="Bottom" RequestedTheme="Dark">
+                        <Button x:Name="PreviewMute" Click="PreviewMute_Click" ToolTipService.ToolTip="Mute the preview" Background="#99000000" CornerRadius="8">
+                            <FontIcon x:Name="PreviewMuteIcon" Glyph="&#xE767;" FontSize="14" />
+                        </Button>
+                        <Button Click="PreviewFull_Click" ToolTipService.ToolTip="Watch full screen (Enter)" Background="#99000000" CornerRadius="8">
+                            <FontIcon Glyph="&#xE740;" FontSize="14" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel x:Name="PreviewInfo" Spacing="14" Visibility="Collapsed">
+                    <Grid ColumnSpacing="14">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Width="64" Height="40" CornerRadius="8" Background="{ThemeResource CardFillBrush}">
+                            <Image x:Name="PreviewLogo" Stretch="Uniform" Margin="6,4" />
+                        </Grid>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock x:Name="PreviewChannel" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="PreviewSource" Style="{StaticResource MutedTextStyle}" />
+                        </StackPanel>
+                    </Grid>
+
+                    <StackPanel x:Name="NowPanel" Spacing="6" Visibility="Collapsed">
+                        <TextBlock Text="NOW" FontSize="11" FontWeight="SemiBold" CharacterSpacing="120" Foreground="{StaticResource LiveBrush}" />
+                        <TextBlock x:Name="NowTitle" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" MaxLines="2" TextTrimming="WordEllipsis" />
+                        <Grid ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ProgressBar x:Name="NowProgress" Maximum="100" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NowTimes" Grid.Column="1" Style="{StaticResource MutedTextStyle}" />
+                        </Grid>
+                        <TextBlock x:Name="NowDescription" TextWrapping="Wrap" MaxLines="5" TextTrimming="WordEllipsis" Foreground="{ThemeResource MutedTextBrush}" />
+                    </StackPanel>
+
+                    <StackPanel x:Name="NextPanel" Spacing="4" Visibility="Collapsed">
+                        <TextBlock Text="NEXT" FontSize="11" FontWeight="SemiBold" CharacterSpacing="120" Foreground="{ThemeResource MutedTextBrush}" />
+                        <TextBlock x:Name="NextTitle" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+
+                    <TextBlock x:Name="NoGuideText" Text="No guide for this channel." Style="{StaticResource MutedTextStyle}" FontSize="14" Visibility="Collapsed" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="10">
+                        <Button Style="{StaticResource HeroButtonStyle}" Click="PreviewFull_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE768;" FontSize="14" />
+                                <TextBlock Text="Watch" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="PreviewFavourite" Style="{StaticResource PillButtonStyle}" Click="PreviewFavourite_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon x:Name="PreviewFavouriteIcon" Glyph="&#xE734;" FontSize="14" />
+                                <TextBlock x:Name="PreviewFavouriteText" Text="Favourite" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource PillButtonStyle}" Click="PreviewGuide_Click" ToolTipService.ToolTip="Open the guide">
+                            <FontIcon Glyph="&#xE787;" FontSize="14" />
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel x:Name="EmptyState" Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2" Visibility="Collapsed"
                     HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
             <TextBlock x:Name="EmptyTitle" Text="Nothing here yet" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
-            <TextBlock x:Name="EmptyDetail" Text="Add an M3U playlist or Xtream account in Playlists." Opacity="0.7" HorizontalAlignment="Center" />
+            <TextBlock x:Name="EmptyDetail" Text="Add an M3U playlist or Xtream account in Playlists." Style="{StaticResource MutedTextStyle}" FontSize="14" HorizontalAlignment="Center" />
             <Button x:Name="UnlockButton" Content="Enter PIN" HorizontalAlignment="Center" Visibility="Collapsed" Click="Unlock_Click" />
         </StackPanel>
     </Grid>

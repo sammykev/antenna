@@ -11,8 +11,8 @@ using GroupItem = Antenna.App.ViewModels.GroupItem;
 namespace Antenna.App.Views;
 
 /// <summary>
-/// Category list on the left, tiles on the right. Used for Live TV, Movies and Series.
-/// Tiles load a page at a time as you scroll, off the UI thread.
+/// Category list on the left; posters for Movies and Series, or for Live TV a channel list with the
+/// selected channel playing in a preview pane. Items load a page at a time as you scroll, off the UI thread.
 /// </summary>
 public sealed partial class BrowsePage : Page
 {
@@ -24,6 +24,10 @@ public sealed partial class BrowsePage : Page
     private List<GroupItem> _allGroups = [];
     private bool _searchAllCategories;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _searchTimer;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _previewTimer;
+    private LivePreview? _preview;
+    private ItemViewModel? _previewing;
+    private int _infoVersion;
 
     public BrowsePage()
     {
@@ -63,8 +67,44 @@ public sealed partial class BrowsePage : Page
         }
         Header.Text = KindName;
         ItemSearch.PlaceholderText = $"Search {KindName}";
-        Items.ItemTemplate = ItemTemplates.Get(_kind == MediaKind.Live ? "ItemTileTemplate" : "PosterTileTemplate");
+        SetLayout();
         LoadSources();
+    }
+
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        _ = StopPreviewAsync();
+    }
+
+    private bool IsLive => _kind == MediaKind.Live;
+
+    private bool PreviewOn => IsLive && AppSettings.LivePreview;
+
+    /// <summary>Where the items are shown: the channel list for Live TV, the poster grid otherwise.</summary>
+    private ListViewBase ItemsHost => IsLive ? ChannelList : Items;
+
+    private void SetLayout()
+    {
+        Items.Visibility = IsLive ? Visibility.Collapsed : Visibility.Visible;
+        ChannelList.Visibility = IsLive ? Visibility.Visible : Visibility.Collapsed;
+        (IsLive ? Items : ChannelList).ItemsSource = null;
+        PreviewPane.Visibility = PreviewOn ? Visibility.Visible : Visibility.Collapsed;
+        PreviewColumn.Width = PreviewOn ? new GridLength(1.1, GridUnitType.Star) : new GridLength(0);
+        ResetPreviewInfo();
+        if (PreviewOn && _preview is null)
+        {
+            // A fresh player each visit: the old one was released when the page was left.
+            _preview = new LivePreview();
+            _preview.Buffering += busy => PreviewBusy.IsActive = busy;
+            _preview.Failed += () =>
+            {
+                PreviewHintText.Text = "This channel isn't playing right now.";
+                PreviewHint.Visibility = Visibility.Visible;
+            };
+            PreviewHost.Children.Add(_preview);
+        }
+        UpdateMuteIcon();
     }
 
     private string KindName => _kind switch { MediaKind.Live => "Live TV", MediaKind.Movie => "Movies", _ => "Series" };
@@ -138,7 +178,7 @@ public sealed partial class BrowsePage : Page
 
         if (group.Locked && Parental.IsLocked)
         {
-            Items.ItemsSource = null;
+            ItemsHost.ItemsSource = null;
             ShowEmpty("This category is locked", "Enter the parental PIN to see it.", showUnlock: true);
             return;
         }
@@ -170,7 +210,7 @@ public sealed partial class BrowsePage : Page
             if (!any)
                 ShowEmpty("Nothing here yet", "Add an M3U playlist or Xtream account in Playlists.", showUnlock: false);
         };
-        Items.ItemsSource = list;
+        ItemsHost.ItemsSource = list;
     }
 
     private void ShowEmpty(string title, string detail, bool showUnlock)
@@ -247,7 +287,7 @@ public sealed partial class BrowsePage : Page
             var items = await GuideService.ToViewModelsAsync(entries, 1);
             if (version != _loadVersion)
                 return;
-            Items.ItemsSource = items;
+            ItemsHost.ItemsSource = items;
             ScopeText.Text = $"{items.Count:N0}{(items.Count == 500 ? "+" : "")} {(items.Count == 1 ? "match" : "matches")} in {(category is null ? $"all of {KindName}" : group!.Name)}";
             WidenButton.Content = $"Search all of {KindName}";
             WidenButton.Visibility = category is null ? Visibility.Collapsed : Visibility.Visible;
@@ -266,13 +306,183 @@ public sealed partial class BrowsePage : Page
         }
     }
 
-    private IReadOnlyList<ItemViewModel> LoadedItems => (Items.ItemsSource as IEnumerable<ItemViewModel>)?.ToList() ?? [];
+    private IReadOnlyList<ItemViewModel> LoadedItems => (ItemsHost.ItemsSource as IEnumerable<ItemViewModel>)?.ToList() ?? [];
 
+    /// <summary>With the preview on, the first click on a channel previews it and the second goes full screen.</summary>
     private void Items_ItemClick(object sender, ItemClickEventArgs e)
     {
-        if (e.ClickedItem is ItemViewModel vm)
-            Playback.Open(vm, LoadedItems);
+        if (e.ClickedItem is not ItemViewModel vm)
+            return;
+        if (PreviewOn && !ReferenceEquals(vm, _previewing))
+        {
+            ChannelList.SelectedItem = vm;
+            StartPreview(vm);
+            return;
+        }
+        _ = WatchAsync(vm);
     }
+
+    // ---- Live preview ----
+
+    private void ChannelList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (!PreviewOn || ChannelList.SelectedItem is not ItemViewModel vm || ReferenceEquals(vm, _previewing))
+            return;
+        // Arrowing through the list shows details at once but only tunes in when you stop on a channel.
+        ShowPreviewInfo(vm);
+        if (_previewTimer is null)
+        {
+            _previewTimer = DispatcherQueue.CreateTimer();
+            _previewTimer.Interval = TimeSpan.FromMilliseconds(450);
+            _previewTimer.IsRepeating = false;
+            _previewTimer.Tick += (_, _) =>
+            {
+                if (ChannelList.SelectedItem is ItemViewModel selected && !ReferenceEquals(selected, _previewing))
+                    StartPreview(selected);
+            };
+        }
+        _previewTimer.Stop();
+        _previewTimer.Start();
+    }
+
+    private void StartPreview(ItemViewModel vm)
+    {
+        _previewTimer?.Stop();
+        _previewing = vm;
+        ShowPreviewInfo(vm);
+        if (_preview is null || string.IsNullOrEmpty(vm.Item.StreamUrl))
+            return;
+        PreviewHint.Visibility = Visibility.Collapsed;
+        PreviewLiveBadge.Visibility = Visibility.Visible;
+        _preview.Play(PlayRequest.ForItem(vm.Item));
+    }
+
+    /// <summary>Full screen, after the preview has let go of its stream (many accounts allow only one).</summary>
+    private async Task WatchAsync(ItemViewModel vm)
+    {
+        var siblings = LoadedItems;
+        await StopPreviewAsync();
+        Playback.Open(vm, siblings);
+    }
+
+    private async Task StopPreviewAsync()
+    {
+        _previewTimer?.Stop();
+        _previewing = null;
+        if (_preview is not { } preview)
+            return;
+        _preview = null;
+        PreviewHost.Children.Clear();
+        await preview.ShutdownAsync();
+    }
+
+    private void ResetPreviewInfo()
+    {
+        _previewing = null;
+        PreviewInfo.Visibility = Visibility.Collapsed;
+        PreviewLiveBadge.Visibility = Visibility.Collapsed;
+        PreviewHintText.Text = "Pick a channel to preview it";
+        PreviewHint.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>The channel, what's on now with progress, and what's next.</summary>
+    private async void ShowPreviewInfo(ItemViewModel vm)
+    {
+        var version = ++_infoVersion;
+        PreviewInfo.Visibility = Visibility.Visible;
+        PreviewChannel.Text = vm.NumberText.Length > 0 ? $"{vm.NumberText}  {vm.Title}" : vm.Title;
+        PreviewSource.Text = string.IsNullOrEmpty(vm.Group) ? vm.SourceName : $"{vm.Group} · {vm.SourceName}";
+        PreviewLogo.Source = vm.Logo.Source;
+        UpdateFavourite(vm);
+        NowPanel.Visibility = NextPanel.Visibility = NoGuideText.Visibility = Visibility.Collapsed;
+
+        if (vm.Item.EpgChannelId is not { } channel)
+        {
+            NoGuideText.Visibility = Visibility.Visible;
+            return;
+        }
+        try
+        {
+            var (now, next) = await GuideService.NowAndNextAsync(vm.Item.SourceId, channel);
+            if (version != _infoVersion)
+                return;
+            if (now is not null)
+            {
+                NowTitle.Text = now.Title;
+                NowTimes.Text = $"{now.Start.LocalDateTime:HH:mm} – {now.Stop.LocalDateTime:HH:mm}";
+                NowProgress.Value = now.Duration.TotalSeconds > 0 ? Math.Clamp((DateTimeOffset.Now - now.Start) / now.Duration, 0, 1) * 100 : 0;
+                NowDescription.Text = now.Description ?? "";
+                NowDescription.Visibility = string.IsNullOrWhiteSpace(now.Description) ? Visibility.Collapsed : Visibility.Visible;
+                NowPanel.Visibility = Visibility.Visible;
+            }
+            if (next is not null)
+            {
+                NextTitle.Text = $"{next.Start.LocalDateTime:HH:mm}  {next.Title}";
+                NextPanel.Visibility = Visibility.Visible;
+            }
+            if (now is null && next is null)
+                NoGuideText.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "preview guide");
+        }
+    }
+
+    private void UpdateFavourite(ItemViewModel vm)
+    {
+        PreviewFavouriteIcon.Glyph = vm.IsFavourite ? "\uE735" : "\uE734";
+        PreviewFavouriteText.Text = vm.IsFavourite ? "Favourite" : "Add to favourites";
+    }
+
+    private void UpdateMuteIcon()
+    {
+        PreviewMuteIcon.Glyph = LivePreview.Muted ? "\uE74F" : "\uE767";
+        ToolTipService.SetToolTip(PreviewMute, LivePreview.Muted ? "Unmute the preview" : "Mute the preview");
+    }
+
+    private void PreviewFrame_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var height = Math.Round(e.NewSize.Width * 9 / 16);
+        if (Math.Abs(PreviewFrame.Height - height) > 0.5)
+            PreviewFrame.Height = height;
+    }
+
+    private void PreviewFrame_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e) => PreviewFull_Click(sender, e);
+
+    private void ChannelList_DoubleTapped(object sender, DoubleTappedRoutedEventArgs e)
+    {
+        if ((e.OriginalSource as FrameworkElement)?.DataContext is ItemViewModel vm)
+            _ = WatchAsync(vm);
+    }
+
+    private void PreviewFull_Click(object sender, RoutedEventArgs e)
+    {
+        if ((_previewing ?? ChannelList.SelectedItem as ItemViewModel) is { } vm)
+            _ = WatchAsync(vm);
+    }
+
+    private void PreviewMute_Click(object sender, RoutedEventArgs e)
+    {
+        var muted = !LivePreview.Muted;
+        if (_preview is { } preview)
+            preview.SetMuted(muted);
+        else
+            LivePreview.Muted = muted;
+        UpdateMuteIcon();
+    }
+
+    private void PreviewFavourite_Click(object sender, RoutedEventArgs e)
+    {
+        if ((_previewing ?? ChannelList.SelectedItem as ItemViewModel) is not { } vm)
+            return;
+        var on = !vm.IsFavourite;
+        AppServices.Library.SetFavourite(vm.Item, on);
+        vm.IsFavourite = on;
+        UpdateFavourite(vm);
+    }
+
+    private void PreviewGuide_Click(object sender, RoutedEventArgs e) => App.Window.Open("guide");
 
     private void Items_RightTapped(object sender, RightTappedRoutedEventArgs e) =>
         ItemMenu.OnRightTapped(sender, e, LoadedItems);

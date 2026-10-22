@@ -36,6 +36,7 @@ public sealed partial class SettingsPage : Page
         SplashToggle.IsOn = AppSettings.ShowSplash;
         TvToggle.IsOn = AppSettings.TvMode;
         MergeToggle.IsOn = AppSettings.MergeDuplicateChannels;
+        PreviewToggle.IsOn = AppSettings.LivePreview;
         CachingBox.Value = AppSettings.NetworkCachingMs;
         HardwareToggle.IsOn = AppSettings.HardwareDecoding;
         TimeshiftToggle.IsOn = AppSettings.Timeshift;
@@ -147,6 +148,12 @@ public sealed partial class SettingsPage : Page
             return;
         AppSettings.Theme = ThemeChoice.SelectedIndex switch { 1 => "light", 2 => "dark", _ => "system" };
         App.Window.ApplyTheme();
+    }
+
+    private void Preview_Toggled(object sender, RoutedEventArgs e)
+    {
+        if (!_loading)
+            AppSettings.LivePreview = PreviewToggle.IsOn;
     }
 
     private void Merge_Toggled(object sender, RoutedEventArgs e)
