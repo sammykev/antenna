@@ -112,7 +112,7 @@ public sealed partial class AddPlaylistDialog : ContentDialog
             error = "The playlist URL is not valid.";
         else if (Kind == 2 && !IsValidServer(location))
             error = "The server address is not valid.";
-        else if (Kind == 2 && (UserBox.Text.Trim().Length == 0 || PasswordBox.Password.Length == 0))
+        else if (Kind == 2 && (UserBox.Text.Trim().Length == 0 || PasswordBox.Password.Trim().Length == 0))
             error = "Enter the username and password from your provider.";
 
         if (error is not null)
@@ -141,7 +141,7 @@ public sealed partial class AddPlaylistDialog : ContentDialog
             Kind = Kind == 2 ? SourceKind.Xtream : SourceKind.M3u,
             Location = location,
             Username = Kind == 2 ? UserBox.Text.Trim() : null,
-            Password = Kind == 2 ? PasswordBox.Password : null,
+            Password = Kind == 2 ? PasswordBox.Password.Trim() : null,
             EpgUrl = string.IsNullOrWhiteSpace(EpgBox.Text) ? null : EpgBox.Text.Trim(),
             Color = (ColorChoice.SelectedItem as Ellipse)?.Tag as string ?? Palette[0],
         };

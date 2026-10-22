@@ -24,8 +24,9 @@ public sealed class XtreamClient
     {
         _http = http;
         _base = NormalizeServer(serverUrl);
-        _user = username;
-        _pass = password;
+        // Pasted logins often carry a stray space or line break, which panels count as part of the name.
+        _user = username.Trim();
+        _pass = password.Trim();
     }
 
     public static XtreamClient For(HttpClient http, PlaylistSource source)
@@ -316,7 +317,8 @@ public sealed class XtreamClient
         try
         {
             using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
-            response.EnsureSuccessStatusCode();
+            if (!response.IsSuccessStatusCode)
+                throw Failure((int)response.StatusCode, await response.Content.ReadAsStringAsync(ct));
             await using var stream = await response.Content.ReadAsStreamAsync(ct);
             return await JsonDocument.ParseAsync(stream, cancellationToken: ct);
         }
@@ -328,6 +330,42 @@ public sealed class XtreamClient
         {
             throw new XtreamException("The server returned something that is not Xtream JSON. Check the server URL.", ex);
         }
+    }
+
+    /// <summary>
+    /// Panels say why they refused in the body ({"error":{"message":"`x` login username doesn't exist"}}),
+    /// so that is shown rather than a bare status code.
+    /// </summary>
+    internal static XtreamException Failure(int code, string? body)
+    {
+        string? reason = null;
+        var authZero = false;
+        try
+        {
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(body) ? "null" : body);
+            var root = doc.RootElement;
+            if (root.ValueKind == JsonValueKind.Object)
+            {
+                if (root.TryGetProperty("error", out var error) && error.ValueKind == JsonValueKind.Object
+                    && error.TryGetProperty("message", out var m) && m.ValueKind == JsonValueKind.String)
+                    reason = m.GetString();
+                else if (root.TryGetProperty("message", out var m2) && m2.ValueKind == JsonValueKind.String)
+                    reason = m2.GetString();
+                authZero = root.TryGetProperty("user_info", out var info) && info.ValueKind == JsonValueKind.Object
+                           && info.TryGetProperty("auth", out var auth) && auth.ToString() == "0";
+            }
+        }
+        catch (JsonException)
+        {
+        }
+        var refused = code is 401 or 403 || authZero;
+        return new XtreamException((refused, string.IsNullOrWhiteSpace(reason)) switch
+        {
+            (true, false) => $"The server refused the login: {reason!.Replace("`", "", StringComparison.Ordinal)}. Check the username and password.",
+            (true, true) => "The server refused the login. Check the username and password, and that the subscription is still active.",
+            (false, false) => $"The Xtream server answered {code}: {reason}",
+            _ => $"The Xtream server answered {code}.",
+        });
     }
 
     private static string Esc(string value) => Uri.EscapeDataString(value);

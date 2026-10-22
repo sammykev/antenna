@@ -121,4 +121,22 @@ public class XtreamClientTests
 
         await Assert.ThrowsAsync<XtreamException>(() => client.AuthenticateAsync());
     }
+
+    [Fact]
+    public void A_refused_login_shows_the_panels_reason()
+    {
+        var e = XtreamClient.Failure(401, """{"error":{"type":2,"code":1,"message":"`x` login username doesn't exist"}}""");
+        Assert.Equal("The server refused the login: x login username doesn't exist. Check the username and password.", e.Message);
+        Assert.StartsWith("The server refused the login. Check", XtreamClient.Failure(403, "<html/>").Message);
+        Assert.Equal("The Xtream server answered 502.", XtreamClient.Failure(502, "").Message);
+    }
+
+    [Fact]
+    public async Task Spaces_around_the_login_are_ignored()
+    {
+        var handler = new FakeHandler(_ => """{"user_info":{"auth":1,"status":"Active"}}""");
+        var client = new XtreamClient(new HttpClient(handler), "host:8080", " user ", "pass \n");
+        await client.AuthenticateAsync();
+        Assert.Contains("username=user&password=pass", handler.Requests.Single().Query);
+    }
 }

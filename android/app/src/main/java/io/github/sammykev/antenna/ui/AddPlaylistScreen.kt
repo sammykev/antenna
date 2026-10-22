@@ -80,7 +80,7 @@ fun AddPlaylistScreen(back: () -> Unit, done: () -> Unit) {
             type == 1 && file == null -> "Choose a playlist file."
             type != 1 && !(location.trim().startsWith("http://") || location.trim().startsWith("https://")) && !(type == 2 && location.isNotBlank()) ->
                 "Enter the full link, starting with http:// or https://."
-            type == 2 && (user.isBlank() || pass.isEmpty()) -> "Enter your username and password."
+            type == 2 && (user.isBlank() || pass.isBlank()) -> "Enter your username and password."
             else -> null
         }
         if (error != null) return
@@ -103,7 +103,7 @@ fun AddPlaylistScreen(back: () -> Unit, done: () -> Unit) {
                         kind = if (type == 2) SourceKind.Xtream else SourceKind.M3u,
                         location = loc.trimEnd('/'),
                         username = if (type == 2) user.trim() else null,
-                        password = if (type == 2) pass else null,
+                        password = if (type == 2) pass.trim() else null,
                         epgUrl = epg.trim().ifEmpty { null },
                         color = colours[existing % colours.size],
                     ).also { Services.library.saveSource(it) }

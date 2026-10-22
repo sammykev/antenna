@@ -21,7 +21,10 @@ data class XtreamAccount(val status: String, val expiresAt: Long?, val maxConnec
  * Client for the Xtream Codes "player_api.php" API most IPTV panels expose (XtreamClient.cs). Responses are loosely
  * typed, so every field goes through tolerant helpers.
  */
-class XtreamClient(private val http: OkHttpClient, serverUrl: String, private val user: String, private val pass: String) {
+class XtreamClient(private val http: OkHttpClient, serverUrl: String, user: String, pass: String) {
+    // Pasted logins often carry a stray space or line break, which panels count as part of the name.
+    private val user = user.trim()
+    private val pass = pass.trim()
     private val base = normalizeServer(serverUrl)
 
     companion object {
@@ -144,7 +147,7 @@ class XtreamClient(private val http: OkHttpClient, serverUrl: String, private va
         val url = "$base/player_api.php?username=${escapeData(user)}&password=${escapeData(pass)}&action=$action"
         try {
             http.newCall(Request.Builder().url(url).build()).execute().use { response ->
-                if (!response.isSuccessful) throw XtreamException("The Xtream server answered ${response.code}.")
+                if (!response.isSuccessful) throw failure(response.code, response.body?.string())
                 val stream = response.body?.byteStream() ?: return emptyList()
                 // Some panels answer an empty list as {} or nothing at all, and some start with a byte-order mark.
                 val input = java.io.BufferedInputStream(stream)
@@ -167,12 +170,28 @@ class XtreamClient(private val http: OkHttpClient, serverUrl: String, private va
         }
     }
 
+    /**
+     * Panels say why they refused in the body ({"error":{"message":"`x` login username doesn't exist"}}, or
+     * user_info.auth = 0), so that is shown rather than a bare status code.
+     */
+    private fun failure(code: Int, body: String?): XtreamException {
+        val root = runCatching { json.parseToJsonElement(body ?: "") }.getOrNull()
+        val reason = (root?.obj("error") as? JsonObject)?.str("message") ?: (root as? JsonObject)?.str("message")
+        val refused = code == 401 || code == 403 || (root?.obj("user_info") as? JsonObject)?.int("auth") == 0
+        return XtreamException(when {
+            refused && !reason.isNullOrBlank() -> "The server refused the login: ${reason.replace("`", "")}. Check the username and password."
+            refused -> "The server refused the login. Check the username and password, and that the subscription is still active."
+            !reason.isNullOrBlank() -> "The Xtream server answered $code: $reason"
+            else -> "The Xtream server answered $code."
+        })
+    }
+
     private fun get(action: String?): JsonElement {
         var url = "$base/player_api.php?username=${escapeData(user)}&password=${escapeData(pass)}"
         if (action != null) url += "&action=$action"
         val body = try {
             http.newCall(Request.Builder().url(url).build()).execute().use { response ->
-                if (!response.isSuccessful) throw XtreamException("The Xtream server answered ${response.code}.")
+                if (!response.isSuccessful) throw failure(response.code, response.body?.string())
                 response.body?.string() ?: ""
             }
         } catch (e: IOException) {

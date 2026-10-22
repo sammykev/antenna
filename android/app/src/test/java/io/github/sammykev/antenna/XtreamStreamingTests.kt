@@ -55,4 +55,20 @@ class XtreamStreamingTests {
         server.start()
         assertEquals(listOf("Show"), client.getSeries("s").map { it.title })
     }
+
+    @Test
+    fun aRefusedLoginShowsThePanelsReason() {
+        server.route("/player_api.php?username=u&password=p", status = 401,
+            body = """{"error":{"type":2,"code":1,"message":"`x` login username doesn't exist"}}""".toByteArray())
+        server.start()
+        val e = runCatching { client.authenticate() }.exceptionOrNull()
+        assertEquals("The server refused the login: x login username doesn't exist. Check the username and password.", e?.message)
+    }
+
+    @Test
+    fun spacesAroundTheLoginAreIgnored() {
+        server.route("/player_api.php?username=u&password=p", body = """{"user_info":{"auth":1,"status":"Active"}}""".toByteArray())
+        server.start()
+        assertEquals("Active", XtreamClient(OkHttpClient(), server.base, " u ", "p\n").authenticate().status)
+    }
 }
