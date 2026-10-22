@@ -13,3 +13,6 @@ AppPackages/
 # Android release keystore: never commit it.
 *.keystore
 *.jks
+
+# Python cache from the design skill
+__pycache__/
