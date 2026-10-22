@@ -78,6 +78,7 @@ import io.github.sammykev.antenna.Log
 import io.github.sammykev.antenna.PlayItem
 import io.github.sammykev.antenna.Playback
 import io.github.sammykev.antenna.Services
+import io.github.sammykev.antenna.data.LiveDrift
 import io.github.sammykev.antenna.data.MediaKind
 import io.github.sammykev.antenna.data.Programme
 import io.github.sammykev.antenna.data.WatchRecord
@@ -138,6 +139,8 @@ class PlayerActivity : ComponentActivity() {
     private var guide by mutableStateOf<List<Programme>?>(null)
     private var failedHard by mutableStateOf(false)
     private var casting by mutableStateOf<RendererItem?>(null)
+    private val drift = LiveDrift()
+    private var lastCatchUp = 0L
     private val renderers = mutableStateListOf<RendererItem>()
     private var castPicker by mutableStateOf(false)
     private var hideAt = 0L
@@ -228,7 +231,10 @@ class PlayerActivity : ComponentActivity() {
         val media = Media(vlc, Uri.parse(next.url))
         media.setHWDecoderEnabled(true, false)
         media.addOption(":network-caching=1500")
+        // HLS channels otherwise start 15 seconds back from the live edge.
+        if (next.isLive) media.addOption(":adaptive-livedelay=6000")
         next.options.forEach(media::addOption)
+        drift.reset()
         player.media = media
         media.release()
         player.play()
@@ -329,8 +335,22 @@ class PlayerActivity : ComponentActivity() {
             ticks++
             if (controls && System.currentTimeMillis() > hideAt && guide == null && seeking == null && !failedHard && !castPicker) controls = false
             if (ticks % 15 == 0 && playing) saveProgress()
+            if (ticks % 2 == 0) checkLiveEdge()
             if (ticks % 30 == 0) refreshNowNext()
         }
+    }
+
+    /**
+     * Every stall to rebuffer leaves live TV further behind. Once it's more than [LiveDrift.MAX_BEHIND] behind, reconnect:
+     * the stream picks up at its live edge, keeping what the app adds well under 25 seconds.
+     */
+    private fun checkLiveEdge() {
+        val current = item ?: return
+        if (!playing || !current.isLive || casting != null || System.currentTimeMillis() - lastCatchUp < 20_000) return
+        if (!drift.shouldCatchUp(Instant.now(), player.time)) return
+        Log.info("Live: fell behind after stalls, reconnecting at the live edge")
+        lastCatchUp = System.currentTimeMillis()
+        play(current, resume = false)
     }
 
     private suspend fun refreshNowNext() {
@@ -511,7 +531,11 @@ class PlayerActivity : ComponentActivity() {
                     when {
                         failedHard || !playing && player.playerState in listOf(org.videolan.libvlc.interfaces.IMedia.State.Stopped,
                             org.videolan.libvlc.interfaces.IMedia.State.Ended, org.videolan.libvlc.interfaces.IMedia.State.Error) -> { attempts = 0; play(current) }
-                        else -> player.pause()
+                        else -> {
+                            // Resuming after a pause on purpose: count lag from here, don't jump.
+                            if (!playing) drift.reset()
+                            player.pause()
+                        }
                     }
                     showControls()
                 }

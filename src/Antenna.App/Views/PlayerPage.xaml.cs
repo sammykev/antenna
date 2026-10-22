@@ -1,6 +1,7 @@
 using System.Globalization;
 using Antenna.App.Services;
 using Antenna.App.ViewModels;
+using Antenna.Core.Playback;
 using LibVLCSharp.Platforms.Windows;
 using LibVLCSharp.Shared;
 using Microsoft.UI.Dispatching;
@@ -29,6 +30,12 @@ public sealed partial class PlayerPage : Page
     private readonly DispatcherQueueTimer _historyTimer;
     private readonly DispatcherQueueTimer _numberTimer;
     private readonly DispatcherQueueTimer _infoTimer;
+    private readonly DispatcherQueueTimer _liveTimer;
+    private readonly LiveDrift _drift = new();
+    private DateTimeOffset _lastCatchUp;
+
+    /// <summary>The viewer paused or rewound on purpose: don't pull them back to live.</summary>
+    private bool _userBehind;
     private LibVLC? _vlc;
     private MediaPlayer? _player;
     private RendererDiscoverer? _discoverer;
@@ -60,6 +67,7 @@ public sealed partial class PlayerPage : Page
         _infoTimer = Timer(TimeSpan.FromSeconds(5), () => InfoPanel.Visibility = Visibility.Collapsed);
         _historyTimer = Timer(TimeSpan.FromSeconds(10), SaveProgress, repeat: true);
         _numberTimer = Timer(TimeSpan.FromSeconds(1.5), CommitTypedNumber);
+        _liveTimer = Timer(TimeSpan.FromSeconds(2), CheckLiveEdge, repeat: true);
 
         // Gamepad/remote buttons. Added in code: XAML can't parse the Gamepad* key names.
         AddKey(VirtualKey.GamepadRightShoulder, () => Zap(+1));
@@ -125,7 +133,7 @@ public sealed partial class PlayerPage : Page
         base.OnNavigatedFrom(e);
         SaveProgress();
         _closing = true;
-        foreach (var timer in new[] { _hideTimer, _historyTimer, _numberTimer, _infoTimer })
+        foreach (var timer in new[] { _hideTimer, _historyTimer, _numberTimer, _infoTimer, _liveTimer })
             timer.Stop();
         _statsTimer?.Stop();
         if (App.Window.IsFullScreen)
@@ -209,6 +217,8 @@ public sealed partial class PlayerPage : Page
             return;
 
         BufferingRing.IsActive = true;
+        _drift.Reset();
+        _userBehind = false;
         var options = BaseOptions(request);
         if (UseTimeshift(request))
         {
@@ -227,6 +237,9 @@ public sealed partial class PlayerPage : Page
             ":http-reconnect",
             AppSettings.HardwareDecoding ? ":avcodec-hw=any" : ":avcodec-hw=none",
         };
+        // HLS channels otherwise start 15 seconds back from the live edge.
+        if (request.IsLive)
+            options.Add($":adaptive-livedelay={LiveHlsDelayMs}");
         if (AppSettings.NormaliseVolume)
             options.Add(":audio-filter=normvol");
         options.AddRange(request.Options);
@@ -253,6 +266,10 @@ public sealed partial class PlayerPage : Page
     private void OnPlaying()
     {
         _retry = 0;
+        if (_request?.IsLive == true)
+            _liveTimer.Start();
+        else
+            _liveTimer.Stop();
         BufferingRing.IsActive = false;
         StatusPanel.Visibility = Visibility.Collapsed;
         SetPlayIcon(playing: true);
@@ -445,6 +462,39 @@ public sealed partial class PlayerPage : Page
             Load(r.WithChannel(index));
     }
 
+    // ---- Staying near live ----
+
+    /// <summary>How far back from the live edge HLS channels start (VLC's default is 15 s).</summary>
+    private const int LiveHlsDelayMs = 6000;
+
+    /// <summary>
+    /// Every stall to rebuffer leaves live TV further behind. Once it's more than <see cref="LiveDrift.MaxBehind"/>
+    /// behind, jump back to live (pause/rewind buffer) or reconnect (direct streams start at the live edge).
+    /// </summary>
+    private void CheckLiveEdge()
+    {
+        if (_player is not { IsPlaying: true } player || _request is not { IsLive: true } || _userBehind || _closing)
+            return;
+        var now = DateTimeOffset.Now;
+        if (now - _lastCatchUp < TimeSpan.FromSeconds(20))
+            return;
+        if (_timeshift is { Input: { } input } ts)
+        {
+            var behind = ts.Buffer.BehindLive(input.Position);
+            if (behind <= LiveDrift.MaxBehind)
+                return;
+            Log.Info($"live: {Behind(behind)} behind after stalls, back to live");
+            _lastCatchUp = now;
+            GoLive();
+            return;
+        }
+        if (!_drift.ShouldCatchUp(now, player.Time))
+            return;
+        Log.Info("live: fell behind after stalls, reconnecting at the live edge");
+        _lastCatchUp = now;
+        Start();
+    }
+
     // ---- Controls ----
 
     private void TogglePause()
@@ -452,11 +502,20 @@ public sealed partial class PlayerPage : Page
         if (_player is not { } p)
             return;
         if (p.IsPlaying)
+        {
             p.SetPause(true);
+            // Paused live TV with pause/rewind resumes where it left off: that's wanted, not lag to correct.
+            _userBehind = _timeshift is not null;
+        }
         else if (p.Media is null || p.State is VLCState.Ended or VLCState.Stopped or VLCState.Error)
+        {
             Start();
+        }
         else
+        {
             p.SetPause(false);
+            _drift.Reset();
+        }
     }
 
     private void ToggleFullScreen()

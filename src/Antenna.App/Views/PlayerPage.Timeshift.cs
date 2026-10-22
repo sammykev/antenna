@@ -123,6 +123,8 @@ public sealed partial class PlayerPage
         if (behind <= LiveTolerance)
             behind = LiveStartBehind;
         var target = ts.Buffer.OffsetBehindLive(behind);
+        // Rewound on purpose: stay there. Back at live: keep it live.
+        _userBehind = behind > LiveTolerance;
         Log.Info($"timeshift: jump to {Behind(ts.Buffer.BehindLive(target))} behind live");
         PlayFrom(ts, target, player, vlc, BaseOptions(request));
         return true;

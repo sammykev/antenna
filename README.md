@@ -25,11 +25,15 @@ Xtream Codes login). It doesn't include or find any content itself.
 - When a live channel keeps failing, Antenna switches to the same channel on another of your playlists (or pick one: Picture and sound → Watch on another playlist)
 - Playback speed for VOD, mini player (always on top), full screen, auto-reconnect
 - Cast to Chromecast devices on your network
-- **Matches**: today's and the next days' fixtures with live scores (Premier League, Champions League, La Liga, Bundesliga, Serie A, NBA, NFL, NHL, tennis, F1, UFC and more, from ESPN's public scoreboard), each matched to your own channels with **Watch**, **Remind me**, **Record** and **Add to multi-view** (when the guide doesn't name the match, the listed network, tournament or sport coverage at the time, or a channel given over to the sport is offered, labelled as coverage); filter by sport or to what's on your channels; plus your own **Links** to websites
+- **Matches**: today's and the next days' fixtures with live scores (Premier League, Champions League, La Liga, Bundesliga, Serie A, NBA, NFL, NHL, tennis, F1, UFC and more, from ESPN's public scoreboard), each matched to your own channels with **Watch**, **Remind me**, **Record** and **Add to multi-view** (when the guide doesn't name the match, the listed network, tournament or sport coverage at the time, or a channel given over to the sport is offered, labelled as coverage). **Watch checks the channel is really broadcasting** first and moves on to the next one listing the match if it isn't; filter by sport or to what's on your channels; plus your own **Links** to websites
 - **Live events search**: type “man utd vs man city”, “NBA”, “Wimbledon” or tap a sport chip; finds live and upcoming matches across every guide (nicknames like *utd*, *spurs*, *psg* understood) and per-event channels; tick several and **watch them together**
 - **Multi-view**: up to four matches playing at once; the selected tile is the main screen (slightly larger, the only one with sound) while the others keep playing silently; click a tile or press 1–4 to switch, Page Up/Down changes its channel; the channel picker lists every channel or every match for your search; drag a tile onto another to swap them; save the current tiles as a **preset** ("Saturday football") and reopen them in one click
 - **Picture-in-picture**: pop the player into a small always-on-top window (P) and keep browsing; double-click it to come back
 - Streams that need a particular user agent or referrer (`#EXTVLCOPT`, `url|User-Agent=…`) now play
+
+**Staying live** (Windows and Android): HLS channels start near the live edge, and when stalls to rebuffer leave live TV
+more than 12 seconds behind, the player catches back up to live by itself (unless you paused or rewound on purpose). What
+the app adds stays well under 25 seconds; any delay the provider's stream already has can't be removed.
 
 **Guide and catch-up**
 - XMLTV guide (.xml / .xml.gz), matched to channels by id then by name
@@ -112,13 +116,16 @@ A native Kotlin app for phones (Android 8 or later) with the same playlists, gui
 - **Matches**: today's and the next two days' fixtures with live scores, matched to your channels, filtered by day,
   sport and "My channels"; tap one to watch it. When the guide doesn't name a match (common for tennis and US
   sports), coverage of the tournament or sport on at the time, the listed network, or a channel given over to the
-  sport is offered instead, labelled as coverage
+  sport is offered instead, labelled as coverage. Watch checks the channel is really broadcasting first and moves on to the next one if
+  it isn't
 - Full-screen player: swipe or ⏮/⏭ to change channel (or episode), seek bar and skip back 10 s / forward 30 s for
   films, now/next and this channel's guide, aspect and fill, favourites, auto-reconnect
 - **Picture-in-picture**: press Home while something plays (or tap ⧉) and it keeps playing in a small window
 - **Chromecast**: tap Cast in the player to play on a Chromecast or Google TV on the same Wi-Fi
 - **Goal alerts**: on Matches, tap a match and follow a team: notifications at kick-off, for each goal and at full
   time, with Watch to open the channel, even with Antenna closed (the PC app alerts while it's open)
+- Playlists and guides refresh themselves every 12 hours while the app is open; very large catalogues load without
+  running the phone out of memory
 - M3U (link or file) and Xtream Codes playlists
 - **Sync with the PC** (see below)
 
