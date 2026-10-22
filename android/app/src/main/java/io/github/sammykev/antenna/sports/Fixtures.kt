@@ -59,6 +59,9 @@ class EspnFixtures(private val http: OkHttpClient) {
         private const val BASE = "https://site.api.espn.com/apis/site/v2/sports/"
         private val json = Json { ignoreUnknownKeys = true }
 
+        /** The feed dates that can hold games starting on this local day: the day and its neighbours. */
+        fun feedDays(day: LocalDate) = listOf(day.minusDays(1), day, day.plusDays(1))
+
         val feeds = listOf(
             FixtureFeed("soccer/eng.1", "Football", "Premier League"),
             FixtureFeed("soccer/uefa.champions", "Football", "Champions League"),
@@ -156,10 +159,12 @@ class EspnFixtures(private val http: OkHttpClient) {
 
     /** Every feed's fixtures on one local day, in start order. Failed feeds are left out. */
     fun getDay(day: LocalDate, feeds: List<FixtureFeed> = EspnFixtures.feeds): List<Fixture> {
-        val date = day.format(DateTimeFormatter.BASIC_ISO_DATE)
-        val pool = Executors.newFixedThreadPool(6)
+        val pool = Executors.newFixedThreadPool(8)
         try {
-            val tasks = feeds.map { feed ->
+            // The feed files games under their US date: an NBA game at 8pm in New York is the next morning in Lagos or
+            // London. Ask for the days either side too and keep what starts on this local day.
+            val requests = feeds.flatMap { feed -> feedDays(day).map { feed to it.format(DateTimeFormatter.BASIC_ISO_DATE) } }
+            val tasks = requests.map { (feed, date) ->
                 pool.submit(Callable {
                     try {
                         http.newCall(Request.Builder().url("$BASE${feed.path}/scoreboard?dates=$date").build()).execute().use { r ->
@@ -171,7 +176,6 @@ class EspnFixtures(private val http: OkHttpClient) {
                 })
             }
             val zone = ZoneId.systemDefault()
-            // The feed's "day" is US time; keep what starts on this local day.
             return tasks.flatMap { it.get() }
                 .filter { it.start.atZone(zone).toLocalDate() == day }
                 .distinctBy { it.id }
@@ -182,14 +186,23 @@ class EspnFixtures(private val http: OkHttpClient) {
     }
 }
 
-/** A fixture and where to watch it in your own playlists. */
-data class FixtureMatch(val fixture: Fixture, val channels: List<LibraryEntry>, val programme: Programme?) {
+/**
+ * A fixture and where to watch it in your own playlists. [isCoverage]: the channels show this sport or tournament around
+ * kick-off ("ATP Tennis", "NBA TV") but the guide doesn't name this exact match, so it may be another game.
+ */
+data class FixtureMatch(
+    val fixture: Fixture,
+    val channels: List<LibraryEntry>,
+    val programme: Programme?,
+    val isCoverage: Boolean = false,
+) {
     val onYourChannels get() = channels.isNotEmpty()
 }
 
 /**
- * Finds a fixture on the user's channels (FixtureMatcher.cs): guide programmes around kick-off whose title names both
- * sides, or per-event channels named after the match. Several searches are tried, most specific first.
+ * Finds a fixture on the user's channels (FixtureMatcher.cs), most certain first: guide programmes around kick-off that
+ * name both sides, per-event channels named after the match, channels of the networks the feed lists, then coverage of
+ * the tournament or sport on air at the time, or channels given over to it.
  */
 object FixtureMatcher {
     private val generic = setOf(
@@ -235,7 +248,62 @@ object FixtureMatcher {
                 if (channels.isNotEmpty()) return FixtureMatch(f, channels, null)
             }
         }
+        // The networks the feed lists ("ESPN", "TNT"), when the playlist has them.
+        for (network in f.broadcasts.filter { it.length >= 3 }.take(3)) {
+            val channels = store.search(network, MediaKind.Live, 4)
+                .filter { TextMatch.fold(it.item.title).contains(TextMatch.fold(network)) }
+            if (channels.isNotEmpty()) return FixtureMatch(f, channels, null)
+        }
+        // Coverage of the tournament or sport on air around the start ("ATP Tennis: European Open").
+        for (query in coverageQueries(f)) {
+            val onAir = store.searchEvents(query, from, to, 20)
+                .filter { it.programme.stop.isAfter(f.start.plus(Duration.ofMinutes(10))) && it.programme.start.isBefore(f.start.plus(Duration.ofMinutes(30))) }
+            if (onAir.isNotEmpty()) {
+                val channels = onAir.flatMap { it.channels }.distinctBy { it.item.sourceId to it.item.externalId }.take(8)
+                return FixtureMatch(f, channels, onAir[0].programme, isCoverage = true)
+            }
+        }
+        // Channels given over to the sport ("Tennis Channel", "NBA TV", "F1 TV").
+        for (name in channelNames(f)) {
+            val channels = store.search(name, MediaKind.Live, 6)
+            if (channels.isNotEmpty()) return FixtureMatch(f, channels, null, isCoverage = true)
+        }
         return FixtureMatch(f, emptyList(), null)
+    }
+
+    /** Searches for coverage that may not name this match: the tournament (tennis, races, fight nights), then the sport. */
+    fun coverageQueries(f: Fixture): List<String> {
+        val queries = mutableListOf<String>()
+        if (f.sport == "Tennis" || f.sport == "Motorsport" || f.sport == "MMA") {
+            // "BNP Paribas Fortis European Open" → "european open"; sponsors come first, the name last.
+            val words = words(f.name).filter { it !in generic && it.length >= 3 }
+            if (words.size >= 2) queries += words.takeLast(2).joinToString(" ")
+        }
+        queries += when (f.feedPath) {
+            "tennis/atp" -> listOf("atp tennis", "atp", "tennis")
+            "tennis/wta" -> listOf("wta tennis", "wta", "tennis")
+            "basketball/nba" -> listOf("nba")
+            "football/nfl" -> listOf("nfl")
+            "hockey/nhl" -> listOf("nhl")
+            "baseball/mlb" -> listOf("mlb")
+            "racing/f1" -> listOf("formula 1", "f1", "grand prix")
+            "mma/ufc" -> listOf("ufc")
+            // Football names both teams, found above; the league is the fallback.
+            else -> if (f.sport == "Football") listOf(f.league) else emptyList()
+        }
+        return queries.distinct()
+    }
+
+    /** Names of channels dedicated to the fixture's sport or competition. */
+    fun channelNames(f: Fixture): List<String> = when (f.feedPath) {
+        "tennis/atp", "tennis/wta" -> listOf("tennis")
+        "basketball/nba" -> listOf("nba")
+        "football/nfl" -> listOf("nfl")
+        "hockey/nhl" -> listOf("nhl")
+        "baseball/mlb" -> listOf("mlb")
+        "racing/f1" -> listOf("f1", "formula 1")
+        "mma/ufc" -> listOf("ufc")
+        else -> emptyList()
     }
 
     /** Up to two words that identify a team: "Nottingham Forest" → nottingham, forest. */

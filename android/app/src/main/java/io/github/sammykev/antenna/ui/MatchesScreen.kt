@@ -243,6 +243,8 @@ private fun MatchCard(f: Fixture, match: FixtureMatch?, followed: Boolean, onCli
             Text(when {
                 match == null -> "Looking on your channels…"
                 !match.onYourChannels -> if (f.broadcasts.isNotEmpty()) "Not on your channels (TV: ${f.broadcasts.take(2).joinToString()})" else "Not on your channels"
+                // Coverage of the sport or tournament may be another game: say so rather than promise this one.
+                match.isCoverage -> "▶ ${f.sport} coverage on ${match.channels[0].item.title}" + if (match.channels.size > 1) " +${match.channels.size - 1}" else ""
                 else -> "▶ ${match.channels[0].item.title}" + if (match.channels.size > 1) " +${match.channels.size - 1}" else ""
             }, color = if (match?.onYourChannels == true) Accent else Muted, style = MaterialTheme.typography.bodySmall, maxLines = 1,
                 overflow = TextOverflow.Ellipsis)
