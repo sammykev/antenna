@@ -101,6 +101,8 @@ public sealed partial class MainWindow : Window
         AppTitleBar.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    public void HideNotice() => Notice.IsOpen = false;
+
     public void ShowNotice(InfoBarSeverity severity, string message)
     {
         Notice.ActionButton = null;

@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
@@ -54,6 +55,8 @@ import io.github.sammykev.antenna.Log
 import io.github.sammykev.antenna.Playback
 import io.github.sammykev.antenna.Services
 import io.github.sammykev.antenna.alerts.ScoreAlertScheduler
+import io.github.sammykev.antenna.data.LibraryEntry
+import io.github.sammykev.antenna.data.StreamProbe
 import io.github.sammykev.antenna.sports.EspnFixtures
 import io.github.sammykev.antenna.sports.Fixture
 import io.github.sammykev.antenna.sports.FixtureMatch
@@ -71,8 +74,9 @@ import java.time.format.DateTimeFormatter
 
 private const val ALL_SPORTS = "All sports"
 
-/** Matches found on your channels, kept across visits (the guide rarely changes within a session). */
+/** Matches found on your channels, kept across visits until the library changes (a refreshed guide). */
 private val found = mutableMapOf<String, FixtureMatch>()
+private var foundForVersion = -1
 
 /**
  * Today's and the next days' fixtures with live scores (ESPN's public scoreboard), each matched to your own channels,
@@ -100,8 +104,35 @@ fun MatchesScreen() {
     var sportMenu by remember { mutableStateOf(false) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val teams = remember(followTick) { ScoreAlerts.followed(Services.library) }
+    val version by Services.libraryVersion.collectAsState()
+    var checking by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(day, reload) {
+    /** Plays the chosen channel if it's really broadcasting, otherwise the next of the match's channels that is. */
+    fun watchChecked(match: FixtureMatch, chosen: LibraryEntry) {
+        if (checking != null) return
+        checking = chosen.item.title
+        scope.launch {
+            val order = listOf(chosen) + match.channels.filter { it !== chosen }
+            val (onAir, dark) = withContext(Dispatchers.IO) { StreamProbe.firstOnAir(Services.http, order, Duration.ofSeconds(8)) }
+            checking = null
+            val toast = { text: String -> android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_LONG).show() }
+            if (onAir == null) {
+                toast(if (dark.size == 1) "${chosen.item.title} isn't broadcasting right now. Try again closer to the start."
+                      else "None of the ${dark.size} channels listing ${match.fixture.title} are broadcasting right now.")
+                return@launch
+            }
+            open = null
+            if (dark.isNotEmpty()) toast("${dark.joinToString { it.item.title }} wasn't broadcasting, so playing ${onAir.item.title}.")
+            Playback.playItems(context, listOf(onAir.item), 0)
+        }
+    }
+
+    LaunchedEffect(day, reload, version) {
+        // A refreshed guide can find matches the old one couldn't.
+        if (foundForVersion != version) {
+            found.clear()
+            foundForVersion = version
+        }
         busy = true
         status = "Loading fixtures…"
         fixtures = withContext(Dispatchers.IO) { feed.getDay(day) }
@@ -196,8 +227,14 @@ fun MatchesScreen() {
                     Text("Not on your channels" + if (f.broadcasts.isNotEmpty()) " (on TV: ${f.broadcasts.joinToString()})." else ".", color = Muted)
                 if (match?.isCoverage == true)
                     Text("Your guide doesn't name this match. These channels show ${f.sport.lowercase()} around then, so it may be another game.", color = Muted)
+                checking?.let { name ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
+                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Text("Checking $name is broadcasting…", color = Muted, modifier = Modifier.padding(start = 10.dp))
+                    }
+                }
                 match?.channels?.take(6)?.forEach { c ->
-                    TextButton(onClick = { open = null; Playback.playItems(context, listOf(c.item), 0) }) { Text("▶ Watch on ${c.item.title}") }
+                    TextButton(enabled = checking == null, onClick = { watchChecked(match, c) }) { Text("▶ Watch on ${c.item.title}") }
                 }
                 for (team in listOfNotNull(f.home, f.away)) {
                     val followed = ScoreAlerts.isFollowed(Services.library, team)
