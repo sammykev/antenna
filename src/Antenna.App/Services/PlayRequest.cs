@@ -27,6 +27,15 @@ public sealed record PlayRequest(string Title, string Url, bool IsLive)
 
     internal MediaItem? Item { get; init; }
 
+    /// <summary>
+    /// For a match: its other channels, in order. If this one isn't broadcasting (fails or shows nothing), the player
+    /// moves on to the next by itself.
+    /// </summary>
+    public IReadOnlyList<MediaItem> Fallbacks { get; init; } = [];
+
+    /// <summary>The match being watched ("Machac vs Khachanov"), for messages about its channels.</summary>
+    public string? MatchTitle { get; init; }
+
     public static PlayRequest ForItem(MediaItem item, IReadOnlyList<MediaItem>? channels = null)
     {
         var list = item.Kind == MediaKind.Live ? channels ?? [item] : [];

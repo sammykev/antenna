@@ -58,7 +58,6 @@ import io.github.sammykev.antenna.Playback
 import io.github.sammykev.antenna.Services
 import io.github.sammykev.antenna.alerts.ScoreAlertScheduler
 import io.github.sammykev.antenna.data.LibraryEntry
-import io.github.sammykev.antenna.data.StreamProbe
 import io.github.sammykev.antenna.sports.EspnFixtures
 import io.github.sammykev.antenna.sports.Fixture
 import io.github.sammykev.antenna.sports.FixtureMatch
@@ -115,31 +114,15 @@ fun MatchesScreen() {
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val teams = remember(followTick) { ScoreAlerts.followed(Services.library) }
     val version by Services.libraryVersion.collectAsState()
-    var checking by remember { mutableStateOf<String?>(null) }
     var liveOnly by remember { mutableStateOf(false) }
-    /** Shown as a pop-up when Watch found none of the match's channels broadcasting. */
-    var notBroadcasting by remember { mutableStateOf<Pair<String, String>?>(null) }
 
-    /** Plays the chosen channel if it's really broadcasting, otherwise the next of the match's channels that is. */
-    fun watchChecked(match: FixtureMatch, chosen: LibraryEntry) {
-        if (checking != null) return
-        checking = chosen.item.title
-        scope.launch {
-            val order = listOf(chosen) + match.channels.filter { it !== chosen }
-            val (onAir, dark) = withContext(Dispatchers.IO) { StreamProbe.firstOnAir(Services.http, order, Duration.ofSeconds(8)) }
-            checking = null
-            val toast = { text: String -> android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_LONG).show() }
-            if (onAir == null) {
-                notBroadcasting = match.fixture.title to (if (dark.size == 1)
-                    "${chosen.item.title} isn't broadcasting right now. It may start closer to kick-off, so try again then."
-                else "None of the ${dark.size} channels listing this match are broadcasting right now (${dark.joinToString { it.item.title }}). " +
-                    "They may start closer to kick-off, so try again then.")
-                return@launch
-            }
-            open = null
-            if (dark.isNotEmpty()) toast("${dark.joinToString { it.item.title }} wasn't broadcasting, so playing ${onAir.item.title}.")
-            Playback.playItems(context, listOf(onAir.item), 0)
-        }
+    /**
+     * Plays the chosen channel with the match's other channels behind it: the player checks each is really broadcasting
+     * and moves on to the next by itself if it isn't, saying so if none are.
+     */
+    fun watch(match: FixtureMatch, chosen: LibraryEntry) {
+        open = null
+        Playback.playMatch(context, listOf(chosen.item) + match.channels.filter { it !== chosen }.map { it.item }, match.fixture.title)
     }
 
     LaunchedEffect(day, reload, version) {
@@ -240,12 +223,6 @@ fun MatchesScreen() {
         }
     }
 
-    notBroadcasting?.let { (title, text) ->
-        AlertDialog(onDismissRequest = { notBroadcasting = null }, title = { Text("Not broadcasting yet") },
-            text = { Text("$title\n\n$text") },
-            confirmButton = { TextButton(onClick = { notBroadcasting = null }) { Text("OK") } })
-    }
-
     open?.let { f ->
         val match = matches[f.id]
         ModalBottomSheet(onDismissRequest = { open = null }) {
@@ -259,14 +236,8 @@ fun MatchesScreen() {
                     Text("Not on your channels" + if (f.broadcasts.isNotEmpty()) " (on TV: ${f.broadcasts.joinToString()})." else ".", color = Muted)
                 if (match?.isCoverage == true)
                     Text("Your guide doesn't name this match. These channels show ${f.sport.lowercase()} around then, so it may be another game.", color = Muted)
-                checking?.let { name ->
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Text("Checking $name is broadcasting…", color = Muted, modifier = Modifier.padding(start = 10.dp))
-                    }
-                }
                 match?.channels?.take(6)?.forEach { c ->
-                    TextButton(enabled = checking == null, onClick = { watchChecked(match, c) }) {
+                    TextButton(onClick = { watch(match, c) }) {
                         // Each channel with what its guide says it's showing, so it's clear they're all this match.
                         Column {
                             Text("▶ Watch on ${c.item.title}")

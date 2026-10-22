@@ -43,13 +43,25 @@ object Playback {
 
     val current get() = queue.getOrNull(index)
 
-    fun play(context: Context, queue: List<PlayItem>, index: Int) {
+    /**
+     * Set when a match is being watched: the queue is its channels, and the player moves on to the next by itself when
+     * one isn't broadcasting (fails or shows nothing).
+     */
+    var matchTitle: String? = null
+        private set
+
+    fun play(context: Context, queue: List<PlayItem>, index: Int, matchTitle: String? = null) {
+        this.matchTitle = matchTitle
         this.queue = queue
         this.index = index.coerceIn(0, (queue.size - 1).coerceAtLeast(0))
         context.startActivity(Intent(context, PlayerActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP))
     }
 
     fun playItems(context: Context, items: List<MediaItem>, index: Int) = play(context, items.map(PlayItem::of), index)
+
+    /** Watches a match on [channels], the chosen one first; the player checks each is broadcasting. */
+    fun playMatch(context: Context, channels: List<MediaItem>, title: String) =
+        play(context, channels.map { PlayItem.of(it).copy(subtitle = title) }, 0, title)
 
     /**
      * Plays a history entry: a film or episode from where it was left (the player resumes from history), a channel

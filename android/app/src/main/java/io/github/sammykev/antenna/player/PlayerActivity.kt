@@ -140,6 +140,9 @@ class PlayerActivity : ComponentActivity() {
     private var failedHard by mutableStateOf(false)
     private var casting by mutableStateOf<RendererItem?>(null)
     private val drift = LiveDrift()
+    private var startTimeout: Job? = null
+    /** Shown when none of a match's channels would play. */
+    private var noneBroadcasting by mutableStateOf<String?>(null)
     private var lastCatchUp = 0L
     private val renderers = mutableStateListOf<RendererItem>()
     private var castPicker by mutableStateOf(false)
@@ -238,6 +241,12 @@ class PlayerActivity : ComponentActivity() {
         player.media = media
         media.release()
         player.play()
+        // Watching a match: this channel must be playing within 15 seconds, or the next one is tried.
+        startTimeout?.cancel()
+        if (Playback.matchTitle != null) startTimeout = lifecycleScope.launch {
+            delay(15_000)
+            if (!playing && item == next) nextMatchChannel()
+        }
         if (next.isLive) lifecycleScope.launch(Dispatchers.IO) { remember(next, 0, 0) }
         showControls()
     }
@@ -246,6 +255,7 @@ class PlayerActivity : ComponentActivity() {
         when (event.type) {
             MediaPlayer.Event.Playing -> {
                 playing = true
+                startTimeout?.cancel()
                 attempts = 0
                 status = casting?.let { "Casting to ${it.displayName}" }
                 if (resumeAt > 0) {
@@ -287,6 +297,8 @@ class PlayerActivity : ComponentActivity() {
     private fun failed(what: String) {
         val current = item ?: return
         playing = false
+        // A match's channel that won't play: move straight on to its next channel.
+        if (Playback.matchTitle != null && current.isLive && nextMatchChannel()) return
         Log.info("$what (${current.title}, attempt ${attempts + 1})")
         attempts++
         if (attempts > MAX_ATTEMPTS || !current.isLive && attempts > 2) {
@@ -301,6 +313,27 @@ class PlayerActivity : ComponentActivity() {
             delay(minOf(2000L * attempts, 8000L))
             if (item == current) play(current)
         }
+    }
+
+    /** Moves on to the match's next channel, or says none are broadcasting. False when there's none left. */
+    private fun nextMatchChannel(): Boolean {
+        val match = Playback.matchTitle ?: return false
+        val skipped = item?.title ?: "That channel"
+        startTimeout?.cancel()
+        if (Playback.index + 1 >= Playback.queue.size) {
+            Log.info("None of the channels for $match are broadcasting")
+            player.stop()
+            noneBroadcasting = if (Playback.queue.size == 1) "$skipped isn't broadcasting $match right now. It may start closer to kick-off, so try again then."
+                else "None of the ${Playback.queue.size} channels listing $match are broadcasting right now (${Playback.queue.joinToString { it.title }}). " +
+                    "They may start closer to kick-off, so try again then."
+            return true
+        }
+        Playback.index++
+        attempts = 0
+        Log.info("$skipped isn't broadcasting $match, trying ${Playback.current?.title}")
+        play(Playback.current)
+        status = "$skipped isn't broadcasting it. Trying ${Playback.current?.title}…"
+        return true
     }
 
     private fun step(delta: Int) {
@@ -462,6 +495,11 @@ class PlayerActivity : ComponentActivity() {
 
     @Composable
     private fun Screen() {
+        noneBroadcasting?.let { text ->
+            AlertDialog(onDismissRequest = { noneBroadcasting = null; finish() }, title = { Text("Not broadcasting yet") },
+                text = { Text(text) },
+                confirmButton = { TextButton(onClick = { noneBroadcasting = null; finish() }) { Text("OK") } })
+        }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             AndroidView({ videoLayout }, Modifier.fillMaxSize())
             // Taps and swipes over the video.

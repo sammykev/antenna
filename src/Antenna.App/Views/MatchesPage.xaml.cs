@@ -3,7 +3,6 @@ using Antenna.App.Services;
 using Antenna.App.ViewModels;
 using Antenna.Core;
 using Antenna.Core.Recordings;
-using Antenna.Core.Playback;
 using Antenna.Core.Sports;
 using Microsoft.UI;
 using Microsoft.UI.Dispatching;
@@ -399,51 +398,34 @@ public sealed partial class MatchesPage : Page
         if (match.Channels.Count == 1)
         {
             var watch = new Button { Content = "Watch", Style = (Style)Application.Current.Resources["AccentButtonStyle"] };
-            watch.Click += async (_, _) => await WatchCheckedAsync(watch, match, first);
+            watch.Click += (_, _) => Watch(match, first);
             return watch;
         }
         // Several channels show it: Watch plays the first that's broadcasting; the arrow lists them all.
         var split = new SplitButton { Content = "Watch" };
-        split.Click += async (_, _) => await WatchCheckedAsync(split, match, first);
+        split.Click += (_, _) => Watch(match, first);
         var menu = new MenuFlyout();
         foreach (var c in match.Channels)
             // Each channel with what its guide says it's showing, so it's clear they're all this match.
-            menu.Items.Add(ItemMenu.Item($"{c.Item.Title} · {match.ProgrammeOn(c)?.Title ?? c.SourceName}", "", async () => await WatchCheckedAsync(split, match, c)));
+            menu.Items.Add(ItemMenu.Item($"{c.Item.Title} · {match.ProgrammeOn(c)?.Title ?? c.SourceName}", "", () => Watch(match, c)));
         split.Flyout = menu;
         return split;
     }
 
     /// <summary>
-    /// Plays the chosen channel if it's really broadcasting; otherwise the next of the match's channels that is.
-    /// Guides often list a match on a channel that's dark or showing a slate.
+    /// Plays the chosen channel, with the match's other channels behind it: the player checks it's really broadcasting
+    /// and moves on to the next by itself if it isn't (guides often list a match on a channel that's dark).
     /// </summary>
-    private static async Task WatchCheckedAsync(Control button, FixtureMatch match, LibraryEntry chosen)
+    private static void Watch(FixtureMatch match, LibraryEntry chosen)
     {
-        if (!button.IsEnabled)
-            return;
-        List<LibraryEntry> order = [chosen, .. match.Channels.Where(c => !ReferenceEquals(c, chosen))];
-        button.IsEnabled = false;
-        App.Window.ShowNotice(InfoBarSeverity.Informational, $"Checking {chosen.Item.Title} is broadcasting…");
-        try
+        var others = match.Channels.Where(c => !ReferenceEquals(c, chosen)).Select(c => c.Item).ToList();
+        App.Window.HideNotice();
+        Playback.Play(PlayRequest.ForItem(chosen.Item) with
         {
-            var (onAir, dark) = await StreamProbe.FirstOnAirAsync(AppServices.Http, order, TimeSpan.FromSeconds(8));
-            if (onAir is null)
-            {
-                App.Window.ShowNotice(InfoBarSeverity.Warning, dark.Count == 1
-                    ? $"{chosen.Item.Title} isn't broadcasting right now. Try again closer to the start."
-                    : $"None of the {dark.Count} channels listing {match.Fixture.Title} are broadcasting right now. Try again closer to the start.");
-                return;
-            }
-            if (dark.Count > 0)
-                App.Window.ShowNotice(InfoBarSeverity.Informational, $"{string.Join(", ", dark.Select(d => d.Item.Title))} wasn't broadcasting, so playing {onAir.Item.Title}.");
-            else
-                App.Window.HideNotice();
-            Playback.Play(PlayRequest.ForItem(onAir.Item) with { Title = $"{onAir.Item.Title} · {match.Fixture.Title}" });
-        }
-        finally
-        {
-            button.IsEnabled = true;
-        }
+            Title = $"{chosen.Item.Title} · {match.Fixture.Title}",
+            Fallbacks = others,
+            MatchTitle = match.Fixture.Title,
+        });
     }
 
     private Button RemindButton(Row row, FixtureMatch match)

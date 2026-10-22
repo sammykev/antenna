@@ -133,6 +133,7 @@ public sealed partial class PlayerPage : Page
         base.OnNavigatedFrom(e);
         SaveProgress();
         _closing = true;
+        _startTimer?.Stop();
         foreach (var timer in new[] { _hideTimer, _historyTimer, _numberTimer, _infoTimer, _liveTimer })
             timer.Stop();
         _statsTimer?.Stop();
@@ -217,6 +218,7 @@ public sealed partial class PlayerPage : Page
             return;
 
         BufferingRing.IsActive = true;
+        ArmStartTimer();
         _drift.Reset();
         _userBehind = false;
         var options = BaseOptions(request);
@@ -266,6 +268,7 @@ public sealed partial class PlayerPage : Page
     private void OnPlaying()
     {
         _retry = 0;
+        _startTimer?.Stop();
         if (_request?.IsLive == true)
             _liveTimer.Start();
         else
@@ -337,12 +340,17 @@ public sealed partial class PlayerPage : Page
     private async void OnStreamFailed()
     {
         BufferingRing.IsActive = false;
+        // A match's channel that won't play: move straight on to its next channel.
+        if (_request is { IsLive: true, Fallbacks.Count: > 0 } && TryNextMatchChannel())
+            return;
         // A live channel that keeps failing: try the same channel from another playlist.
         if (_request is { IsLive: true } && _retry >= 2 && TrySwitchSource(automatic: true))
             return;
         if (_retry >= RetryDelays.Length)
         {
-            ShowStatus("This stream is unavailable. Try again later or pick another channel.");
+            ShowStatus(_request?.MatchTitle is { } match
+                ? $"None of the channels listing {match} are broadcasting right now. Try again closer to the start."
+                : "This stream is unavailable. Try again later or pick another channel.");
             ControlsPanel.Visibility = Visibility.Visible;
             return;
         }
