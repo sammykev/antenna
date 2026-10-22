@@ -170,7 +170,12 @@ public sealed partial class PlayerPage : Page
         _player.Playing += (_, _) => OnUi(OnPlaying);
         _player.Paused += (_, _) => OnUi(() => SetPlayIcon(playing: false));
         _player.Stopped += (_, _) => OnUi(() => SetPlayIcon(playing: false));
-        _player.Buffering += (_, a) => OnUi(() => BufferingRing.IsActive = a.Cache < 100f);
+        _player.Buffering += (_, a) => OnUi(() =>
+        {
+            BufferingRing.IsActive = a.Cache < 100f;
+            if (a.Cache > 0)
+                _sawData = true;
+        });
         _player.LengthChanged += (_, a) => OnUi(() => OnLengthChanged(a.Length));
         _player.TimeChanged += (_, a) => OnUi(() => OnTimeChanged(a.Time));
         _player.EncounteredError += (_, _) => OnUi(OnStreamFailed);
@@ -340,8 +345,9 @@ public sealed partial class PlayerPage : Page
     private async void OnStreamFailed()
     {
         BufferingRing.IsActive = false;
-        // A match's channel that won't play: move straight on to its next channel.
-        if (_request is { IsLive: true, Fallbacks.Count: > 0 } && TryNextMatchChannel())
+        // A match's channel that won't play: try it once more (the error may only be the account's connection limit),
+        // then move on to its next channel.
+        if (_request is { IsLive: true, Fallbacks.Count: > 0 } && _retry >= 1 && TryNextMatchChannel())
             return;
         // A live channel that keeps failing: try the same channel from another playlist.
         if (_request is { IsLive: true } && _retry >= 2 && TrySwitchSource(automatic: true))

@@ -141,6 +141,8 @@ class PlayerActivity : ComponentActivity() {
     private var casting by mutableStateOf<RendererItem?>(null)
     private val drift = LiveDrift()
     private var startTimeout: Job? = null
+    /** Set when the stream has sent something (buffering), so a slow channel isn't mistaken for a dark one. */
+    private var sawData = false
     /** Shown when none of a match's channels would play. */
     private var noneBroadcasting by mutableStateOf<String?>(null)
     private var lastCatchUp = 0L
@@ -241,11 +243,18 @@ class PlayerActivity : ComponentActivity() {
         player.media = media
         media.release()
         player.play()
-        // Watching a match: this channel must be playing within 15 seconds, or the next one is tried.
+        // Watching a match: a channel sending nothing within 20 seconds is given up on; one that's loading gets up to a
+        // minute (some take long to start). Then the next one is tried.
         startTimeout?.cancel()
+        sawData = false
         if (Playback.matchTitle != null) startTimeout = lifecycleScope.launch {
-            delay(15_000)
-            if (!playing && item == next) nextMatchChannel()
+            val started = System.currentTimeMillis()
+            delay(20_000)
+            while (!playing && item == next && sawData && System.currentTimeMillis() - started < 60_000) delay(5_000)
+            if (!playing && item == next) {
+                Log.info("Nothing from ${next.title} after ${(System.currentTimeMillis() - started) / 1000} s" + if (sawData) " (it was loading)" else " (no data)")
+                nextMatchChannel()
+            }
         }
         if (next.isLive) lifecycleScope.launch(Dispatchers.IO) { remember(next, 0, 0) }
         showControls()
@@ -267,8 +276,11 @@ class PlayerActivity : ComponentActivity() {
                 updatePipParams()
             }
             MediaPlayer.Event.Paused -> playing = false
-            MediaPlayer.Event.Buffering -> if (playing || status != null) status = if (event.buffering < 100f) "Buffering ${event.buffering.toInt()}%"
+            MediaPlayer.Event.Buffering -> {
+                if (event.buffering > 0f) sawData = true
+                if (playing || status != null) status = if (event.buffering < 100f) "Buffering ${event.buffering.toInt()}%"
                 else casting?.let { "Casting to ${it.displayName}" }
+            }
             MediaPlayer.Event.Vout -> Log.info("Video outputs: ${event.voutCount}")
             MediaPlayer.Event.EncounteredError -> failed("The stream failed")
             MediaPlayer.Event.EndReached -> ended()
@@ -297,8 +309,9 @@ class PlayerActivity : ComponentActivity() {
     private fun failed(what: String) {
         val current = item ?: return
         playing = false
-        // A match's channel that won't play: move straight on to its next channel.
-        if (Playback.matchTitle != null && current.isLive && nextMatchChannel()) return
+        // A match's channel that won't play: try it once more (the error may only be the account's connection limit), then
+        // move on to its next channel.
+        if (Playback.matchTitle != null && current.isLive && attempts >= 1 && nextMatchChannel()) return
         Log.info("$what (${current.title}, attempt ${attempts + 1})")
         attempts++
         if (attempts > MAX_ATTEMPTS || !current.isLive && attempts > 2) {
@@ -330,9 +343,20 @@ class PlayerActivity : ComponentActivity() {
         }
         Playback.index++
         attempts = 0
-        Log.info("$skipped isn't broadcasting $match, trying ${Playback.current?.title}")
-        play(Playback.current)
-        status = "$skipped isn't broadcasting it. Trying ${Playback.current?.title}…"
+        val next = Playback.current
+        Log.info("$skipped isn't broadcasting $match, trying ${next?.title}")
+        // Let go of this stream and pause: providers count a connection for a moment after it closes, and a one-stream
+        // account refuses the next channel if it starts straight away.
+        player.stop()
+        status = "$skipped isn't broadcasting it. Trying ${next?.title}…"
+        retry?.cancel()
+        retry = lifecycleScope.launch {
+            delay(3_000)
+            if (Playback.current == next) {
+                play(next)
+                status = "$skipped isn't broadcasting it. Trying ${next?.title}…"
+            }
+        }
         return true
     }
 
