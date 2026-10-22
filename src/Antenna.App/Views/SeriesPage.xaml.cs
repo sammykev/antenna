@@ -20,12 +20,17 @@ public sealed partial class SeriesPage : Page
     public SeriesPage()
     {
         InitializeComponent();
+        // Kept in memory so Back returns to it exactly as it was left.
+        NavigationCacheMode = NavigationCacheMode.Enabled;
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
         if (e.Parameter is not LibraryEntry entry)
+            return;
+        // Back to the series already shown: keep the season and scroll position.
+        if (e.NavigationMode == NavigationMode.Back && Equals(entry.Item, _series))
             return;
 
         _series = entry.Item;

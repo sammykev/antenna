@@ -22,15 +22,21 @@ public sealed partial class HomePage : Page
     private List<ItemViewModel> _series = [];
     private Action? _heroPlay;
     private Action? _heroMore;
+    private bool _loaded;
 
     public HomePage()
     {
         InitializeComponent();
+        // Kept in memory so Back returns to it exactly as it was left.
+        NavigationCacheMode = NavigationCacheMode.Enabled;
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        if (e.NavigationMode == NavigationMode.Back && _loaded)
+            return;
+        _loaded = true;
         Greeting.Text = DateTime.Now.Hour switch
         {
             < 5 => "Good evening",

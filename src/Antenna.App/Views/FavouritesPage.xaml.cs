@@ -13,15 +13,21 @@ namespace Antenna.App.Views;
 public sealed partial class FavouritesPage : Page
 {
     private List<ItemViewModel> _favourites = [];
+    private bool _loaded;
 
     public FavouritesPage()
     {
         InitializeComponent();
+        // Kept in memory so Back returns to it exactly as it was left.
+        NavigationCacheMode = NavigationCacheMode.Enabled;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        if (e.NavigationMode == NavigationMode.Back && _loaded)
+            return;
+        _loaded = true;
         _ = ShowAsync();
     }
 

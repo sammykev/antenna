@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,9 +77,13 @@ fun HomeScreen(openDetails: (LibraryEntry) -> Unit, openPlaylists: () -> Unit, o
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val version by Services.libraryVersion.collectAsState()
-    var data by remember { mutableStateOf<HomeData?>(null) }
+    // Kept while Home is in the back stack, so Back returns to the same place on it.
+    val state: HomeState = viewModel()
+    var data: HomeData? by remember { mutableStateOf(state.data as? HomeData) }
 
     LaunchedEffect(version) {
+        if (state.loadedFor == version && data != null) return@LaunchedEffect
+        state.loadedFor = version
         data = withContext(Dispatchers.IO) {
             val lib = Services.library
             val history = lib.getHistory(60)
@@ -92,6 +97,7 @@ fun HomeScreen(openDetails: (LibraryEntry) -> Unit, openPlaylists: () -> Unit, o
                 series = lib.getItems(MediaKind.Series, limit = SHELF),
             )
         }
+        state.data = data
     }
 
     fun resume(record: WatchRecord) = scope.launch {

@@ -27,6 +27,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -67,11 +68,13 @@ fun LiveTvScreen(openGuideSearch: () -> Unit) {
     val version by Services.libraryVersion.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
     val search = debounced(query)
-    var chips by remember { mutableStateOf(emptyList<GroupChip>()) }
-    var chip by remember { mutableStateOf<GroupChip?>(null) }
-    val rows = remember { mutableStateListOf<Pair<LibraryEntry, Programme?>>() }
+    // Kept while the screen is in the back stack, so Back returns to the same category and scroll position.
+    val state: LiveTvState = viewModel()
+    var chips by state::chips
+    var chip by state::chip
+    val rows = state.rows
     var loading by remember { mutableStateOf(false) }
-    var exhausted by remember { mutableStateOf(false) }
+    var exhausted by state::exhausted
     val prefs = remember { context.getSharedPreferences("antenna", 0) }
 
     // Tap a channel to preview it at the top; tap it again (or the video) for full screen.
@@ -113,6 +116,8 @@ fun LiveTvScreen(openGuideSearch: () -> Unit) {
     }
 
     LaunchedEffect(version) {
+        if (state.chipsFor == version) return@LaunchedEffect
+        state.chipsFor = version
         val (groups, hasFavourites) = withContext(Dispatchers.IO) {
             Services.library.getGroups(MediaKind.Live) to Services.library.getFavourites(MediaKind.Live).isNotEmpty()
         }
@@ -150,6 +155,9 @@ fun LiveTvScreen(openGuideSearch: () -> Unit) {
 
     LaunchedEffect(chip, search, version) {
         if (chip == null) return@LaunchedEffect
+        val key = listOf(chip?.name, search, version)
+        if (state.loadedFor == key && rows.isNotEmpty()) return@LaunchedEffect
+        state.loadedFor = key
         loading = false
         load(reset = true)
     }

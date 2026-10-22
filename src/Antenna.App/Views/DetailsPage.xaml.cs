@@ -15,12 +15,16 @@ public sealed partial class DetailsPage : Page
     public DetailsPage()
     {
         InitializeComponent();
+        // Kept in memory so Back returns to it exactly as it was left.
+        NavigationCacheMode = NavigationCacheMode.Enabled;
     }
 
     protected override async void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
         if (e.Parameter is not LibraryEntry entry)
+            return;
+        if (e.NavigationMode == NavigationMode.Back && Equals(entry.Item, _entry?.Item))
             return;
         _entry = entry;
         var item = entry.Item;

@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -54,13 +55,17 @@ fun MediaGridScreen(kind: MediaKind, open: (LibraryEntry) -> Unit) {
     val prefs = remember { context.getSharedPreferences("antenna", 0) }
     var query by rememberSaveable { mutableStateOf("") }
     val search = debounced(query)
-    var chips by remember { mutableStateOf(emptyList<GroupChip>()) }
-    var chip by remember { mutableStateOf<GroupChip?>(null) }
-    val rows = remember { mutableStateListOf<Pair<LibraryEntry, Float>>() }
+    // Kept while the screen is in the back stack, so Back (from a film or series) returns to the same place.
+    val state: MediaGridState = viewModel(key = "grid-${kind.name}")
+    var chips by state::chips
+    var chip by state::chip
+    val rows = state.rows
     var loading by remember { mutableStateOf(false) }
-    var exhausted by remember { mutableStateOf(false) }
+    var exhausted by state::exhausted
 
     LaunchedEffect(version) {
+        if (state.chipsFor == version) return@LaunchedEffect
+        state.chipsFor = version
         val lib = Services.library
         val (groups, favs, resumable) = withContext(Dispatchers.IO) {
             Triple(lib.getGroups(kind), lib.getFavourites(kind).isNotEmpty(),
@@ -104,6 +109,9 @@ fun MediaGridScreen(kind: MediaKind, open: (LibraryEntry) -> Unit) {
 
     LaunchedEffect(chip, search, version) {
         if (chip == null) return@LaunchedEffect
+        val key = listOf(chip?.name, search, version)
+        if (state.loadedFor == key && rows.isNotEmpty()) return@LaunchedEffect
+        state.loadedFor = key
         loading = false
         load(reset = true)
     }

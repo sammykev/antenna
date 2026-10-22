@@ -29,6 +29,15 @@ public sealed partial class BrowsePage : Page
     private ItemViewModel? _previewing;
     private int _infoVersion;
 
+    /// <summary>Where each of Live TV, Movies and Series was left, so Back returns to exactly that.</summary>
+    private sealed record KindState(int SourceIndex, List<GroupItem> AllGroups, string GroupFilter, string? Group, string Search,
+        bool SearchAllCategories, object? Items, double ScrollOffset, ItemViewModel? Previewing);
+
+    private readonly Dictionary<MediaKind, KindState> _states = [];
+
+    /// <summary>Set while putting a saved state back, so control events don't start a reload.</summary>
+    private bool _restoring;
+
     public BrowsePage()
     {
         InitializeComponent();
@@ -68,13 +77,89 @@ public sealed partial class BrowsePage : Page
         Header.Text = KindName;
         ItemSearch.PlaceholderText = $"Search {KindName}";
         SetLayout();
+        // Back (from a film, the player, another page) returns to exactly where this type was left.
+        if (e.NavigationMode == NavigationMode.Back && e.Parameter is not BrowseTarget && _states.TryGetValue(_kind, out var state) && Restore(state))
+            return;
         LoadSources();
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         base.OnNavigatedFrom(e);
+        SaveState();
         _ = StopPreviewAsync();
+    }
+
+    private void SaveState()
+    {
+        if (Groups.ItemsSource is null)
+            return;
+        _states[_kind] = new KindState(SourceFilter.SelectedIndex, _allGroups, GroupFilter.Text, (Groups.SelectedItem as GroupItem)?.Name, ItemSearch.Text,
+            _searchAllCategories, ItemsHost.ItemsSource, ScrollerOf(ItemsHost)?.VerticalOffset ?? 0, _previewing);
+    }
+
+    /// <summary>Puts a saved state back without reloading: same playlist, category, search, list and scroll position.</summary>
+    private bool Restore(KindState state)
+    {
+        if (state.Items is null || state.AllGroups.Count == 0)
+            return false;
+        _restoring = true;
+        try
+        {
+            _sources = AppServices.Library.GetSources();
+            SourceFilter.ItemsSource = new[] { "All playlists" }.Concat(_sources.Select(s => s.Name)).ToList();
+            SourceFilter.SelectedIndex = Math.Clamp(state.SourceIndex, 0, _sources.Count);
+            GroupFilter.Text = state.GroupFilter;
+            ItemSearch.Text = state.Search;
+            _searchAllCategories = state.SearchAllCategories;
+            _allGroups = state.AllGroups;
+            var shown = FilteredGroups();
+            Groups.ItemsSource = shown;
+            Groups.SelectedItem = shown.FirstOrDefault(g => g.Name == state.Group) ?? shown[0];
+            ItemsHost.ItemsSource = state.Items;
+        }
+        finally
+        {
+            _restoring = false;
+        }
+        EmptyState.Visibility = Visibility.Collapsed;
+        var offset = state.ScrollOffset;
+        void Scroll(object? sender, object e)
+        {
+            ItemsHost.LayoutUpdated -= Scroll;
+            ScrollerOf(ItemsHost)?.ChangeView(null, offset, null, disableAnimation: true);
+        }
+        ItemsHost.LayoutUpdated += Scroll;
+
+        // Back from the full player: carry on previewing that channel (once the player has let go of its stream).
+        if (PreviewOn && state.Previewing is { } channel)
+        {
+            ChannelList.SelectedItem = channel;
+            ShowPreviewInfo(channel);
+            var timer = DispatcherQueue.CreateTimer();
+            timer.Interval = TimeSpan.FromSeconds(1.5);
+            timer.IsRepeating = false;
+            timer.Tick += (_, _) =>
+            {
+                if (IsLoaded && IsLive && ReferenceEquals(ChannelList.SelectedItem, channel) && _previewing is null)
+                    StartPreview(channel);
+            };
+            timer.Start();
+        }
+        return true;
+    }
+
+    private static ScrollViewer? ScrollerOf(DependencyObject root)
+    {
+        for (var i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(root, i);
+            if (child is ScrollViewer scroller)
+                return scroller;
+            if (ScrollerOf(child) is { } found)
+                return found;
+        }
+        return null;
     }
 
     private bool IsLive => _kind == MediaKind.Live;
@@ -156,6 +241,8 @@ public sealed partial class BrowsePage : Page
 
     private void GroupFilter_TextChanged(object sender, TextChangedEventArgs e)
     {
+        if (_restoring)
+            return;
         var selected = Groups.SelectedItem as GroupItem;
         var shown = FilteredGroups();
         Groups.ItemsSource = shown;
@@ -232,12 +319,14 @@ public sealed partial class BrowsePage : Page
 
     private void SourceFilter_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        if (!_loading)
+        if (!_loading && !_restoring)
             LoadGroups();
     }
 
     private void Groups_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (_restoring)
+            return;
         _searchAllCategories = false;
         if (Groups.SelectedItem is not null)
             LoadItems();

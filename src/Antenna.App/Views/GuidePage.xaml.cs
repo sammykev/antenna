@@ -32,6 +32,9 @@ public sealed partial class GuidePage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        // Back returns to the channel, day and scroll position that were showing.
+        if (e.NavigationMode == NavigationMode.Back && Channels.Items.Count > 0)
+            return;
         _ = LoadSourcesAsync();
     }
 

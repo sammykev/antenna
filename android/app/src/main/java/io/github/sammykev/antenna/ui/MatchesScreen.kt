@@ -34,6 +34,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -89,14 +90,17 @@ fun MatchesScreen() {
     val prefs = remember { context.getSharedPreferences("antenna", 0) }
     val feed = remember { EspnFixtures(Services.http) }
     val days = remember { (0..2).map { LocalDate.now().plusDays(it.toLong()) } }
-    var day by remember { mutableStateOf(days[0]) }
+    // Kept while the screen is in the back stack or a background tab, so Back returns to the same day and list.
+    val state: MatchesState = viewModel()
+    if (state.day == null) state.day = days[0]
+    var day: java.time.LocalDate by remember { mutableStateOf(state.day!!) }
     var sport by remember { mutableStateOf(prefs.getString("matches.sport", ALL_SPORTS)!!) }
     var mine by remember { mutableStateOf(prefs.getBoolean("matches.mine", false)) }
-    var fixtures by remember { mutableStateOf(emptyList<Fixture>()) }
-    val matches = remember { mutableStateMapOf<String, FixtureMatch>() }
-    var status by remember { mutableStateOf("") }
+    var fixtures by state::fixtures
+    val matches = state.matches
+    var status by state::status
     var busy by remember { mutableStateOf(false) }
-    var reload by remember { mutableIntStateOf(0) }
+    var reload by state::reload
     var followTick by remember { mutableIntStateOf(0) }
     var open by remember { mutableStateOf<Fixture?>(null) }
     var followedNote by remember { mutableStateOf<String?>(null) }
@@ -126,6 +130,10 @@ fun MatchesScreen() {
     }
 
     LaunchedEffect(day, reload, version) {
+        state.day = day
+        val key = listOf(day, reload, version)
+        if (state.loadedFor == key && fixtures.isNotEmpty()) return@LaunchedEffect
+        state.loadedFor = key
         // A refreshed guide can find matches the old one couldn't.
         if (foundForVersion != version) {
             found.clear()

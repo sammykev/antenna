@@ -18,11 +18,15 @@ public sealed partial class SearchPage : Page
     public SearchPage()
     {
         InitializeComponent();
+        // Kept in memory so Back returns to it exactly as it was left.
+        NavigationCacheMode = NavigationCacheMode.Enabled;
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
+        if (e.NavigationMode == NavigationMode.Back && e.Parameter as string == _query)
+            return;
         _query = e.Parameter as string ?? "";
         Header.Text = $"Results for “{_query}”";
         EventsLink.Content = $"Find live events for “{_query}” →";

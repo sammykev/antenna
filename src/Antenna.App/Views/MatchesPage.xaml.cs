@@ -49,6 +49,8 @@ public sealed partial class MatchesPage : Page
     public MatchesPage()
     {
         InitializeComponent();
+        // Kept in memory so Back returns to it exactly as it was left.
+        NavigationCacheMode = NavigationCacheMode.Enabled;
         var today = DateTime.Today;
         for (var i = 0; i < DaysAhead; i++)
             Days.Items.Add(new SelectorBarItem { Text = Ui.Day(today.AddDays(i)), Tag = i, IsSelected = i == 0 });
@@ -67,6 +69,9 @@ public sealed partial class MatchesPage : Page
         _timer.IsRepeating = true;
         _timer.Tick += (_, _) => _ = RefreshScoresAsync();
         _timer.Start();
+        // Back returns to the list as it was (scores keep refreshing).
+        if (e.NavigationMode == NavigationMode.Back && _rows.Count > 0)
+            return;
         _ = LoadAsync(force: false);
     }
 
