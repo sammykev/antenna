@@ -112,4 +112,39 @@ class FixtureMatcherTests {
         assertFalse(FixtureMatcher.isThisMatch(city, "Arsenal v Tottenham"))
         assertTrue(FixtureMatcher.isThisMatch(city, "MCFC v Arsenal"))
     }
+
+    private fun tennis(tour: String, home: String, away: String, state: FixtureState = FixtureState.Scheduled) = Fixture(
+        id = "tennis/$tour/$home", sport = "Tennis", league = "${tour.uppercase()} · European Open", start = kickoff, state = state,
+        name = "European Open", home = home, away = away)
+
+    @Test
+    fun tennisCoverageKeepsToItsTourAndFindsPlayersInDescriptions() {
+        seed(Triple("1", "Sky Sports Top Event", "sste"), Triple("2", "Sky Sports Tennis", "sst"))
+        store.beginGuideImport("s").use { w ->
+            w.add(Programme("sste", kickoff.minus(Duration.ofMinutes(30)), kickoff.plus(Duration.ofHours(4)), "Live ATP Tennis: European Open",
+                "Terence Atmane v Mattia Bellucci."))
+            w.add(Programme("sst", kickoff.minus(Duration.ofMinutes(30)), kickoff.plus(Duration.ofHours(4)), "Live WTA Tennis: Japan Open"))
+            w.commit()
+        }
+        val atp = FixtureMatcher.find(store, tennis("atp", "Terence Atmane", "Mattia Bellucci"))
+        assertFalse(atp.isCoverage)
+        assertEquals(listOf("Sky Sports Top Event"), atp.channels.map { it.item.title })
+
+        val wta = FixtureMatcher.find(store, tennis("wta", "Alexandra Eala", "Diana Shnaider"))
+        assertTrue(wta.isCoverage)
+        assertEquals(listOf("Sky Sports Tennis"), wta.channels.map { it.item.title })
+    }
+
+    @Test
+    fun aMatchBeingPlayedIsFoundOnAirNowNotAtItsListedStart() {
+        seed(Triple("1", "Sky Sports Top Event", "sste"))
+        store.beginGuideImport("s").use { w ->
+            w.add(Programme("sste", kickoff.plus(Duration.ofHours(2)), kickoff.plus(Duration.ofHours(5)), "Live ATP Tennis: Atmane v Bellucci"))
+            w.commit()
+        }
+        val match = tennis("atp", "Terence Atmane", "Mattia Bellucci")
+        assertFalse(FixtureMatcher.find(store, match).onYourChannels)
+        val live = FixtureMatcher.find(store, match.copy(state = FixtureState.Live), now = kickoff.plus(Duration.ofMinutes(130)))
+        assertEquals(listOf("Sky Sports Top Event"), live.channels.map { it.item.title })
+    }
 }

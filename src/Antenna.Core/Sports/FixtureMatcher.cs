@@ -69,17 +69,22 @@ public static class FixtureMatcher
         return queries.Distinct().ToList();
     }
 
-    public static FixtureMatch Find(LibraryStore store, Fixture f)
+    /// <param name="now">The time now (tests set it). A match being played is looked for on air now, not at its listed
+    /// start: tennis especially starts long after the time the feed gives ("not before").</param>
+    public static FixtureMatch Find(LibraryStore store, Fixture f, DateTimeOffset? now = null)
     {
-        var from = f.Start.AddMinutes(-20);
-        var to = f.Start.AddHours(3);
+        var at = f.State == FixtureState.Live ? now ?? DateTimeOffset.Now : f.Start;
+        var from = at.AddMinutes(-20);
+        var to = at.AddHours(3);
+        bool OnAir(Events.EventHit h) => h.Programme.Stop > at.AddMinutes(10) && h.Programme.Start < at.AddMinutes(30);
+
         // Every search's listings of this match, so channels that spell it differently ("Man City", "Manchester City")
         // are all found. A programme must actually be on around kick-off (not one that ended an hour before), and must
         // be this match: searches by team find other games too ("manchester" finds Man Utd and Man City).
         var exact = Queries(f)
             .SelectMany(query => store.SearchEvents(query, from, to, 20))
-            .Where(h => h.Programme.Stop > f.Start.AddMinutes(10) && h.Programme.Start < f.Start.AddMinutes(30))
-            .Where(h => IsThisMatch(f, h.Programme.Title))
+            .Where(OnAir)
+            .Where(h => IsThisMatch(f, h.Programme))
             .ToList();
         if (exact.Count > 0)
             return FromHits(f, exact, coverage: false);
@@ -108,9 +113,9 @@ public static class FixtureMatcher
         foreach (var query in CoverageQueries(f))
         {
             var onAir = store.SearchEvents(query, from, to, 20)
-                .Where(h => h.Programme.Stop > f.Start.AddMinutes(10) && h.Programme.Start < f.Start.AddMinutes(30))
-                // A listing naming a different match isn't coverage of this one.
-                .Where(h => !NamesAnotherMatch(f, h.Programme.Title))
+                .Where(OnAir)
+                // A listing naming a different match, or another tour (ATP for a WTA match), isn't coverage of this one.
+                .Where(h => !NamesAnotherMatch(f, h.Programme) && !IsAnotherCompetition(f, h.Programme))
                 .ToList();
             if (onAir.Count > 0)
                 return FromHits(f, onAir, coverage: true);
@@ -180,9 +185,42 @@ public static class FixtureMatcher
         return (home || away) && !HasVersus(words);
     }
 
+    /// <summary>
+    /// A programme is this match when its title is (see <see cref="IsThisMatch(Fixture, string)"/>), or its description
+    /// names both sides: guides often keep the players for the description ("Live ATP Tennis" / "Atmane v Bellucci").
+    /// </summary>
+    public static bool IsThisMatch(Fixture f, Programme p) =>
+        IsThisMatch(f, p.Title) || p.Description is { Length: > 0 } d && NamesBoth(f, d) && !NamesAnotherMatch(f, p.Title);
+
+    private static bool NamesBoth(Fixture f, string text)
+    {
+        if (f.Home is null || f.Away is null)
+            return false;
+        var words = Words(text).ToList();
+        return Names(words, f.Home) && Names(words, f.Away);
+    }
+
     /// <summary>A "X v Y" listing that doesn't name both of this fixture's sides.</summary>
     internal static bool NamesAnotherMatch(Fixture f, string title) =>
         f.Home is not null && f.Away is not null && HasVersus(Words(title).ToList()) && !IsThisMatch(f, title);
+
+    /// <summary>The title or description names another match ("Atmane v Bellucci" when this is Eala v Shnaider).</summary>
+    internal static bool NamesAnotherMatch(Fixture f, Programme p) =>
+        NamesAnotherMatch(f, p.Title) || p.Description is { Length: > 0 } d && NamesAnotherMatch(f, d) && !NamesBoth(f, d);
+
+    /// <summary>
+    /// Coverage of another competition in the same sport: ATP tennis isn't coverage of a WTA match, nor men's of women's.
+    /// </summary>
+    internal static bool IsAnotherCompetition(Fixture f, Programme p)
+    {
+        var words = Words(p.Title + " " + p.Description).ToHashSet();
+        return f.FeedPath switch
+        {
+            "tennis/wta" => (words.Contains("atp") || words.Contains("men") || words.Contains("mens")) && !words.Contains("wta"),
+            "tennis/atp" => (words.Contains("wta") || words.Contains("women") || words.Contains("womens") || words.Contains("ladies")) && !words.Contains("atp"),
+            _ => false,
+        };
+    }
 
     private static bool HasVersus(List<string> words) => words.Any(w => w is "v" or "vs" or "versus");
 

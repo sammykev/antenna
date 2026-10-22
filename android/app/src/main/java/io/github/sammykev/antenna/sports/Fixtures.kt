@@ -242,14 +242,20 @@ object FixtureMatcher {
         return queries.distinct()
     }
 
-    fun find(store: LibraryStore, f: Fixture): FixtureMatch {
-        val from = f.start.minus(Duration.ofMinutes(20))
-        val to = f.start.plus(Duration.ofHours(3))
+    /**
+     * [now]: the time now (tests set it). A match being played is looked for on air now, not at its listed start: tennis
+     * especially starts long after the time the feed gives.
+     */
+    fun find(store: LibraryStore, f: Fixture, now: Instant = Instant.now()): FixtureMatch {
+        val at = if (f.state == FixtureState.Live) now else f.start
+        val from = at.minus(Duration.ofMinutes(20))
+        val to = at.plus(Duration.ofHours(3))
+        fun onAir(h: EventHit) = h.programme.stop.isAfter(at.plus(Duration.ofMinutes(10))) && h.programme.start.isBefore(at.plus(Duration.ofMinutes(30)))
         // Every search's listings of this match, so channels that spell it differently ("Man City", "Manchester City") are
         // all found. A programme must be on around kick-off and must be this match: searches by team find other games too.
         val exact = queries(f).flatMap { store.searchEvents(it, from, to, 20) }
-            .filter { it.programme.stop.isAfter(f.start.plus(Duration.ofMinutes(10))) && it.programme.start.isBefore(f.start.plus(Duration.ofMinutes(30))) }
-            .filter { isThisMatch(f, it.programme.title) }
+            .filter(::onAir)
+            .filter { isThisMatch(f, it.programme) }
         if (exact.isNotEmpty()) return fromHits(f, exact, coverage = false)
         // Per-event channels ("EPL 03: Nott'm Forest v Ipswich 20:00") aren't in the guide.
         if (f.home != null && f.away != null) {
@@ -267,9 +273,9 @@ object FixtureMatcher {
         // Coverage of the tournament or sport on air around the start ("ATP Tennis: European Open").
         for (query in coverageQueries(f)) {
             val onAir = store.searchEvents(query, from, to, 20)
-                .filter { it.programme.stop.isAfter(f.start.plus(Duration.ofMinutes(10))) && it.programme.start.isBefore(f.start.plus(Duration.ofMinutes(30))) }
-                // A listing naming a different match isn't coverage of this one.
-                .filter { !namesAnotherMatch(f, it.programme.title) }
+                .filter(::onAir)
+                // A listing naming a different match, or another tour (ATP for a WTA match), isn't coverage of this one.
+                .filter { !namesAnotherMatch(f, it.programme) && !isAnotherCompetition(f, it.programme) }
             if (onAir.isNotEmpty()) return fromHits(f, onAir, coverage = true)
         }
         // Channels given over to the sport ("Tennis Channel", "NBA TV", "F1 TV").
@@ -324,6 +330,31 @@ object FixtureMatcher {
     /** A "X v Y" listing that doesn't name both of this fixture's sides. */
     internal fun namesAnotherMatch(f: Fixture, title: String) =
         f.home != null && f.away != null && hasVersus(words(title)) && !isThisMatch(f, title)
+
+    /** This match by title, or by a description naming both sides ("Live ATP Tennis" / "Atmane v Bellucci"). */
+    fun isThisMatch(f: Fixture, p: Programme) =
+        isThisMatch(f, p.title) || !p.description.isNullOrEmpty() && namesBoth(f, p.description) && !namesAnotherMatch(f, p.title)
+
+    private fun namesBoth(f: Fixture, text: String): Boolean {
+        val home = f.home ?: return false
+        val away = f.away ?: return false
+        val words = words(text)
+        return names(words, home) && names(words, away)
+    }
+
+    /** The title or description names another match ("Atmane v Bellucci" when this is Eala v Shnaider). */
+    internal fun namesAnotherMatch(f: Fixture, p: Programme) =
+        namesAnotherMatch(f, p.title) || !p.description.isNullOrEmpty() && namesAnotherMatch(f, p.description) && !namesBoth(f, p.description)
+
+    /** Coverage of another competition in the same sport: ATP tennis isn't coverage of a WTA match, nor men's of women's. */
+    internal fun isAnotherCompetition(f: Fixture, p: Programme): Boolean {
+        val words = words(p.title + " " + (p.description ?: "")).toSet()
+        return when (f.feedPath) {
+            "tennis/wta" -> ("atp" in words || "men" in words || "mens" in words) && "wta" !in words
+            "tennis/atp" -> ("wta" in words || "women" in words || "womens" in words || "ladies" in words) && "atp" !in words
+            else -> false
+        }
+    }
 
     private fun hasVersus(words: List<String>) = words.any { it == "v" || it == "vs" || it == "versus" }
 

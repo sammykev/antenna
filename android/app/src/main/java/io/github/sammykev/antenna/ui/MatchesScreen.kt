@@ -81,6 +81,12 @@ private val found = mutableMapOf<String, FixtureMatch>()
 private var foundForVersion = -1
 
 /**
+ * Matches are worked out again once a match is being played: then it's looked for on air now, which matters for tennis,
+ * where matches start long after their listed time.
+ */
+private fun matchKey(f: Fixture) = f.id + if (f.state == FixtureState.Live) "|live" else "|listed"
+
+/**
  * Today's and the next days' fixtures with live scores (ESPN's public scoreboard), each matched to your own channels,
  * as on Windows. Filter by day, sport and "My channels"; tap a match to watch it or follow a team for goal alerts.
  */
@@ -156,13 +162,13 @@ fun MatchesScreen() {
         }
         status = "Finding matches on your channels…"
         matches.clear()
-        fixtures.forEach { f -> found[f.id]?.let { matches[f.id] = it } }
+        fixtures.forEach { f -> found[matchKey(f)]?.let { matches[f.id] = it } }
         for (f in fixtures.filter { it.id !in matches }.sortedBy { when (it.state) { FixtureState.Live -> 0; FixtureState.Scheduled -> 1; else -> 2 } }) {
             val m = withContext(Dispatchers.IO) {
                 runCatching { FixtureMatcher.find(Services.library, f) }.onFailure { Log.error("matches: finding a fixture", it) }
                     .getOrDefault(FixtureMatch(f, emptyList(), null))
             }
-            found[f.id] = m
+            found[matchKey(f)] = m
             matches[f.id] = m
         }
         status = "${fixtures.size} fixtures · ${matches.values.count { it.onYourChannels }} on your channels · scores from ESPN"
@@ -173,8 +179,17 @@ fun MatchesScreen() {
     LaunchedEffect(day) {
         while (true) {
             delay(60_000)
-            if (day == LocalDate.now() && fixtures.any { it.state != FixtureState.Finished })
-                fixtures = withContext(Dispatchers.IO) { feed.getDay(day) }.ifEmpty { fixtures }
+            if (day == LocalDate.now() && fixtures.any { it.state != FixtureState.Finished }) {
+                val updated = withContext(Dispatchers.IO) { feed.getDay(day) }.ifEmpty { fixtures }
+                val kickedOff = updated.filter { f -> f.state == FixtureState.Live && fixtures.firstOrNull { it.id == f.id }?.state != FixtureState.Live }
+                fixtures = updated
+                // Just started: look for it on air now.
+                for (f in kickedOff) {
+                    val m = withContext(Dispatchers.IO) { runCatching { FixtureMatcher.find(Services.library, f) }.getOrNull() } ?: continue
+                    found[matchKey(f)] = m
+                    matches[f.id] = m
+                }
+            }
         }
     }
 
@@ -191,7 +206,7 @@ fun MatchesScreen() {
         LargeHeader("Matches") {
             IconButton(onClick = {
                 // A refresh also re-checks the channels: the guide may have changed.
-                fixtures.forEach { found.remove(it.id) }
+                found.clear()
                 reload++
             }) { Icon(Icons.Default.Refresh, "Refresh") }
         }

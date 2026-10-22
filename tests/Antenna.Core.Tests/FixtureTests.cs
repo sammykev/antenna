@@ -226,4 +226,49 @@ public sealed class FixtureTests : IDisposable
         Assert.True(FixtureMatcher.IsThisMatch(tennis, "ATP Antwerp: Cina v Schwaerzler"));
         Assert.False(FixtureMatcher.IsThisMatch(tennis, "ATP Antwerp: Cina v Rune"));
     }
+
+    private static Fixture Tennis(string tour, string home, string away, FixtureState state = FixtureState.Scheduled) => new()
+    {
+        Id = $"tennis/{tour}/{home}", Sport = "Tennis", League = $"{tour.ToUpperInvariant()} · European Open", Start = Kickoff, State = state,
+        Name = "European Open", Home = home, Away = away,
+    };
+
+    [Fact]
+    public void Tennis_coverage_keeps_to_its_tour_and_finds_players_in_descriptions()
+    {
+        SeedChannels(("1", "Sky Sports Top Event", "sste"), ("2", "Sky Sports Tennis", "sst"));
+        using (var w = _store.BeginGuideImport("s"))
+        {
+            // The ATP court on one channel (players only in the description), the WTA court on another.
+            w.Add(new Programme { ChannelId = "sste", Title = "Live ATP Tennis: European Open", Description = "Terence Atmane v Mattia Bellucci.",
+                Start = Kickoff.AddMinutes(-30), Stop = Kickoff.AddHours(4) });
+            w.Add(new Programme { ChannelId = "sst", Title = "Live WTA Tennis: Japan Open", Start = Kickoff.AddMinutes(-30), Stop = Kickoff.AddHours(4) });
+            w.Commit();
+        }
+
+        var atp = FixtureMatcher.Find(_store, Tennis("atp", "Terence Atmane", "Mattia Bellucci"));
+        Assert.False(atp.IsCoverage); // Named in the description: it's this match.
+        Assert.Equal("Sky Sports Top Event", Assert.Single(atp.Channels).Item.Title);
+
+        var wta = FixtureMatcher.Find(_store, Tennis("wta", "Alexandra Eala", "Diana Shnaider"));
+        Assert.True(wta.IsCoverage);
+        Assert.Equal("Sky Sports Tennis", Assert.Single(wta.Channels).Item.Title); // Not the ATP match's channel.
+    }
+
+    [Fact]
+    public void A_match_being_played_is_found_on_air_now_not_at_its_listed_start()
+    {
+        SeedChannels(("1", "Sky Sports Top Event", "sste"));
+        using (var w = _store.BeginGuideImport("s"))
+        {
+            // Listed for 19:00 but the court ran late: the programme starts at 21:00.
+            w.Add(new Programme { ChannelId = "sste", Title = "Live ATP Tennis: Atmane v Bellucci", Start = Kickoff.AddHours(2), Stop = Kickoff.AddHours(5) });
+            w.Commit();
+        }
+        var match = Tennis("atp", "Terence Atmane", "Mattia Bellucci");
+
+        Assert.False(FixtureMatcher.Find(_store, match).OnYourChannels);
+        var live = FixtureMatcher.Find(_store, match with { State = FixtureState.Live }, now: Kickoff.AddHours(2).AddMinutes(10));
+        Assert.Equal("Sky Sports Top Event", Assert.Single(live.Channels).Item.Title);
+    }
 }

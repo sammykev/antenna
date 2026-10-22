@@ -129,7 +129,7 @@ public sealed partial class MatchesPage : Page
         {
             if (version != _version)
                 return;
-            if (!Matches.TryGetValue(fixture.Id, out var match))
+            if (!Matches.TryGetValue(MatchKey(fixture), out var match))
             {
                 try
                 {
@@ -140,7 +140,7 @@ public sealed partial class MatchesPage : Page
                     Log.Error(ex, "matches: finding a fixture");
                     match = new FixtureMatch(fixture, [], null);
                 }
-                Matches[fixture.Id] = match;
+                Matches[MatchKey(fixture)] = match;
             }
             if (version == _version && _rows.TryGetValue(fixture.Id, out var row))
                 ShowMatch(row, match);
@@ -175,10 +175,34 @@ public sealed partial class MatchesPage : Page
         {
             if (!_rows.TryGetValue(f.Id, out var row))
                 continue;
+            var kickedOff = f.State == FixtureState.Live && row.Fixture.State != FixtureState.Live;
             row.Fixture = f;
             ShowScore(row);
-            if (row.Match is { } m)
+            if (kickedOff)
+                _ = RematchAsync(row, f);
+            else if (row.Match is { } m)
                 ShowMatch(row, m with { Fixture = f });
+        }
+    }
+
+    /// <summary>
+    /// Channel matches are worked out again once a match is being played: then it's looked for on air now, which
+    /// matters for tennis, where matches start long after their listed time.
+    /// </summary>
+    private static string MatchKey(Fixture f) => $"{f.Id}|{(f.State == FixtureState.Live ? "live" : "listed")}";
+
+    private async Task RematchAsync(Row row, Fixture f)
+    {
+        try
+        {
+            var match = await Task.Run(() => FixtureMatcher.Find(AppServices.Library, f));
+            Matches[MatchKey(f)] = match;
+            if (ReferenceEquals(_rows.GetValueOrDefault(f.Id), row))
+                ShowMatch(row, match);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "matches: re-matching a live fixture");
         }
     }
 
@@ -541,8 +565,11 @@ public sealed partial class MatchesPage : Page
     private void Refresh_Click(object sender, RoutedEventArgs e)
     {
         // A refresh also re-checks the channels: the guide may have been updated since.
-        foreach (var id in _rows.Keys)
-            Matches.Remove(id);
+        foreach (var row in _rows.Values)
+        {
+            Matches.Remove(MatchKey(row.Fixture with { State = FixtureState.Live }));
+            Matches.Remove(MatchKey(row.Fixture with { State = FixtureState.Scheduled }));
+        }
         _ = LoadAsync(force: true);
     }
 
