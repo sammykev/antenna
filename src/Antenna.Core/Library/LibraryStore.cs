@@ -58,7 +58,9 @@ public sealed partial class LibraryStore : IDisposable
     {
         // Search indexes gained prefix tables (fast "man"* lookups); rebuild ones made before that.
         DropIfMissingPrefix("items_fts");
-        DropIfMissingPrefix("programmes_fts");
+        // The guide index reads its text from programmes rather than keeping a second copy, and
+        // is rebuilt in one pass after each import (far faster than indexing row by row).
+        var rebuildGuideIndex = DropIfMissingPrefix("programmes_fts") | DropIfMissing("programmes_fts", "content");
 
         Exec("""
             CREATE TABLE IF NOT EXISTS sources (
@@ -104,7 +106,8 @@ public sealed partial class LibraryStore : IDisposable
             CREATE INDEX IF NOT EXISTS programmes_channel ON programmes(source_id, channel_id, start);
             CREATE INDEX IF NOT EXISTS programmes_time ON programmes(start, stop);
             CREATE VIRTUAL TABLE IF NOT EXISTS programmes_fts USING fts5(
-                title, description, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4'
+                title, description, content = 'programmes', detail = none,
+                tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4'
             );
             """);
         Exec("""
@@ -112,24 +115,25 @@ public sealed partial class LibraryStore : IDisposable
             SELECT rowid, title, grp FROM items
             WHERE NOT EXISTS (SELECT 1 FROM items_fts LIMIT 1);
             """);
-        // Guides imported before programme search existed: index them once.
-        Exec("""
-            INSERT INTO programmes_fts (rowid, title, description)
-            SELECT rowid, title, COALESCE(description, '') FROM programmes
-            WHERE NOT EXISTS (SELECT 1 FROM programmes_fts LIMIT 1);
-            """);
+        if (rebuildGuideIndex)
+            Exec("INSERT INTO programmes_fts (programmes_fts) VALUES ('rebuild')");
         AddColumnIfMissing("items", "catchup_mode", "TEXT");
         AddColumnIfMissing("items", "catchup_source", "TEXT");
         AddColumnIfMissing("items", "player_options", "TEXT");
         MigrateUserData();
     }
 
-    private void DropIfMissingPrefix(string table)
+    private bool DropIfMissingPrefix(string table) => DropIfMissing(table, "prefix");
+
+    /// <returns>True when the table was dropped (so it needs filling again once recreated).</returns>
+    private bool DropIfMissing(string table, string option)
     {
         using var cmd = Command("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = $n");
         cmd.Parameters.AddWithValue("$n", table);
-        if (cmd.ExecuteScalar() is string sql && !sql.Contains("prefix", StringComparison.OrdinalIgnoreCase))
-            Exec($"DROP TABLE {table}");
+        if (cmd.ExecuteScalar() is not string sql || sql.Contains(option, StringComparison.OrdinalIgnoreCase))
+            return false;
+        Exec($"DROP TABLE {table}");
+        return true;
     }
 
     /// <summary>
@@ -230,7 +234,8 @@ public sealed partial class LibraryStore : IDisposable
             using var tx = _db.BeginTransaction();
             DeleteItems(sourceId, tx);
             using var cmd = Command("""
-                DELETE FROM programmes_fts WHERE rowid IN (SELECT rowid FROM programmes WHERE source_id = $id);
+                INSERT INTO programmes_fts (programmes_fts, rowid, title, description)
+                SELECT 'delete', rowid, title, description FROM programmes WHERE source_id = $id;
                 DELETE FROM programmes WHERE source_id = $id;
                 DELETE FROM favourites WHERE source_id = $id;
                 DELETE FROM history WHERE source_id = $id;
@@ -347,8 +352,7 @@ public sealed partial class LibraryStore : IDisposable
 
             using var insert = Command("""
                 INSERT INTO items (source_id, external_id, kind, title, grp, logo, stream_url, epg_id, catchup_days, catchup_mode, catchup_source, player_options, sort_index)
-                VALUES ($source, $ext, $kind, $title, $grp, $logo, $url, $epg, $catchup, $cmode, $csource, $opts, $sort)
-                RETURNING rowid;
+                VALUES ($source, $ext, $kind, $title, $grp, $logo, $url, $epg, $catchup, $cmode, $csource, $opts, $sort);
                 """, tx);
             var pSource = insert.Parameters.Add("$source", SqliteType.Text);
             var pExt = insert.Parameters.Add("$ext", SqliteType.Text);
@@ -363,11 +367,6 @@ public sealed partial class LibraryStore : IDisposable
             var pCatchupSource = insert.Parameters.Add("$csource", SqliteType.Text);
             var pOptions = insert.Parameters.Add("$opts", SqliteType.Text);
             var pSort = insert.Parameters.Add("$sort", SqliteType.Integer);
-
-            using var fts = Command("INSERT INTO items_fts (rowid, title, grp) VALUES ($rowid, $title, $grp)", tx);
-            var fRow = fts.Parameters.Add("$rowid", SqliteType.Integer);
-            var fTitle = fts.Parameters.Add("$title", SqliteType.Text);
-            var fGrp = fts.Parameters.Add("$grp", SqliteType.Text);
 
             foreach (var item in items)
             {
@@ -384,13 +383,17 @@ public sealed partial class LibraryStore : IDisposable
                 pCatchupSource.Value = (object?)item.CatchupSource ?? DBNull.Value;
                 pOptions.Value = (object?)item.PlayerOptions ?? DBNull.Value;
                 pSort.Value = item.SortIndex;
-                var rowid = (long)insert.ExecuteScalar()!;
-
-                fRow.Value = rowid;
-                fTitle.Value = item.Title;
-                fGrp.Value = item.Group;
-                fts.ExecuteNonQuery();
+                insert.ExecuteNonQuery();
             }
+
+            // Index the new rows for search in one statement rather than one call per item.
+            using var index = Command("""
+                INSERT INTO items_fts (rowid, title, grp)
+                SELECT rowid, title, grp FROM items WHERE source_id = $id AND ($kind IS NULL OR kind = $kind)
+                """, tx);
+            index.Parameters.AddWithValue("$id", sourceId);
+            index.Parameters.AddWithValue("$kind", kind is null ? DBNull.Value : (object)(int)kind.Value);
+            index.ExecuteNonQuery();
 
             tx.Commit();
         }

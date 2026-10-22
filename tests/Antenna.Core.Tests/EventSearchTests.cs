@@ -112,11 +112,44 @@ public sealed class EventSearchTests : IDisposable
         {
             c.Open();
             using var cmd = c.CreateCommand();
-            cmd.CommandText = "DELETE FROM programmes_fts";
+            // The index as older versions made it: its own copy of the text, filled row by row.
+            cmd.CommandText = """
+                DROP TABLE programmes_fts;
+                CREATE VIRTUAL TABLE programmes_fts USING fts5(
+                    title, description, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4'
+                );
+                """;
             cmd.ExecuteNonQuery();
         }
         using var reopened = new LibraryStore(_path);
         Assert.NotEmpty(reopened.SearchEvents("tennis", Now, Now.AddHours(6)));
+    }
+
+    [Fact]
+    public void Reimporting_or_deleting_a_guide_leaves_no_stale_hits()
+    {
+        Seed();
+        using (var w = _store.BeginGuideImport("s"))
+        {
+            w.Add(new Programme { ChannelId = "ssme", Title = "Snooker: Masters", Start = Now, Stop = Now.AddHours(2) });
+            w.Commit();
+        }
+        Assert.Empty(_store.SearchEvents("tennis", Now, Now.AddHours(6)));
+        Assert.NotEmpty(_store.SearchEvents("snooker", Now, Now.AddHours(6)));
+
+        _store.DeleteSource("s");
+        Assert.Empty(_store.SearchEvents("snooker", Now, Now.AddHours(6)));
+    }
+
+    [Fact]
+    public void An_abandoned_guide_import_keeps_the_old_guide_searchable()
+    {
+        Seed();
+        using (var w = _store.BeginGuideImport("s"))
+            w.Add(new Programme { ChannelId = "ssme", Title = "Snooker: Masters", Start = Now, Stop = Now.AddHours(2) });
+
+        Assert.NotEmpty(_store.SearchEvents("tennis", Now, Now.AddHours(6)));
+        Assert.Empty(_store.SearchEvents("snooker", Now, Now.AddHours(6)));
     }
 
     [Fact]
