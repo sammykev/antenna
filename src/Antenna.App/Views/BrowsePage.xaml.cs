@@ -88,7 +88,10 @@ public sealed partial class BrowsePage : Page
     {
         Items.Visibility = IsLive ? Visibility.Collapsed : Visibility.Visible;
         ChannelList.Visibility = IsLive ? Visibility.Visible : Visibility.Collapsed;
-        (IsLive ? Items : ChannelList).ItemsSource = null;
+        if (IsLive)
+            Items.ItemsSource = null;
+        else
+            ChannelList.ItemsSource = null;
         PreviewPane.Visibility = PreviewOn ? Visibility.Visible : Visibility.Collapsed;
         PreviewColumn.Width = PreviewOn ? new GridLength(1.1, GridUnitType.Star) : new GridLength(0);
         ResetPreviewInfo();
