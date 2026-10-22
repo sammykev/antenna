@@ -6,40 +6,44 @@
     xmlns:vm="using:Antenna.App.ViewModels"
     xmlns:views="using:Antenna.App.Views">
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
-
-        <views:DetailsHeader x:Name="Header" />
-
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="12" Padding="32,0,32,8">
-            <ComboBox x:Name="Seasons" MinWidth="160" SelectionChanged="Seasons_SelectionChanged" />
-            <InfoBar x:Name="Status" IsClosable="True" />
-        </StackPanel>
-
-        <ListView x:Name="Episodes" Grid.Row="2" Padding="24,0,24,16" IsItemClickEnabled="True" SelectionMode="None"
-                  ItemClick="Episodes_ItemClick" RightTapped="Episodes_RightTapped">
-            <ListView.ItemTemplate>
-                <DataTemplate x:DataType="vm:EpisodeViewModel">
-                    <Grid Padding="0,8" ColumnSpacing="14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="160" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid Height="90" CornerRadius="6" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
-                            <Image Source="{x:Bind Image.Source, Mode=OneWay}" Stretch="UniformToFill" />
-                            <ProgressBar Value="{x:Bind Progress}" Maximum="100" VerticalAlignment="Bottom" Visibility="{x:Bind ProgressVisibility}" />
-                        </Grid>
-                        <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
-                            <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{x:Bind Plot}" Opacity="0.7" TextWrapping="Wrap" MaxLines="2" TextTrimming="WordEllipsis" />
-                        </StackPanel>
+    <!-- One scroll for the whole page: the details and season picker are the list's header, so they scroll away. -->
+    <ListView x:Name="Episodes" Padding="0,0,0,24" IsItemClickEnabled="True" SelectionMode="None"
+              ItemClick="Episodes_ItemClick" RightTapped="Episodes_RightTapped">
+        <ListView.Header>
+            <StackPanel>
+                <views:DetailsHeader x:Name="Header" />
+                <StackPanel Orientation="Horizontal" Spacing="12" Padding="32,4,32,12">
+                    <ComboBox x:Name="Seasons" MinWidth="160" CornerRadius="8" SelectionChanged="Seasons_SelectionChanged" />
+                    <InfoBar x:Name="Status" IsClosable="True" />
+                </StackPanel>
+            </StackPanel>
+        </ListView.Header>
+        <ListView.ItemContainerStyle>
+            <Style TargetType="ListViewItem" BasedOn="{StaticResource DefaultListViewItemStyle}">
+                <Setter Property="Margin" Value="24,0,24,10" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="CornerRadius" Value="{StaticResource CardRadius}" />
+                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            </Style>
+        </ListView.ItemContainerStyle>
+        <ListView.ItemTemplate>
+            <DataTemplate x:DataType="vm:EpisodeViewModel">
+                <Grid Padding="10" ColumnSpacing="16" CornerRadius="{StaticResource CardRadius}" Background="{ThemeResource CardFillBrush}"
+                      BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="176" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid Height="99" CornerRadius="8" Background="{ThemeResource SubtleFillColorSecondaryBrush}">
+                        <Image Source="{x:Bind Image.Source, Mode=OneWay}" Stretch="UniformToFill" />
+                        <ProgressBar Value="{x:Bind Progress}" Maximum="100" VerticalAlignment="Bottom" Visibility="{x:Bind ProgressVisibility}" />
                     </Grid>
-                </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
-    </Grid>
+                    <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{x:Bind Plot}" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" MaxLines="3" TextTrimming="WordEllipsis" />
+                    </StackPanel>
+                </Grid>
+            </DataTemplate>
+        </ListView.ItemTemplate>
+    </ListView>
 </Page>

@@ -11,7 +11,7 @@
             <Rectangle.Fill>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                     <GradientStop Color="#00000000" Offset="0" />
-                    <GradientStop Color="{ThemeResource SolidBackgroundFillColorBase}" Offset="1" />
+                    <GradientStop Color="{ThemeResource StageColor}" Offset="1" />
                 </LinearGradientBrush>
             </Rectangle.Fill>
         </Rectangle>
