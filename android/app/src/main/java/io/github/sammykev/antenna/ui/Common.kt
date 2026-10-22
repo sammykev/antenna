@@ -86,7 +86,9 @@ fun EmptyText(text: String) {
 
 @Composable
 fun ThinProgress(progress: Float, modifier: Modifier = Modifier) {
-    androidx.compose.material3.LinearProgressIndicator(progress = { progress }, modifier = modifier.fillMaxWidth().height(3.dp), drawStopIndicator = {})
+    // One continuous bar: no gap or stop dot (Material 3's defaults), as on Windows.
+    androidx.compose.material3.LinearProgressIndicator(progress = { progress }, modifier = modifier.fillMaxWidth().height(3.dp), gapSize = 0.dp,
+        drawStopIndicator = {})
 }
 
 /** Calls [onEnd] when the list is scrolled near its end (to load the next page). */
