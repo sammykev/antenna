@@ -544,12 +544,14 @@ public sealed partial class MultiViewPage : Page
         var maxRetries = sameProviderPlaying ? 2 : RetryDelays.Length;
         if (slot.Retry >= maxRetries)
         {
-            Set(slot.Status, sameProviderPlaying
-                ? "Couldn't open this stream while another tile from the same provider is playing."
-                : "Stream unavailable");
-            SetVisible(slot.Status, true);
             if (sameProviderPlaying)
-                ShowLimitHint(request.SourceId);
+            {
+                // The account's connection is taken: use the same channel on another playlist if one has room.
+                await StopForLimitAsync(slot, request);
+                return;
+            }
+            Set(slot.Status, "Stream unavailable");
+            SetVisible(slot.Status, true);
             return;
         }
 
@@ -578,15 +580,30 @@ public sealed partial class MultiViewPage : Page
             ? $"allows {limit.Max} stream{(limit.Max == 1 ? "" : "s")} at a time"
             : "seems to allow only one stream at a time";
         Log.Info($"multi-view tile {slot.Index + 1}: stopped, {name} {allows} and another tile uses it");
-        Set(slot.Status, $"Stopped: {name} {allows}, and another tile is using it.");
-        SetVisible(slot.Status, true);
-        ShowLimitHint(request.SourceId);
 
         var others = request.Item is { } item
-            ? await Task.Run(() => AppServices.Library.FindSameChannel(item, limit: 2))
+            ? await Task.Run(() => AppServices.Library.FindSameChannel(item, limit: 4))
             : [];
         if (_leaving || version != slot.PlayVersion)
             return;
+
+        // The same channel on a playlist with a connection to spare plays at once, no click needed.
+        if (await SpareCopyAsync(slot, others) is { } spare && !_leaving && version == slot.PlayVersion)
+        {
+            Log.Info($"multi-view tile {slot.Index + 1}: {name} is busy, playing '{spare.Item.Title}' from {spare.SourceName} instead");
+            Chosen[slot.Index] = ForTile(PlayRequest.ForItem(spare.Item));
+            slot.Retry = 0;
+            Play(slot);
+            LimitBar.Severity = InfoBarSeverity.Informational;
+            LimitBar.Title = "Switched playlist";
+            LimitBar.Message = $"{name} {allows} and another tile is using it, so tile {slot.Index + 1} plays {spare.Item.Title} from {spare.SourceName}.";
+            LimitBar.IsOpen = true;
+            return;
+        }
+
+        Set(slot.Status, $"Stopped: {name} {allows}, and another tile is using it.");
+        SetVisible(slot.Status, true);
+        ShowLimitHint(request.SourceId);
 
         slot.Actions.Children.Clear();
         foreach (var other in others)
@@ -652,6 +669,24 @@ public sealed partial class MultiViewPage : Page
         }
     }
 
+    /// <summary>
+    /// The first of <paramref name="copies"/> (the same channel on other playlists) whose account has a stream to spare:
+    /// not used by another tile, or used by fewer tiles than its reported limit.
+    /// </summary>
+    private async Task<LibraryEntry?> SpareCopyAsync(Slot slot, IReadOnlyList<LibraryEntry> copies)
+    {
+        var sources = AppServices.Library.GetSources();
+        foreach (var copy in copies)
+        {
+            var used = _slots.Count(s => s != slot && s.IsPlaying && Chosen[s.Index]?.SourceId == copy.Item.SourceId);
+            if (used == 0)
+                return copy;
+            if (sources.FirstOrDefault(s => s.Id == copy.Item.SourceId) is { Kind: SourceKind.Xtream } source && await StreamLimitAsync(source) > used)
+                return copy;
+        }
+        return null;
+    }
+
     /// <summary>After a real failure: explain the likely cause, quoting the provider's reported limit when known.</summary>
     private void ShowLimitHint(string? sourceId)
     {
@@ -663,7 +698,8 @@ public sealed partial class MultiViewPage : Page
         LimitBar.Severity = InfoBarSeverity.Warning;
         LimitBar.Title = "Connection limit";
         LimitBar.Message = $"{name} refused an extra stream while another tile was playing.{reported} " +
-                           "Try again, pick a channel from another playlist, or ask your provider about more connections.";
+                           "Each tile is a separate stream, and no other playlist of yours has this channel with a connection free. " +
+                           "To watch more at once, add another playlist or ask your provider for a plan with more connections.";
         LimitBar.IsOpen = true;
         Log.Info($"multi-view: extra stream refused by {name}{reported}");
     }
