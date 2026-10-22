@@ -22,6 +22,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -78,7 +79,7 @@ fun SyncScreen(back: () -> Unit) {
     val create = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream"), onPicked)
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Sync with your PC") }, navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
+        TopAppBar(windowInsets = WindowInsets(0, 0, 0, 0), title = { Text("Sync with your PC") }, navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Keeps playlists, favourites and where you stopped films and episodes the same here and in Antenna on your PC, through one encrypted file in your Google Drive or OneDrive.", color = Muted)
             Text("On the PC: Settings → Sync with your phone, choose a folder inside Google Drive or OneDrive, enter a passphrase and Sync now. Then here: enter the same passphrase and choose that file (Antenna sync.antenna).", color = Muted)

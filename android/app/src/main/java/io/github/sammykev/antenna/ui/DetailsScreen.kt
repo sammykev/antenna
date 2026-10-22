@@ -25,6 +25,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -139,7 +140,7 @@ fun DetailsScreen(sourceId: String, externalId: String, kind: MediaKind, back: (
             Box(Modifier.fillMaxWidth().height(230.dp)) {
                 val backdrop = details.backdropUrl ?: details.posterUrl ?: item?.logoUrl
                 if (backdrop != null) AsyncImage(backdrop, null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize().alpha(0.45f))
-                TopAppBar(title = {}, navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                TopAppBar(windowInsets = WindowInsets(0, 0, 0, 0), title = {}, navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent))
                 Row(Modifier.align(Alignment.BottomStart).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Artwork(details.posterUrl ?: item?.logoUrl, "", Modifier.width(100.dp).height(150.dp), crop = true)

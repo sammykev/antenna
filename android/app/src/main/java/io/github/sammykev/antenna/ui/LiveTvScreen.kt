@@ -14,13 +14,18 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.EventNote
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -69,6 +74,44 @@ fun LiveTvScreen(openGuideSearch: () -> Unit) {
     var exhausted by remember { mutableStateOf(false) }
     val prefs = remember { context.getSharedPreferences("antenna", 0) }
 
+    // Tap a channel to preview it at the top; tap it again (or the video) for full screen.
+    var previewOn by remember { mutableStateOf(prefs.getBoolean("live.preview", true)) }
+    var previewing by remember { mutableStateOf<LibraryEntry?>(null) }
+    var previewNow by remember { mutableStateOf<Programme?>(null) }
+    var previewNext by remember { mutableStateOf<Programme?>(null) }
+    val preview = remember { PreviewPlayer(context) }
+    DisposableEffect(Unit) { onDispose { preview.release() } }
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { preview.stop() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { previewing?.let(preview::play) }
+
+    fun watch(index: Int) {
+        // Let go of the preview's stream first: many accounts allow one connection.
+        preview.stop()
+        Playback.playItems(context, rows.map { it.first.item }, index)
+    }
+
+    fun select(index: Int) {
+        val entry = rows[index].first
+        if (!previewOn || previewing?.item == entry.item) {
+            watch(index)
+            return
+        }
+        previewing = entry
+        previewNow = rows[index].second
+        previewNext = null
+        preview.play(entry)
+        val channel = entry.item.epgChannelId ?: return
+        scope.launch {
+            val upcoming = withContext(Dispatchers.IO) {
+                val start = java.time.Instant.now()
+                Services.library.getProgrammes(entry.item.sourceId, channel, start, start.plus(java.time.Duration.ofHours(8)))
+            }
+            if (previewing?.item != entry.item) return@launch
+            previewNow = upcoming.firstOrNull { it.isOnAt(java.time.Instant.now()) } ?: previewNow
+            previewNext = upcoming.firstOrNull { p -> p.start >= (previewNow?.stop ?: java.time.Instant.now()) }
+        }
+    }
+
     LaunchedEffect(version) {
         val (groups, hasFavourites) = withContext(Dispatchers.IO) {
             Services.library.getGroups(MediaKind.Live) to Services.library.getFavourites(MediaKind.Live).isNotEmpty()
@@ -115,9 +158,26 @@ fun LiveTvScreen(openGuideSearch: () -> Unit) {
     LoadMoreEffect(listState) { load(reset = false) }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Live TV") }, actions = {
+        LargeHeader("Live TV") {
+            IconButton(onClick = {
+                previewOn = !previewOn
+                prefs.edit().putBoolean("live.preview", previewOn).apply()
+                if (!previewOn) {
+                    preview.stop()
+                    previewing = null
+                }
+            }) { Icon(if (previewOn) Icons.Default.Visibility else Icons.Default.VisibilityOff, if (previewOn) "Turn the preview off" else "Turn the preview on") }
             IconButton(onClick = openGuideSearch) { Icon(Icons.Default.EventNote, "Search the guide") }
-        })
+        }
+        previewing?.let { entry ->
+            PreviewPanel(preview, entry, previewNow, previewNext) {
+                val index = rows.indexOfFirst { it.first.item == entry.item }
+                if (index >= 0) watch(index) else {
+                    preview.stop()
+                    Playback.playItems(context, listOf(entry.item), 0)
+                }
+            }
+        }
         SearchField(query, { query = it }, "Search channels")
         if (chips.isNotEmpty()) ChipRow(chips, chip, { it.name }) {
             chip = it
@@ -126,7 +186,7 @@ fun LiveTvScreen(openGuideSearch: () -> Unit) {
         Box(Modifier.fillMaxSize()) {
             LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 itemsIndexed(rows, key = { _, r -> r.first.item.sourceId + "|" + r.first.item.externalId }) { index, (entry, now) ->
-                    ChannelRow(entry, now) { Playback.playItems(context, rows.map { it.first.item }, index) }
+                    ChannelRow(entry, now, selected = previewing?.item == entry.item) { select(index) }
                 }
             }
             if (rows.isEmpty() && !loading) EmptyText(when {
@@ -140,10 +200,11 @@ fun LiveTvScreen(openGuideSearch: () -> Unit) {
 }
 
 @Composable
-fun ChannelRow(entry: LibraryEntry, now: Programme?, onClick: () -> Unit) {
-    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Artwork(entry.item.logoUrl, initials(entry.item.title), Modifier.size(width = 56.dp, height = 40.dp))
+fun ChannelRow(entry: LibraryEntry, now: Programme?, selected: Boolean = false, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().background(if (selected) SurfaceHigh else androidx.compose.ui.graphics.Color.Transparent)
+        .clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Artwork(entry.item.logoUrl, initials(entry.item.title), Modifier.size(width = 68.dp, height = 44.dp))
         Column(Modifier.weight(1f)) {
             Text(entry.item.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(now?.let { "${hhmm.format(it.start)}  ${it.title}" } ?: entry.item.group, color = Muted, maxLines = 1,

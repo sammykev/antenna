@@ -5,6 +5,7 @@ import android.content.Intent
 import io.github.sammykev.antenna.data.Episode
 import io.github.sammykev.antenna.data.MediaItem
 import io.github.sammykev.antenna.data.MediaKind
+import io.github.sammykev.antenna.data.WatchRecord
 import io.github.sammykev.antenna.player.PlayerActivity
 
 /** Something the player can play: a channel, a movie or an episode. */
@@ -49,4 +50,22 @@ object Playback {
     }
 
     fun playItems(context: Context, items: List<MediaItem>, index: Int) = play(context, items.map(PlayItem::of), index)
+
+    /**
+     * Plays a history entry: a film or episode from where it was left (the player resumes from history), a channel
+     * with its category around it for next/previous. Reads the library: call off the main thread, then [play].
+     */
+    fun queueFor(record: WatchRecord): Pair<List<PlayItem>, Int> {
+        if (record.kind == MediaKind.Live) {
+            val entry = Services.library.getItem(record.sourceId, record.externalId, MediaKind.Live)
+            if (entry != null) {
+                val channels = Services.library.getItems(MediaKind.Live, entry.item.sourceId, entry.item.group).map { it.item }
+                val index = channels.indexOfFirst { it.externalId == entry.item.externalId }
+                if (index >= 0) return channels.map(PlayItem::of) to index
+            }
+        }
+        val item = Services.library.getItem(record.sourceId, record.externalId, record.kind)?.item
+        return listOf(PlayItem(record.title, record.streamUrl, record.kind, record.sourceId, record.externalId, null, record.logoUrl,
+            record.playerOptions, item)) to 0
+    }
 }

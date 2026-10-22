@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -75,7 +76,7 @@ fun GuideSearchScreen(back: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Search the guide") }, navigationIcon = {
+        TopAppBar(windowInsets = WindowInsets(0, 0, 0, 0), title = { Text("Search the guide") }, navigationIcon = {
             IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") }
         })
         SearchField(query, { query = it }, "Programmes, e.g. Arsenal or Match of the Day")

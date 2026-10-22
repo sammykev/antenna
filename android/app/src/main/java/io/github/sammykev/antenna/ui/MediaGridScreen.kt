@@ -17,7 +17,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -113,25 +112,18 @@ fun MediaGridScreen(kind: MediaKind, open: (LibraryEntry) -> Unit) {
     LoadMoreEffect(gridState) { load(reset = false) }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text(if (kind == MediaKind.Movie) "Movies" else "Series") })
+        LargeHeader(if (kind == MediaKind.Movie) "Movies" else "Series")
         SearchField(query, { query = it }, "Search $noun")
         if (chips.isNotEmpty()) ChipRow(chips, chip, { it.name }) {
             chip = it
             prefs.edit().putString(prefKey, it.name).apply()
         }
         Box(Modifier.fillMaxSize()) {
-            LazyVerticalGrid(GridCells.Adaptive(110.dp), state = gridState, contentPadding = PaddingValues(12.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(14.dp),
+            LazyVerticalGrid(GridCells.Adaptive(112.dp), state = gridState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(18.dp),
                 modifier = Modifier.fillMaxSize()) {
                 items(rows, key = { it.first.item.sourceId + "|" + it.first.item.externalId }) { (entry, progress) ->
-                    Column(Modifier.clickable { open(entry) }) {
-                        Box {
-                            Artwork(entry.item.logoUrl, entry.item.title, Modifier.fillMaxWidth().height(165.dp), crop = true)
-                            if (progress > 0) ThinProgress(progress, Modifier.align(Alignment.BottomCenter))
-                        }
-                        Text(entry.item.title, maxLines = 2, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp))
-                    }
+                    PosterCard(entry, width = null, progress = progress) { open(entry) }
                 }
             }
             if (rows.isEmpty() && !loading) EmptyText(when {

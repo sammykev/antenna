@@ -33,7 +33,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -143,13 +142,13 @@ fun MatchesScreen() {
     }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Matches") }, actions = {
+        LargeHeader("Matches") {
             IconButton(onClick = {
                 // A refresh also re-checks the channels: the guide may have changed.
                 fixtures.forEach { found.remove(it.id) }
                 reload++
             }) { Icon(Icons.Default.Refresh, "Refresh") }
-        })
+        }
         ChipRow(days, day, { d -> when (d) { days[0] -> "Today"; days[1] -> "Tomorrow"; else -> d.format(DateTimeFormatter.ofPattern("EEE d MMM")) } }) { day = it }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f)) {
@@ -195,6 +194,8 @@ fun MatchesScreen() {
                 Text("${f.league} · $whenText", color = Muted)
                 if (match != null && !match.onYourChannels)
                     Text("Not on your channels" + if (f.broadcasts.isNotEmpty()) " (on TV: ${f.broadcasts.joinToString()})." else ".", color = Muted)
+                if (match?.isCoverage == true)
+                    Text("Your guide doesn't name this match. These channels show ${f.sport.lowercase()} around then, so it may be another game.", color = Muted)
                 match?.channels?.take(6)?.forEach { c ->
                     TextButton(onClick = { open = null; Playback.playItems(context, listOf(c.item), 0) }) { Text("▶ Watch on ${c.item.title}") }
                 }

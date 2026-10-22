@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -102,8 +103,9 @@ fun PlaylistsScreen(add: () -> Unit, openSync: () -> Unit) {
     fun refresh(list: List<PlaylistSource>) = scope.launch { if (progress == null) problems = Refreshing.run(list) }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(title = { Text("Playlists") }, actions = {
+            TopAppBar(windowInsets = WindowInsets(0, 0, 0, 0), title = { Text("Playlists") }, actions = {
                 IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More") }
                 DropdownMenu(menu, { menu = false }) {
                     DropdownMenuItem(text = { Text("Sync with PC") }, onClick = { menu = false; openSync() })

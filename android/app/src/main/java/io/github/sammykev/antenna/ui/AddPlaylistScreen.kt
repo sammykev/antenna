@@ -27,6 +27,7 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -128,7 +129,7 @@ fun AddPlaylistScreen(back: () -> Unit, done: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        TopAppBar(title = { Text("Add playlist") }, navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
+        TopAppBar(windowInsets = WindowInsets(0, 0, 0, 0), title = { Text("Add playlist") }, navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 listOf("M3U link", "M3U file", "Xtream Codes").forEachIndexed { i, label ->

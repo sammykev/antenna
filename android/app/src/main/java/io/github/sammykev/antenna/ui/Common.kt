@@ -69,7 +69,7 @@ fun <T> ChipRow(chips: List<T>, selected: T?, label: (T) -> String, onSelect: (T
 /** A logo or poster with initials (or the title) behind it while it loads or when there's none. */
 @Composable
 fun Artwork(url: String?, fallback: String, modifier: Modifier, crop: Boolean = false) {
-    Box(modifier.clip(RoundedCornerShape(8.dp)).background(Surface), contentAlignment = Alignment.Center) {
+    Box(modifier.clip(CardShape).background(Surface), contentAlignment = Alignment.Center) {
         Text(fallback, color = Muted, textAlign = TextAlign.Center, modifier = Modifier.padding(6.dp))
         if (!url.isNullOrBlank())
             AsyncImage(model = url, contentDescription = null, contentScale = if (crop) ContentScale.Crop else ContentScale.Fit,

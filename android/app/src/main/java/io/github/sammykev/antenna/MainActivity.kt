@@ -9,9 +9,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.AlertDialog
@@ -45,6 +45,7 @@ import io.github.sammykev.antenna.ui.AddPlaylistScreen
 import io.github.sammykev.antenna.ui.AntennaTheme
 import io.github.sammykev.antenna.ui.DetailsScreen
 import io.github.sammykev.antenna.ui.GuideSearchScreen
+import io.github.sammykev.antenna.ui.HomeScreen
 import io.github.sammykev.antenna.ui.LiveTvScreen
 import io.github.sammykev.antenna.ui.MatchesScreen
 import io.github.sammykev.antenna.ui.MediaGridScreen
@@ -57,12 +58,13 @@ import kotlinx.coroutines.withContext
 
 private data class Tab(val route: String, val label: String, val icon: ImageVector)
 
+// Five at most; playlists open from Home's header.
 private val tabs = listOf(
+    Tab("home", "Home", Icons.Default.Home),
     Tab("live", "Live TV", Icons.Default.LiveTv),
     Tab("movies", "Movies", Icons.Default.Movie),
     Tab("series", "Series", Icons.Default.VideoLibrary),
     Tab("matches", "Matches", Icons.Default.SportsSoccer),
-    Tab("playlists", "Playlists", Icons.Default.PlaylistPlay),
 )
 
 class MainActivity : ComponentActivity() {
@@ -135,7 +137,12 @@ class MainActivity : ComponentActivity() {
                     icon = { Icon(tab.icon, null) }, label = { Text(tab.label) })
             }
         }) { padding ->
-            NavHost(nav, startDestination = "live", modifier = Modifier.padding(padding).fillMaxSize()) {
+            NavHost(nav, startDestination = "home", modifier = Modifier.padding(padding).fillMaxSize()) {
+                composable("home") {
+                    HomeScreen(openDetails = { nav.navigate(details(it.item.kind, it.item.sourceId, it.item.externalId)) },
+                        openPlaylists = { nav.navigate("playlists") }, openGuideSearch = { nav.navigate("guide") },
+                        openTab = { nav.switchTab(it) })
+                }
                 composable("live") { LiveTvScreen(openGuideSearch = { nav.navigate("guide") }) }
                 composable("guide") { GuideSearchScreen(back = { nav.popBackStack() }) }
                 composable("movies") { MediaGridScreen(MediaKind.Movie) { nav.navigate(details(it.item.kind, it.item.sourceId, it.item.externalId)) } }
@@ -147,7 +154,7 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("matches") { MatchesScreen() }
                 composable("playlists") { PlaylistsScreen(add = { nav.navigate("add") }, openSync = { nav.navigate("sync") }) }
-                composable("add") { AddPlaylistScreen(back = { nav.popBackStack() }, done = { nav.switchTab("live") }) }
+                composable("add") { AddPlaylistScreen(back = { nav.popBackStack() }, done = { nav.switchTab("home") }) }
                 composable("sync") { SyncScreen(back = { nav.popBackStack() }) }
             }
         }
