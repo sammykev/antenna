@@ -91,6 +91,15 @@ class MainActivity : ComponentActivity() {
             }
         }
         lifecycleScope.launch(Dispatchers.IO) { ScoreAlertScheduler.schedule(applicationContext) }
+        // Refresh stale playlists and guides now and then while Antenna is open (off the main thread: it takes a while).
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    withContext(Dispatchers.IO) { AutoRefresh.run() }
+                    delay(30 * 60_000L)
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
