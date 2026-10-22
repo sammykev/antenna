@@ -459,13 +459,15 @@ public sealed partial class MatchesPage : Page
     {
         var sport = _sport;
         var mine = MineOnly.IsOn;
+        var liveOnly = LiveOnly.IsChecked == true;
         var any = false;
         foreach (var (header, rows) in _groups)
         {
             var visibleInGroup = false;
             foreach (var row in rows)
             {
-                var show = (sport is null || row.Fixture.Sport == sport) && (!mine || row.Match?.OnYourChannels == true);
+                var show = (sport is null || row.Fixture.Sport == sport) && (!mine || row.Match?.OnYourChannels == true)
+                           && (!liveOnly || row.Fixture.State == FixtureState.Live);
                 row.Root.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
                 visibleInGroup |= show;
             }
@@ -477,7 +479,9 @@ public sealed partial class MatchesPage : Page
             if (any)
                 EmptyState.Visibility = Visibility.Collapsed;
             else
-                ShowEmpty("Nothing to show", mine ? "None of these fixtures are on your channels (yet: the guide may not list them until closer to the day)." : "No fixtures for this sport on this day.");
+                ShowEmpty("Nothing to show", liveOnly ? "Nothing is being played right now. Turn off Live now to see the rest of the day."
+                    : mine ? "None of these fixtures are on your channels (yet: the guide may not list them until closer to the day)."
+                    : "No fixtures for this sport on this day.");
         }
     }
 
@@ -520,6 +524,12 @@ public sealed partial class MatchesPage : Page
             };
             SportChips.Children.Add(chip);
         }
+    }
+
+    private void LiveOnly_Click(object sender, RoutedEventArgs e)
+    {
+        if (_ready)
+            ApplyFilters();
     }
 
     private void MineOnly_Toggled(object sender, RoutedEventArgs e)

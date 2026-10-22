@@ -26,6 +26,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -108,6 +110,9 @@ fun MatchesScreen() {
     val teams = remember(followTick) { ScoreAlerts.followed(Services.library) }
     val version by Services.libraryVersion.collectAsState()
     var checking by remember { mutableStateOf<String?>(null) }
+    var liveOnly by remember { mutableStateOf(false) }
+    /** Shown as a pop-up when Watch found none of the match's channels broadcasting. */
+    var notBroadcasting by remember { mutableStateOf<Pair<String, String>?>(null) }
 
     /** Plays the chosen channel if it's really broadcasting, otherwise the next of the match's channels that is. */
     fun watchChecked(match: FixtureMatch, chosen: LibraryEntry) {
@@ -119,8 +124,10 @@ fun MatchesScreen() {
             checking = null
             val toast = { text: String -> android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_LONG).show() }
             if (onAir == null) {
-                toast(if (dark.size == 1) "${chosen.item.title} isn't broadcasting right now. Try again closer to the start."
-                      else "None of the ${dark.size} channels listing ${match.fixture.title} are broadcasting right now.")
+                notBroadcasting = match.fixture.title to (if (dark.size == 1)
+                    "${chosen.item.title} isn't broadcasting right now. It may start closer to kick-off, so try again then."
+                else "None of the ${dark.size} channels listing this match are broadcasting right now (${dark.joinToString { it.item.title }}). " +
+                    "They may start closer to kick-off, so try again then.")
                 return@launch
             }
             open = null
@@ -171,7 +178,9 @@ fun MatchesScreen() {
         }
     }
 
-    val shown = fixtures.filter { (sport == ALL_SPORTS || it.sport == sport) && (!mine || matches[it.id]?.onYourChannels == true) }
+    val shown = fixtures.filter {
+        (sport == ALL_SPORTS || it.sport == sport) && (!mine || matches[it.id]?.onYourChannels == true) && (!liveOnly || it.state == FixtureState.Live)
+    }
     val groups = buildList {
         val followed = shown.filter { ScoreAlerts.involves(it, teams) }
         if (followed.isNotEmpty()) add("★ Your teams" to followed)
@@ -193,6 +202,7 @@ fun MatchesScreen() {
             prefs.edit().putString("matches.sport", it).apply()
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            FilterChip(selected = liveOnly, onClick = { liveOnly = !liveOnly }, label = { Text("● Live now", color = if (liveOnly) Live else Color.Unspecified) })
             Spacer(Modifier.weight(1f))
             Text("Only my channels", Modifier.padding(end = 8.dp))
             Switch(mine, { mine = it; prefs.edit().putBoolean("matches.mine", it).apply() })
@@ -207,11 +217,18 @@ fun MatchesScreen() {
             }
             if (groups.isEmpty() && !busy) EmptyText(when {
                 fixtures.isEmpty() -> "Couldn't load fixtures for this day, or there are none. Check your connection and refresh."
+                liveOnly -> "Nothing is being played right now. Turn off Live now to see the rest of the day."
                 mine -> "None of these fixtures are on your channels (yet: the guide may not list them until closer to the day)."
                 else -> "No fixtures for this sport on this day."
             })
             if (busy && fixtures.isEmpty()) CircularProgressIndicator(Modifier.align(Alignment.TopCenter).padding(24.dp))
         }
+    }
+
+    notBroadcasting?.let { (title, text) ->
+        AlertDialog(onDismissRequest = { notBroadcasting = null }, title = { Text("Not broadcasting yet") },
+            text = { Text("$title\n\n$text") },
+            confirmButton = { TextButton(onClick = { notBroadcasting = null }) { Text("OK") } })
     }
 
     open?.let { f ->

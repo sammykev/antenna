@@ -42,6 +42,10 @@
         <StackPanel Grid.Row="1" Spacing="8">
             <StackPanel Orientation="Horizontal" Spacing="16">
                 <SelectorBar x:Name="Days" SelectionChanged="Days_SelectionChanged" />
+                <ToggleButton x:Name="LiveOnly" VerticalAlignment="Center" CornerRadius="14" Padding="14,4" Click="LiveOnly_Click"
+                              ToolTipService.ToolTip="Only matches being played now">
+                    <TextBlock Text="● Live now" />
+                </ToggleButton>
                 <ToggleSwitch x:Name="MineOnly" OnContent="Only on my channels" OffContent="Only on my channels" VerticalAlignment="Center" Toggled="MineOnly_Toggled" />
             </StackPanel>
             <!-- Sports as chips, like Live events: the highlighted one is shown. -->
