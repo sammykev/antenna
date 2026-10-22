@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Updating Antenna from inside the app (Android still asks the user to confirm each update). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Finding Chromecasts on the Wi-Fi (mDNS). -->
@@ -54,6 +56,8 @@
             android:foregroundServiceType="dataSync" />
 
         <receiver android:name=".alerts.ScoreAlarmReceiver" android:exported="false" />
+
+        <receiver android:name=".InstallResultReceiver" android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

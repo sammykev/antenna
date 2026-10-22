@@ -129,6 +129,10 @@ A native Kotlin app for phones (Android 8 or later) with the same playlists, gui
 - M3U (link or file) and Xtream Codes playlists
 - **Sync with the PC** (see below)
 
+Updates arrive inside the app: when a new version is out, Antenna offers it, downloads it, checks it's signed with
+Antenna's key, and Android asks you to confirm with **Update** (it always does for apps not from the Play Store). The
+first time, Android asks you to allow Antenna to install updates: switch it on once and go back.
+
 1. On the phone, open **[Releases](https://github.com/sammykev/antenna/releases/latest)** and download **Antenna-x.y.z.apk**.
 2. Open it and allow your browser to install apps when Android asks (it's not from the Play Store).
 3. When a new version is released, Antenna offers to download it on start; install it over the old one

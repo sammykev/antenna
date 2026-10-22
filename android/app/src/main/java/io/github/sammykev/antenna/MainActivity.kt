@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -28,6 +29,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
@@ -168,12 +170,71 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        update?.let { u ->
-            AlertDialog(onDismissRequest = { update = null }, title = { Text("Update available") },
-                text = { Text("Antenna ${u.version} is out. Download and install it now?") },
-                confirmButton = { TextButton(onClick = { update = null; startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.url))) }) { Text("Download") } },
-                dismissButton = { TextButton(onClick = { update = null }) { Text("Later") } })
+        update?.let { u -> UpdateDialog(u) { update = null } }
+    }
+
+    /** Set while Android's "allow installs" screen is open, so the update carries on when the user comes back. */
+    private var pendingUpdate: Update? = null
+    private var resumeUpdate by androidx.compose.runtime.mutableIntStateOf(0)
+
+    override fun onResume() {
+        super.onResume()
+        if (pendingUpdate != null) resumeUpdate++
+    }
+
+    /** Update offered in the app: download with progress, then Android's own "Update" confirmation. */
+    @Composable
+    private fun UpdateDialog(u: Update, close: () -> Unit) {
+        var progress by remember { mutableStateOf<Float?>(null) }
+        var error by remember { mutableStateOf<String?>(null) }
+        val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+        fun start() {
+            if (!Updater.canInstall(this@MainActivity)) {
+                // One-time switch: Android asks the user to let Antenna install updates.
+                pendingUpdate = u
+                startActivity(Updater.allowInstallsIntent(this@MainActivity))
+                return
+            }
+            pendingUpdate = null
+            progress = 0f
+            error = null
+            scope.launch {
+                try {
+                    val apk = withContext(Dispatchers.IO) { Updater.download(this@MainActivity, u) { p -> runOnUiThread { progress = p } } }
+                    withContext(Dispatchers.IO) { Updater.install(this@MainActivity, apk) }
+                    close()
+                } catch (e: Exception) {
+                    Log.error("In-app update", e)
+                    progress = null
+                    error = e.message ?: "The update couldn't be downloaded."
+                }
+            }
         }
+
+        LaunchedEffect(resumeUpdate) { if (resumeUpdate > 0 && pendingUpdate == u && Updater.canInstall(this@MainActivity)) start() }
+
+        AlertDialog(onDismissRequest = { if (progress == null) close() }, title = { Text("Update available") },
+            text = {
+                androidx.compose.foundation.layout.Column {
+                    when {
+                        error != null -> Text(error!!)
+                        progress != null -> {
+                            Text("Downloading Antenna ${u.version}… ${((progress ?: 0f) * 100).toInt()}%")
+                            androidx.compose.material3.LinearProgressIndicator(progress = { progress ?: 0f },
+                                modifier = Modifier.fillMaxWidth().padding(top = 12.dp))
+                        }
+                        else -> Text("Antenna ${u.version} is out. Update now? Your playlists and favourites are kept.")
+                    }
+                }
+            },
+            confirmButton = {
+                if (progress == null) TextButton(onClick = ::start) { Text(if (error != null) "Try again" else "Update") }
+            },
+            dismissButton = {
+                if (progress == null) TextButton(onClick = close) { Text("Later") }
+                if (error != null) TextButton(onClick = { close(); startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.url))) }) { Text("Download in browser") }
+            })
     }
 
     private fun details(kind: MediaKind, source: String, id: String) = "details/${kind.name}/${Uri.encode(source)}/${Uri.encode(id)}"

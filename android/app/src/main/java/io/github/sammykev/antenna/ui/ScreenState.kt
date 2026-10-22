@@ -43,7 +43,7 @@ class HomeState : ViewModel() {
 
 class MatchesState : ViewModel() {
     var day by mutableStateOf<java.time.LocalDate?>(null)
-    var reload by mutableStateOf(0)
+    var reload by androidx.compose.runtime.mutableIntStateOf(0)
     var fixtures by mutableStateOf(emptyList<Fixture>())
     val matches = mutableStateMapOf<String, FixtureMatch>()
     var status by mutableStateOf("")
