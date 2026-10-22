@@ -14,7 +14,12 @@ internal static class Updater
     public const string RepositoryUrl = "https://github.com/sammykev/antenna";
 
     private static readonly TimeSpan FirstCheck = TimeSpan.FromSeconds(20);
-    private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
+    private static readonly TimeSpan Interval = TimeSpan.FromHours(1);
+
+    /// <summary>Coming back to Antenna checks again when the last check is at least this old.</summary>
+    private static readonly TimeSpan RecheckOnReturn = TimeSpan.FromMinutes(30);
+
+    private static DateTimeOffset _lastCheck = DateTimeOffset.MinValue;
 
     private static UpdateManager? _manager;
     private static DispatcherQueueTimer? _timer;
@@ -64,19 +69,31 @@ internal static class Updater
         _timer.Tick += async (timer, _) =>
         {
             timer.Interval = Interval;
-            if (!AppSettings.AutoUpdate || Ready is not null)
-                return;
-            try
-            {
-                if (await CheckAsync() is { } update)
-                    await DownloadAsync(update, null);
-            }
-            catch (Exception ex)
-            {
-                Log.Info($"updates: automatic check failed: {ex.Message}");
-            }
+            await CheckAndDownloadAsync();
         };
         _timer.Start();
+    }
+
+    /// <summary>When Antenna comes back to the front: check again if it's been a while (it may have been open for hours).</summary>
+    public static void OnActivated()
+    {
+        if (IsInstalled && DateTimeOffset.Now - _lastCheck > RecheckOnReturn)
+            _ = CheckAndDownloadAsync();
+    }
+
+    private static async Task CheckAndDownloadAsync()
+    {
+        if (!AppSettings.AutoUpdate || Ready is not null)
+            return;
+        try
+        {
+            if (await CheckAsync() is { } update)
+                await DownloadAsync(update, null);
+        }
+        catch (Exception ex)
+        {
+            Log.Info($"updates: automatic check failed: {ex.Message}");
+        }
     }
 
     /// <summary>Returns the newer release, or null when up to date. Throws when GitHub can't be reached.</summary>
@@ -87,6 +104,7 @@ internal static class Updater
         // A manual check while the timer is checking shares the same request.
         if (_running is { IsCompleted: false } running)
             return running;
+        _lastCheck = DateTimeOffset.Now;
         return _running = Task.Run(async () =>
         {
             var update = await manager.CheckForUpdatesAsync().ConfigureAwait(false);

@@ -80,6 +80,11 @@ public partial class App : Application
         {
             Updater.UpdateReady += update => Window.ShowUpdateReady(update.TargetFullRelease.Version.ToString());
             Updater.Start(Window.DispatcherQueue);
+            Window.Activated += (_, a) =>
+            {
+                if (a.WindowActivationState != WindowActivationState.Deactivated)
+                    Updater.OnActivated();
+            };
         });
         SafeStart.Running(Window.DispatcherQueue);
         if (SafeStart.Recovering)
