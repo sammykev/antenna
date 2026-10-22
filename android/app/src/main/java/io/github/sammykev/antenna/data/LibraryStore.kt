@@ -55,7 +55,13 @@ class LibraryStore(private val path: String, private val protector: SecretProtec
                 stop INTEGER NOT NULL, title TEXT NOT NULL, description TEXT)""")
         exec("CREATE INDEX IF NOT EXISTS programmes_channel ON programmes(source_id, channel_id, start)")
         exec("CREATE INDEX IF NOT EXISTS programmes_time ON programmes(start, stop)")
-        exec("CREATE VIRTUAL TABLE IF NOT EXISTS programmes_fts USING fts5(title, description, tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4')")
+        // The guide index reads its text from programmes rather than keeping a second copy, and is rebuilt in one pass
+        // after each import (LibraryStore.cs): far faster than indexing row by row, which took minutes on a phone.
+        val rebuildGuideIndex = dropIfMissing("programmes_fts", "content")
+        exec("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS programmes_fts USING fts5(title, description, content = 'programmes', detail = none,
+                tokenize = 'unicode61 remove_diacritics 2', prefix = '2 3 4')""")
+        if (rebuildGuideIndex) exec("INSERT INTO programmes_fts (programmes_fts) VALUES ('rebuild')")
         addColumnIfMissing("items", "catchup_mode", "TEXT")
         addColumnIfMissing("items", "catchup_source", "TEXT")
         addColumnIfMissing("items", "player_options", "TEXT")
@@ -71,6 +77,14 @@ class LibraryStore(private val path: String, private val protector: SecretProtec
         exec("CREATE INDEX IF NOT EXISTS history_recent ON history(watched_at DESC)")
         exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         exec("CREATE TABLE IF NOT EXISTS group_flags (kind INTEGER NOT NULL, grp TEXT NOT NULL, flag TEXT NOT NULL, PRIMARY KEY (kind, grp, flag))")
+    }
+
+    /** Drops [table] if its definition lacks [option]; true when it did (so it needs filling again once recreated). */
+    private fun dropIfMissing(table: String, option: String): Boolean {
+        val sql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?1").use { if (it.apply { bind(table) }.step()) it.getText(0) else null }
+        if (sql == null || sql.contains(option, ignoreCase = true)) return false
+        exec("DROP TABLE $table")
+        return true
     }
 
     private fun addColumnIfMissing(table: String, column: String, type: String) {
@@ -111,7 +125,7 @@ class LibraryStore(private val path: String, private val protector: SecretProtec
         transaction {
             deleteItems(sourceId, null)
             for (sql in listOf(
-                "DELETE FROM programmes_fts WHERE rowid IN (SELECT rowid FROM programmes WHERE source_id = ?1)",
+                "INSERT INTO programmes_fts (programmes_fts, rowid, title, description) SELECT 'delete', rowid, title, description FROM programmes WHERE source_id = ?1",
                 "DELETE FROM programmes WHERE source_id = ?1", "DELETE FROM favourites WHERE source_id = ?1",
                 "DELETE FROM history WHERE source_id = ?1", "DELETE FROM sources WHERE id = ?1",
             )) db.prepare(sql).use { it.bind(sourceId); it.step() }
@@ -156,22 +170,20 @@ class LibraryStore(private val path: String, private val protector: SecretProtec
             val insert = db.prepare("""
                 INSERT INTO items (source_id, external_id, kind, title, grp, logo, stream_url, epg_id, catchup_days, catchup_mode,
                                    catchup_source, player_options, sort_index)
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13) RETURNING rowid""")
-            val fts = db.prepare("INSERT INTO items_fts (rowid, title, grp) VALUES (?1, ?2, ?3)")
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)""")
             try {
                 for (item in items) {
                     insert.reset(); insert.clearBindings()
                     insert.bind(sourceId, item.externalId, item.kind.ordinal, item.title, item.group, item.logoUrl, mask(sourceId, item.streamUrl, creds),
                         item.epgChannelId, item.catchupDays, item.catchupMode, item.catchupSource, item.playerOptions, item.sortIndex)
                     insert.step()
-                    val rowid = insert.getLong(0)
-                    fts.reset(); fts.clearBindings()
-                    fts.bind(rowid, item.title, item.group)
-                    fts.step()
                 }
             } finally {
-                insert.close(); fts.close()
+                insert.close()
             }
+            // Index the new rows for search in one statement rather than one call per item.
+            db.prepare("INSERT INTO items_fts (rowid, title, grp) SELECT rowid, title, grp FROM items WHERE source_id = ?1 AND (?2 IS NULL OR kind = ?2)")
+                .use { it.bind(sourceId, kind?.ordinal); it.step() }
         }
     }
 
@@ -437,7 +449,6 @@ class LibraryStore(private val path: String, private val protector: SecretProtec
 /** Writes a source's guide in one transaction on its own connection (ProgrammeWriter.cs). */
 class ProgrammeWriter internal constructor(private val db: SQLiteConnection, sourceId: String) : Closeable {
     private val insert: SQLiteStatement
-    private val fts: SQLiteStatement
     private val setEpg: SQLiteStatement
     private val source = sourceId
     var count = 0
@@ -445,12 +456,8 @@ class ProgrammeWriter internal constructor(private val db: SQLiteConnection, sou
 
     init {
         db.execSQL("BEGIN IMMEDIATE")
-        for (sql in listOf(
-            "DELETE FROM programmes_fts WHERE rowid IN (SELECT rowid FROM programmes WHERE source_id = ?1)",
-            "DELETE FROM programmes WHERE source_id = ?1",
-        )) db.prepare(sql).use { it.bind(sourceId); it.step() }
-        insert = db.prepare("INSERT INTO programmes (source_id, channel_id, start, stop, title, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING rowid")
-        fts = db.prepare("INSERT INTO programmes_fts (rowid, title, description) VALUES (?1, ?2, ?3)")
+        db.prepare("DELETE FROM programmes WHERE source_id = ?1").use { it.bind(sourceId); it.step() }
+        insert = db.prepare("INSERT INTO programmes (source_id, channel_id, start, stop, title, description) VALUES (?1, ?2, ?3, ?4, ?5, ?6)")
         setEpg = db.prepare("UPDATE items SET epg_id = ?1 WHERE source_id = ?2 AND external_id = ?3 AND kind = 0")
     }
 
@@ -458,10 +465,6 @@ class ProgrammeWriter internal constructor(private val db: SQLiteConnection, sou
         insert.reset(); insert.clearBindings()
         insert.bind(source, p.channelId, p.start.epochSecond, p.stop.epochSecond, p.title, p.description)
         insert.step()
-        val rowid = insert.getLong(0)
-        fts.reset(); fts.clearBindings()
-        fts.bind(rowid, p.title, p.description ?: "")
-        fts.step()
         count++
     }
 
@@ -474,14 +477,15 @@ class ProgrammeWriter internal constructor(private val db: SQLiteConnection, sou
     private var committed = false
 
     fun commit() {
-        // A RETURNING insert stays "in progress" until reset, which would block the commit.
-        insert.reset(); fts.reset(); setEpg.reset()
+        insert.reset(); setEpg.reset()
+        // Re-index the whole guide in one pass so live events can be searched across it.
+        db.execSQL("INSERT INTO programmes_fts (programmes_fts) VALUES ('rebuild')")
         db.execSQL("COMMIT")
         committed = true
     }
 
     override fun close() {
-        insert.close(); fts.close(); setEpg.close()
+        insert.close(); setEpg.close()
         if (!committed) runCatching { db.execSQL("ROLLBACK") }
         db.close()
     }

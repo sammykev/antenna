@@ -22,7 +22,8 @@
         android:theme="@style/Theme.Antenna"
         android:allowBackup="true"
         android:supportsRtl="true"
-        android:usesCleartextTraffic="true">
+        android:usesCleartextTraffic="true"
+        android:largeHeap="true">
 
         <activity
             android:name=".MainActivity"

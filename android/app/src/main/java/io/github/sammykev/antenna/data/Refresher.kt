@@ -6,8 +6,6 @@ import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
-import java.util.concurrent.Executors
-import java.util.concurrent.Future
 
 data class RefreshResult(val items: Int, val programmes: Int, val guideError: String?)
 
@@ -19,7 +17,12 @@ class Refresher(private val http: OkHttpClient, private val store: LibraryStore,
     /** Called (on a background thread) whenever part of a catalogue or a guide has been saved. */
     var onSaved: () -> Unit = {}
 
-    fun refresh(source: PlaylistSource): RefreshResult {
+    private val busy = Any()
+
+    /** One refresh at a time (a manual one waits for an automatic one): each holds a whole catalogue in memory. */
+    fun refresh(source: PlaylistSource): RefreshResult = synchronized(busy) { refreshNow(source) }
+
+    private fun refreshNow(source: PlaylistSource): RefreshResult {
         var epgUrl: String?
         val all: List<MediaItem>
         when (source.kind) {
@@ -36,18 +39,10 @@ class Refresher(private val http: OkHttpClient, private val store: LibraryStore,
                 val live = client.getLive(source.id)
                 store.replaceItems(source.id, live, MediaKind.Live)
                 onSaved()
-                val pool = Executors.newFixedThreadPool(2)
-                try {
-                    val parts: List<Future<List<MediaItem>>> = listOf(
-                        pool.submit<List<MediaItem>> { client.getMovies(source.id).also { store.replaceItems(source.id, it, MediaKind.Movie); onSaved() } },
-                        pool.submit<List<MediaItem>> { client.getSeries(source.id).also { store.replaceItems(source.id, it, MediaKind.Series); onSaved() } },
-                    )
-                    all = live + parts.flatMap { it.get() }
-                } catch (e: java.util.concurrent.ExecutionException) {
-                    throw e.cause ?: e
-                } finally {
-                    pool.shutdown()
-                }
+                // One after the other: big catalogues side by side ran phones out of memory.
+                val movies = client.getMovies(source.id).also { store.replaceItems(source.id, it, MediaKind.Movie); onSaved() }
+                val series = client.getSeries(source.id).also { store.replaceItems(source.id, it, MediaKind.Series); onSaved() }
+                all = live + movies + series
                 epgUrl = source.epgUrl ?: client.xmltvUrl
             }
         }

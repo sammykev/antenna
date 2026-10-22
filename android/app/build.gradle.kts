@@ -102,3 +102,8 @@ dependencies {
     testImplementation("androidx.sqlite:sqlite-bundled-jvm:2.6.2")
     testImplementation("net.sf.kxml:kxml2:2.3.0")
 }
+
+// A phone-sized heap, so tests catch code that holds whole catalogues in memory (XtreamStreamingTests).
+tasks.withType<Test>().configureEach {
+    maxHeapSize = "192m"
+}

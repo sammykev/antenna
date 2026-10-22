@@ -1,6 +1,9 @@
 package io.github.sammykev.antenna.data
 
+import kotlinx.serialization.ExperimentalSerializationApi
+import kotlinx.serialization.json.DecodeSequenceMode
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeToSequence
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -58,8 +61,8 @@ class XtreamClient(private val http: OkHttpClient, serverUrl: String, private va
 
     fun getLive(sourceId: String): List<MediaItem> {
         val cats = categories("get_live_categories")
-        return array("get_live_streams").mapNotNull { s ->
-            val id = s.str("stream_id") ?: return@mapNotNull null
+        return streamArray("get_live_streams") { s ->
+            val id = s.str("stream_id") ?: return@streamArray null
             val archive = if (s.int("tv_archive") == 1) s.int("tv_archive_duration") else 0
             MediaItem(sourceId, id, MediaKind.Live, s.str("name") ?: id, cats[s.str("category_id") ?: ""] ?: "",
                 s.str("stream_icon").nullIfBlank(), liveUrl(id), s.str("epg_channel_id").nullIfBlank(), archive)
@@ -68,8 +71,8 @@ class XtreamClient(private val http: OkHttpClient, serverUrl: String, private va
 
     fun getMovies(sourceId: String): List<MediaItem> {
         val cats = categories("get_vod_categories")
-        return array("get_vod_streams").mapNotNull { s ->
-            val id = s.str("stream_id") ?: return@mapNotNull null
+        return streamArray("get_vod_streams") { s ->
+            val id = s.str("stream_id") ?: return@streamArray null
             MediaItem(sourceId, id, MediaKind.Movie, s.str("name") ?: id, cats[s.str("category_id") ?: ""] ?: "",
                 s.str("stream_icon").nullIfBlank(), movieUrl(id, s.str("container_extension") ?: "mp4"))
         }.mapIndexed { i, item -> item.copy(sortIndex = i) }
@@ -77,8 +80,8 @@ class XtreamClient(private val http: OkHttpClient, serverUrl: String, private va
 
     fun getSeries(sourceId: String): List<MediaItem> {
         val cats = categories("get_series_categories")
-        return array("get_series").mapNotNull { s ->
-            val id = s.str("series_id") ?: return@mapNotNull null
+        return streamArray("get_series") { s ->
+            val id = s.str("series_id") ?: return@streamArray null
             MediaItem(sourceId, id, MediaKind.Series, s.str("name") ?: id, cats[s.str("category_id") ?: ""] ?: "", s.str("cover").nullIfBlank())
         }.mapIndexed { i, item -> item.copy(sortIndex = i) }
     }
@@ -131,6 +134,38 @@ class XtreamClient(private val http: OkHttpClient, serverUrl: String, private va
         array(action).mapNotNull { c -> c.str("category_id")?.let { it to (c.str("category_name") ?: "") } }.toMap()
 
     private fun array(action: String): List<JsonElement> = get(action) as? JsonArray ?: emptyList()
+
+    /**
+     * A list action read one entry at a time. Catalogues run to tens of thousands of films: reading the whole reply into
+     * one string and JSON tree took hundreds of megabytes and crashed phones (out of memory).
+     */
+    @OptIn(ExperimentalSerializationApi::class)
+    private fun <T : Any> streamArray(action: String, map: (JsonElement) -> T?): List<T> {
+        val url = "$base/player_api.php?username=${escapeData(user)}&password=${escapeData(pass)}&action=$action"
+        try {
+            http.newCall(Request.Builder().url(url).build()).execute().use { response ->
+                if (!response.isSuccessful) throw XtreamException("The Xtream server answered ${response.code}.")
+                val stream = response.body?.byteStream() ?: return emptyList()
+                // Some panels answer an empty list as {} or nothing at all, and some start with a byte-order mark.
+                val input = java.io.BufferedInputStream(stream)
+                input.mark(3)
+                if (!(input.read() == 0xEF && input.read() == 0xBB && input.read() == 0xBF)) input.reset()
+                input.mark(4096)
+                val first = generateSequence { input.read().takeIf { it >= 0 } }.firstOrNull { !Character.isWhitespace(it) }
+                input.reset()
+                if (first != '['.code) return emptyList()
+                return json.decodeToSequence(input, JsonElement.serializer(), DecodeSequenceMode.ARRAY_WRAPPED).mapNotNull(map).toList()
+            }
+        } catch (e: XtreamException) {
+            throw e
+        } catch (e: IOException) {
+            throw XtreamException("Could not reach the Xtream server: ${e.message}", e)
+        } catch (e: kotlinx.serialization.SerializationException) {
+            throw XtreamException("The server returned something that is not Xtream JSON. Check the server URL.", e)
+        } catch (e: IllegalArgumentException) {
+            throw XtreamException("The server returned something that is not Xtream JSON. Check the server URL.", e)
+        }
+    }
 
     private fun get(action: String?): JsonElement {
         var url = "$base/player_api.php?username=${escapeData(user)}&password=${escapeData(pass)}"
