@@ -25,6 +25,10 @@ public sealed partial class FavouritesPage : Page
         _ = ShowAsync();
     }
 
+    /// <summary>Opens a tab by its tag ("fav", "continue", "recent", "pinned"); used by the smoke test.</summary>
+    internal void SelectTab(string tag) =>
+        Tabs.SelectedItem = Tabs.Items.FirstOrDefault(i => i.Tag as string == tag) ?? Tabs.SelectedItem;
+
     private string Tab => Tabs.SelectedItem?.Tag as string ?? "fav";
 
     private async Task ShowAsync()
