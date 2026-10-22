@@ -57,9 +57,12 @@ Xtream Codes login). It doesn't include or find any content itself.
 
 **Speed and looks**
 - Lists load page by page off the UI thread; logos and posters are cached on disk
-- Poster tiles and details pages (plot, cast, rating, backdrop) for movies and series; with a free TMDB key (Settings), missing posters and details are filled in from themoviedb.org
-- Home page: how many live channels, movies and series you have (click one to go there), continue watching, favourite channels with what's on now, recently watched
-- Light/dark/system theme, custom title bar, Mica
+- Big playlists import fast: a 125,000-item catalogue saves in about 2 seconds, and a 1-million-programme guide in about 20
+- A dark, artwork-first look inspired by UHF: large titles, poster and channel cards that lift under the pointer, a sidebar grouped into Watch, Sports and Library (Ctrl+F to search)
+- **Live TV preview**: pick a channel and it plays beside the list with what's on now and next; click again, double-click or press Enter for full screen (can be turned off in Settings)
+- Poster grids and details pages (plot, cast, rating, backdrop) for movies and series; with a free TMDB key (Settings), missing posters and details are filled in from themoviedb.org
+- Home page: a featured hero (resume what you were watching, a favourite channel that's on, or a film), then shelves for continue watching, favourite channels on now, reminders, movies, series and recently watched
+- Dark theme by default (light and system available), custom title bar, Mica
 - **TV mode** (Settings): everything 1.5× bigger for a PC on the TV, arrow keys or a controller to move around, B to go back
 
 **Security**
