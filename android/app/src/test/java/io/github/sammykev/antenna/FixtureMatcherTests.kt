@@ -83,4 +83,33 @@ class FixtureMatcherTests {
         val day = LocalDate.of(2026, 10, 23)
         assertEquals(listOf(day.minusDays(1), day, day.plusDays(1)), EspnFixtures.feedDays(day))
     }
+
+    @Test
+    fun onlyListsChannelsShowingThisMatchNotAnotherAtTheSameTime() {
+        seed(Triple("1", "Sky Sports Main Event", "ssme"), Triple("2", "Sky Sports Premier League", "sspl"), Triple("3", "TNT Sports 1", "tnt1"))
+        store.beginGuideImport("s").use { w ->
+            w.add(Programme("ssme", kickoff.minus(Duration.ofMinutes(30)), kickoff.plus(Duration.ofHours(2)), "Live: Man Utd v Liverpool"))
+            w.add(Programme("sspl", kickoff.minus(Duration.ofMinutes(30)), kickoff.plus(Duration.ofHours(2)), "Live: Man City v Arsenal"))
+            w.add(Programme("tnt1", kickoff.minus(Duration.ofMinutes(15)), kickoff.plus(Duration.ofHours(2)), "Manchester City v Arsenal: Build-up and Live"))
+            w.commit()
+        }
+        val city = Fixture(id = "soccer/eng.1/1", sport = "Football", league = "Premier League", start = kickoff, state = FixtureState.Scheduled,
+            name = "Arsenal at Manchester City", home = "Manchester City", away = "Arsenal")
+
+        val match = FixtureMatcher.find(store, city)
+        assertFalse(match.isCoverage)
+        assertEquals(listOf("Sky Sports Premier League", "TNT Sports 1"), match.channels.map { it.item.title }.sorted())
+        assertTrue(match.channels.all { match.programmeOn(it)!!.title.contains("Arsenal") })
+    }
+
+    @Test
+    fun recognisesThisMatchInATitle() {
+        val city = Fixture(id = "soccer/eng.1/1", sport = "Football", league = "Premier League", start = kickoff, state = FixtureState.Scheduled,
+            name = "Arsenal at Manchester City", home = "Manchester City", away = "Arsenal")
+        assertTrue(FixtureMatcher.isThisMatch(city, "Live: Man City v Arsenal"))
+        assertTrue(FixtureMatcher.isThisMatch(city, "Arsenal: Live"))
+        assertFalse(FixtureMatcher.isThisMatch(city, "Live: Man Utd v Liverpool"))
+        assertFalse(FixtureMatcher.isThisMatch(city, "Arsenal v Tottenham"))
+        assertTrue(FixtureMatcher.isThisMatch(city, "MCFC v Arsenal"))
+    }
 }

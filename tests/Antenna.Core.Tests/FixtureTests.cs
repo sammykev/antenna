@@ -182,4 +182,48 @@ public sealed class FixtureTests : IDisposable
         Assert.Equal([new DateOnly(2026, 10, 22), new DateOnly(2026, 10, 23), new DateOnly(2026, 10, 24)],
             EspnFixtures.FeedDays(new DateOnly(2026, 10, 23)));
     }
+
+    [Fact]
+    public void Only_lists_channels_showing_this_match_not_another_at_the_same_time()
+    {
+        SeedChannels(("1", "Sky Sports Main Event", "ssme"), ("2", "Sky Sports Premier League", "sspl"), ("3", "TNT Sports 1", "tnt1"));
+        using (var w = _store.BeginGuideImport("s"))
+        {
+            w.Add(new Programme { ChannelId = "ssme", Title = "Live: Man Utd v Liverpool", Start = Kickoff.AddMinutes(-30), Stop = Kickoff.AddHours(2) });
+            w.Add(new Programme { ChannelId = "sspl", Title = "Live: Man City v Arsenal", Start = Kickoff.AddMinutes(-30), Stop = Kickoff.AddHours(2) });
+            w.Add(new Programme { ChannelId = "tnt1", Title = "Manchester City v Arsenal: Build-up and Live", Start = Kickoff.AddMinutes(-15), Stop = Kickoff.AddHours(2) });
+            w.Commit();
+        }
+        var city = Forest() with { Home = "Manchester City", Away = "Arsenal", Name = "Arsenal at Manchester City" };
+
+        var match = FixtureMatcher.Find(_store, city);
+
+        Assert.False(match.IsCoverage);
+        Assert.Equal(["Sky Sports Premier League", "TNT Sports 1"], match.Channels.Select(c => c.Item.Title).Order());
+        Assert.All(match.Channels, c => Assert.Contains("Arsenal", match.ProgrammeOn(c)!.Title));
+    }
+
+    [Theory]
+    [InlineData("Live: Man City v Arsenal", true)]
+    [InlineData("Arsenal: Live", true)]                   // One side, no other opponent named.
+    [InlineData("Live: Man Utd v Liverpool", false)]      // A different Manchester.
+    [InlineData("Arsenal v Tottenham", false)]             // A different opponent.
+    [InlineData("MCFC v Arsenal", true)]
+    public void Recognises_this_match_in_a_title(string title, bool expected)
+    {
+        var city = Forest() with { Home = "Manchester City", Away = "Arsenal", Name = "Arsenal at Manchester City" };
+        Assert.Equal(expected, FixtureMatcher.IsThisMatch(city, title));
+    }
+
+    [Fact]
+    public void Players_are_found_by_surname()
+    {
+        var tennis = new Fixture
+        {
+            Id = "tennis/atp/m1", Sport = "Tennis", League = "ATP · European Open", Start = Kickoff, State = FixtureState.Scheduled,
+            Name = "European Open", Home = "Federico Cina", Away = "Joel Schwaerzler",
+        };
+        Assert.True(FixtureMatcher.IsThisMatch(tennis, "ATP Antwerp: Cina v Schwaerzler"));
+        Assert.False(FixtureMatcher.IsThisMatch(tennis, "ATP Antwerp: Cina v Rune"));
+    }
 }

@@ -234,7 +234,13 @@ fun MatchesScreen() {
                     }
                 }
                 match?.channels?.take(6)?.forEach { c ->
-                    TextButton(enabled = checking == null, onClick = { watchChecked(match, c) }) { Text("▶ Watch on ${c.item.title}") }
+                    TextButton(enabled = checking == null, onClick = { watchChecked(match, c) }) {
+                        // Each channel with what its guide says it's showing, so it's clear they're all this match.
+                        Column {
+                            Text("▶ Watch on ${c.item.title}")
+                            match.programmeOn(c)?.let { Text(it.title, color = Muted, style = MaterialTheme.typography.bodySmall) }
+                        }
+                    }
                 }
                 for (team in listOfNotNull(f.home, f.away)) {
                     val followed = ScoreAlerts.isFollowed(Services.library, team)

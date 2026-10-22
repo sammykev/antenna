@@ -379,7 +379,8 @@ public sealed partial class MatchesPage : Page
         split.Click += async (_, _) => await WatchCheckedAsync(split, match, first);
         var menu = new MenuFlyout();
         foreach (var c in match.Channels)
-            menu.Items.Add(ItemMenu.Item($"{c.Item.Title} · {c.SourceName}", "", async () => await WatchCheckedAsync(split, match, c)));
+            // Each channel with what its guide says it's showing, so it's clear they're all this match.
+            menu.Items.Add(ItemMenu.Item($"{c.Item.Title} · {match.ProgrammeOn(c)?.Title ?? c.SourceName}", "", async () => await WatchCheckedAsync(split, match, c)));
         split.Flyout = menu;
         return split;
     }

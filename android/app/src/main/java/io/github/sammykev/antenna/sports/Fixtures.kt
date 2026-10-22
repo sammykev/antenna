@@ -1,5 +1,6 @@
 package io.github.sammykev.antenna.sports
 
+import io.github.sammykev.antenna.data.EventHit
 import io.github.sammykev.antenna.data.LibraryEntry
 import io.github.sammykev.antenna.data.LibraryStore
 import io.github.sammykev.antenna.data.MediaKind
@@ -195,7 +196,15 @@ data class FixtureMatch(
     val channels: List<LibraryEntry>,
     val programme: Programme?,
     val isCoverage: Boolean = false,
+    /** What each channel's guide says it's showing at the time, keyed by [key]. */
+    val channelProgrammes: Map<String, Programme> = emptyMap(),
 ) {
+    fun programmeOn(channel: LibraryEntry) = channelProgrammes[key(channel)]
+
+    companion object {
+        fun key(channel: LibraryEntry) = channel.item.sourceId + "|" + channel.item.externalId
+    }
+
     val onYourChannels get() = channels.isNotEmpty()
 }
 
@@ -217,6 +226,10 @@ object FixtureMatcher {
             val h = distinctive(f.home)
             val a = distinctive(f.away)
             for (hw in h) for (aw in a) queries += "$hw $aw"
+            // Guides abbreviate: "Man City", "Man Utd", "Spurs", "Nott'm Forest".
+            val hs = h.map(::abbreviate)
+            val aws = a.map(::abbreviate)
+            if (hs != h || aws != a) queries += "${hs.joinToString(" ")} ${aws.joinToString(" ")}"
             // Some guides only name one side ("Arsenal: Live"); the time window keeps this from straying far.
             if (h.isNotEmpty() && f.sport == "Football") queries += "${h[0]} ${f.league.split(' ')[0]}"
         } else {
@@ -232,19 +245,16 @@ object FixtureMatcher {
     fun find(store: LibraryStore, f: Fixture): FixtureMatch {
         val from = f.start.minus(Duration.ofMinutes(20))
         val to = f.start.plus(Duration.ofHours(3))
-        for (query in queries(f)) {
-            // A programme must actually be on around kick-off (not one that ended an hour before).
-            val onAir = store.searchEvents(query, from, to, 10)
-                .filter { it.programme.stop.isAfter(f.start.plus(Duration.ofMinutes(10))) && it.programme.start.isBefore(f.start.plus(Duration.ofMinutes(30))) }
-            if (onAir.isNotEmpty()) {
-                val channels = onAir.flatMap { it.channels }.distinctBy { it.item.sourceId to it.item.externalId }.take(8)
-                return FixtureMatch(f, channels, onAir[0].programme)
-            }
-        }
+        // Every search's listings of this match, so channels that spell it differently ("Man City", "Manchester City") are
+        // all found. A programme must be on around kick-off and must be this match: searches by team find other games too.
+        val exact = queries(f).flatMap { store.searchEvents(it, from, to, 20) }
+            .filter { it.programme.stop.isAfter(f.start.plus(Duration.ofMinutes(10))) && it.programme.start.isBefore(f.start.plus(Duration.ofMinutes(30))) }
+            .filter { isThisMatch(f, it.programme.title) }
+        if (exact.isNotEmpty()) return fromHits(f, exact, coverage = false)
         // Per-event channels ("EPL 03: Nott'm Forest v Ipswich 20:00") aren't in the guide.
         if (f.home != null && f.away != null) {
             for (query in queries(f).drop(1)) {
-                val channels = store.search(query, MediaKind.Live, 8)
+                val channels = store.search(query, MediaKind.Live, 8).filter { isThisMatch(f, it.item.title) }
                 if (channels.isNotEmpty()) return FixtureMatch(f, channels, null)
             }
         }
@@ -258,10 +268,9 @@ object FixtureMatcher {
         for (query in coverageQueries(f)) {
             val onAir = store.searchEvents(query, from, to, 20)
                 .filter { it.programme.stop.isAfter(f.start.plus(Duration.ofMinutes(10))) && it.programme.start.isBefore(f.start.plus(Duration.ofMinutes(30))) }
-            if (onAir.isNotEmpty()) {
-                val channels = onAir.flatMap { it.channels }.distinctBy { it.item.sourceId to it.item.externalId }.take(8)
-                return FixtureMatch(f, channels, onAir[0].programme, isCoverage = true)
-            }
+                // A listing naming a different match isn't coverage of this one.
+                .filter { !namesAnotherMatch(f, it.programme.title) }
+            if (onAir.isNotEmpty()) return fromHits(f, onAir, coverage = true)
         }
         // Channels given over to the sport ("Tennis Channel", "NBA TV", "F1 TV").
         for (name in channelNames(f)) {
@@ -270,6 +279,72 @@ object FixtureMatcher {
         }
         return FixtureMatch(f, emptyList(), null)
     }
+
+    /** Channels from the hits, live programmes first, each with what its guide says it's showing. */
+    private fun fromHits(f: Fixture, hits: List<EventHit>, coverage: Boolean): FixtureMatch {
+        val programmes = linkedMapOf<String, Programme>()
+        val channels = mutableListOf<LibraryEntry>()
+        for (hit in hits.sortedByDescending { it.programme.isOnAt(f.start.plus(Duration.ofMinutes(5))) }) {
+            for (channel in hit.channels) {
+                if (programmes.putIfAbsent(FixtureMatch.key(channel), hit.programme) == null && channels.size < 8) channels += channel
+            }
+        }
+        return FixtureMatch(f, channels, programmes[FixtureMatch.key(channels[0])], coverage, programmes)
+    }
+
+    private fun abbreviate(word: String) = when (word) {
+        "manchester" -> "man"
+        "tottenham" -> "spurs"
+        "wolverhampton" -> "wolves"
+        "nottingham" -> "nott"
+        "middlesbrough" -> "boro"
+        else -> word
+    }
+
+    /** Short forms guides use for words in team names. */
+    private val shortForms = mapOf(
+        "man" to listOf("manchester"), "utd" to listOf("united"), "spurs" to listOf("tottenham"), "wolves" to listOf("wolverhampton"),
+        "boro" to listOf("middlesbrough"), "psg" to listOf("paris"), "inter" to listOf("internazionale"), "atleti" to listOf("atletico"),
+        "nottm" to listOf("nottingham"), "qpr" to listOf("queens"), "mufc" to listOf("manchester", "united"), "mcfc" to listOf("manchester", "city"),
+    )
+
+    /**
+     * Whether a programme or channel title is this match (FixtureMatcher.cs): it names both sides, or names one and no
+     * other opponent ("Arsenal: Live"). "Man Utd v Liverpool" isn't Man City v Liverpool. Events without sides pass.
+     */
+    fun isThisMatch(f: Fixture, title: String): Boolean {
+        val home = f.home ?: return true
+        val away = f.away ?: return true
+        val words = words(title)
+        val h = names(words, home)
+        val a = names(words, away)
+        return h && a || (h || a) && !hasVersus(words)
+    }
+
+    /** A "X v Y" listing that doesn't name both of this fixture's sides. */
+    internal fun namesAnotherMatch(f: Fixture, title: String) =
+        f.home != null && f.away != null && hasVersus(words(title)) && !isThisMatch(f, title)
+
+    private fun hasVersus(words: List<String>) = words.any { it == "v" || it == "vs" || it == "versus" }
+
+    /** Whether the title names a side; clubs sharing a city are told apart by "City" / "United". */
+    private fun names(titleWords: List<String>, side: String): Boolean {
+        val sideWords = words(side).filter { it.length >= 2 }
+        val key = distinctive(side)
+        if (key.isEmpty() || titleWords.none { matches(it, key[0]) } && !(key.size > 1 && titleWords.any { matches(it, key[1]) })) return false
+        val qualifiers = sideWords.filter { it in setOf("city", "united", "utd", "athletic", "county", "rovers", "wanderers", "albion") }
+        val rivals = listOf("city", "united", "utd") - qualifiers.map { if (it == "utd") "united" else it }.toSet()
+        if (qualifiers.isNotEmpty() && qualifiers.none { q -> titleWords.any { matches(it, q) } } && rivals.any { r -> titleWords.any { matches(it, r) } })
+            return false
+        return true
+    }
+
+    private fun matches(titleWord: String, sideWord: String) =
+        titleWord == sideWord ||
+            titleWord.length >= 3 && sideWord.startsWith(titleWord) ||
+            sideWord.length >= 4 && titleWord.startsWith(sideWord) ||
+            shortForms[titleWord]?.contains(sideWord) == true ||
+            sideWord == "united" && titleWord == "utd"
 
     /** Searches for coverage that may not name this match: the tournament (tennis, races, fight nights), then the sport. */
     fun coverageQueries(f: Fixture): List<String> {
