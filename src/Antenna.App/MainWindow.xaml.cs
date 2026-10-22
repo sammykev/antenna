@@ -214,6 +214,15 @@ public sealed partial class MainWindow : Window
 
     // ---- Search ----
 
+    private void FocusSearch_Invoked(Microsoft.UI.Xaml.Input.KeyboardAccelerator sender, Microsoft.UI.Xaml.Input.KeyboardAcceleratorInvokedEventArgs args)
+    {
+        if (!NavView.IsPaneVisible)
+            return;
+        NavView.IsPaneOpen = true;
+        SearchBox.Focus(FocusState.Keyboard);
+        args.Handled = true;
+    }
+
     private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
     {
         if (args.Reason != AutoSuggestionBoxTextChangeReason.UserInput)

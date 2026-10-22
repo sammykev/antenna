@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Antenna's look: dark, cinematic and artwork-first, in the spirit of UHF. Pages use these
+    styles instead of setting sizes and colours themselves, so the whole app stays consistent.
+-->
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Dark">
+            <!-- Near-black stage behind artwork, with slightly raised cards. -->
+            <SolidColorBrush x:Key="NavigationViewContentBackground" Color="#FF0B0C10" />
+            <SolidColorBrush x:Key="NavigationViewContentGridBorderBrush" Color="#14FFFFFF" />
+            <SolidColorBrush x:Key="StageBrush" Color="#FF0B0C10" />
+            <SolidColorBrush x:Key="CardFillBrush" Color="#FF16181E" />
+            <SolidColorBrush x:Key="CardFillHoverBrush" Color="#FF1E2129" />
+            <SolidColorBrush x:Key="CardStrokeBrush" Color="#14FFFFFF" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#A6FFFFFF" />
+            <Color x:Key="StageColor">#FF0B0C10</Color>
+            <Color x:Key="StageClearColor">#000B0C10</Color>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="StageBrush" Color="#FFF5F5F7" />
+            <SolidColorBrush x:Key="CardFillBrush" Color="#FFFFFFFF" />
+            <SolidColorBrush x:Key="CardFillHoverBrush" Color="#FFF0F0F3" />
+            <SolidColorBrush x:Key="CardStrokeBrush" Color="#14000000" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#99000000" />
+            <Color x:Key="StageColor">#FFF5F5F7</Color>
+            <Color x:Key="StageClearColor">#00F5F5F7</Color>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+            <SolidColorBrush x:Key="StageBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="CardFillBrush" Color="{ThemeResource SystemColorWindowColor}" />
+            <SolidColorBrush x:Key="CardFillHoverBrush" Color="{ThemeResource SystemColorHighlightColor}" />
+            <SolidColorBrush x:Key="CardStrokeBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="{ThemeResource SystemColorWindowTextColor}" />
+            <Color x:Key="StageColor">Black</Color>
+            <Color x:Key="StageClearColor">Transparent</Color>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!-- Live badge red, the one fixed colour (it means "on air" everywhere). -->
+    <SolidColorBrush x:Key="LiveBrush" Color="#FFFF453A" />
+    <SolidColorBrush x:Key="FavouriteBrush" Color="#FFFFC531" />
+
+    <CornerRadius x:Key="CardRadius">12</CornerRadius>
+    <CornerRadius x:Key="PillRadius">16</CornerRadius>
+
+    <!-- Page headings, like a large title on Apple platforms. -->
+    <Style x:Key="LargeTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="32" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="TextLineBounds" Value="TrimToCapHeight" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!-- A shelf's heading ("Continue watching"). -->
+    <Style x:Key="ShelfTitleStyle" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="20" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+
+    <Style x:Key="MutedTextStyle" TargetType="TextBlock" BasedOn="{StaticResource CaptionTextBlockStyle}">
+        <Setter Property="Foreground" Value="{ThemeResource MutedTextBrush}" />
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!-- Cards carry their own shape: the container only spaces them and shows keyboard focus. -->
+    <Style x:Key="CardContainerStyle" TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
+        <Setter Property="Margin" Value="0,0,16,16" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="{StaticResource CardRadius}" />
+    </Style>
+
+    <!-- One row of cards that scrolls sideways. -->
+    <Style x:Key="ShelfStyle" TargetType="GridView">
+        <Setter Property="SelectionMode" Value="None" />
+        <Setter Property="IsItemClickEnabled" Value="True" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="ScrollViewer.HorizontalScrollMode" Value="Enabled" />
+        <Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Auto" />
+        <Setter Property="ScrollViewer.VerticalScrollMode" Value="Disabled" />
+        <Setter Property="ScrollViewer.VerticalScrollBarVisibility" Value="Disabled" />
+        <Setter Property="ItemsPanel">
+            <Setter.Value>
+                <ItemsPanelTemplate>
+                    <ItemsStackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="ItemContainerStyle" Value="{StaticResource CardContainerStyle}" />
+    </Style>
+
+    <!-- Primary call to action on artwork ("Play", "Resume"). -->
+    <Style x:Key="HeroButtonStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+        <Setter Property="Padding" Value="22,10" />
+        <Setter Property="CornerRadius" Value="{StaticResource PillRadius}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <Style x:Key="PillButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+        <Setter Property="Padding" Value="16,8" />
+        <Setter Property="CornerRadius" Value="{StaticResource PillRadius}" />
+    </Style>
+</ResourceDictionary>

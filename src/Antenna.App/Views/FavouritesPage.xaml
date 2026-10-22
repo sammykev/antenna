@@ -20,7 +20,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <TextBlock Text="My stuff" Style="{StaticResource TitleTextBlockStyle}" />
+        <TextBlock Text="My list" Style="{StaticResource LargeTitleStyle}" />
 
         <Grid Grid.Row="1">
             <SelectorBar x:Name="Tabs" SelectionChanged="Tabs_SelectionChanged">

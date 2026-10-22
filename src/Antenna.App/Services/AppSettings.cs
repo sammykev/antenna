@@ -20,8 +20,8 @@ internal static class AppSettings
 
     private static void SetInt(string key, int value) => Set(key, value.ToString(CultureInfo.InvariantCulture));
 
-    /// <summary>"system", "light" or "dark".</summary>
-    public static string Theme { get => Get("ui.theme") ?? "system"; set => Set("ui.theme", value); }
+    /// <summary>"system", "light" or "dark". Dark by default: artwork and video look best on it.</summary>
+    public static string Theme { get => Get("ui.theme") ?? "dark"; set => Set("ui.theme", value); }
 
     /// <summary>Open on the Home page (counts, continue watching, favourites on now) instead of the start page.</summary>
     public static bool ShowSplash { get => Get("ui.splash") != "0"; set => Set("ui.splash", value ? "1" : "0"); }

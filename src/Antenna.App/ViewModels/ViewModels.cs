@@ -180,11 +180,21 @@ public sealed class ItemViewModel : Observable
             _isFavourite = value;
             Raise();
             Raise(nameof(FavouriteGlyph));
+            Raise(nameof(FavouriteVisibility));
         }
     }
 
     /// <summary>Filled star when favourited, nothing otherwise.</summary>
     public string FavouriteGlyph => IsFavourite ? "" : "";
+
+    public Microsoft.UI.Xaml.Visibility FavouriteVisibility =>
+        IsFavourite ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;
+
+    /// <summary>"20:00 – 21:30" for what's on now.</summary>
+    public string NowTimes => Now is { } p ? $"{p.Start.LocalDateTime:HH:mm} – {p.Stop.LocalDateTime:HH:mm}" : "";
+
+    /// <summary>The line under a channel's name: what's on, or which playlist it's from when there's no guide.</summary>
+    public string Subtitle => Now is { } p ? p.Title : Item.Kind == MediaKind.Live ? SourceName : Group;
 }
 
 public sealed class SourceViewModel(PlaylistSource source)
@@ -267,6 +277,12 @@ public sealed class WatchViewModel
             : Ui.Ago(Record.WatchedAt);
 
     public double Progress => Record.Progress * 100;
+
+    /// <summary>Channel logos are shown whole; posters and episode stills fill the card.</summary>
+    public Microsoft.UI.Xaml.Media.Stretch ImageStretch =>
+        Record.Kind == MediaKind.Live ? Microsoft.UI.Xaml.Media.Stretch.Uniform : Microsoft.UI.Xaml.Media.Stretch.UniformToFill;
+
+    public Microsoft.UI.Xaml.Thickness ImageMargin => Record.Kind == MediaKind.Live ? new(32, 24, 32, 40) : new(0);
 
     public Microsoft.UI.Xaml.Visibility ProgressVisibility =>
         Record.Kind != MediaKind.Live && Record.LengthMs > 0 ? Microsoft.UI.Xaml.Visibility.Visible : Microsoft.UI.Xaml.Visibility.Collapsed;

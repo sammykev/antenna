@@ -10,6 +10,9 @@
     </Window.SystemBackdrop>
 
     <Grid x:Name="RootGrid">
+        <Grid.KeyboardAccelerators>
+            <KeyboardAccelerator Key="F" Modifiers="Control" Invoked="FocusSearch_Invoked" />
+        </Grid.KeyboardAccelerators>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
@@ -33,12 +36,14 @@
             IsBackEnabled="{x:Bind ContentFrame.CanGoBack, Mode=OneWay}"
             BackRequested="NavView_BackRequested"
             ItemInvoked="NavView_ItemInvoked"
-            PaneDisplayMode="Left">
+            PaneDisplayMode="Left"
+            OpenPaneLength="256">
 
             <NavigationView.AutoSuggestBox>
                 <AutoSuggestBox
                     x:Name="SearchBox"
-                    PlaceholderText="Search channels, movies, series, categories"
+                    PlaceholderText="Search (Ctrl+F)"
+                    ToolTipService.ToolTip="Search channels, movies, series and categories"
                     QueryIcon="Find"
                     TextChanged="SearchBox_TextChanged"
                     QuerySubmitted="SearchBox_QuerySubmitted" />
@@ -50,6 +55,7 @@
                         <FontIcon Glyph="&#xE80F;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItemHeader Content="Watch" />
                 <NavigationViewItem Content="Live TV" Tag="live">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE7F4;" />
@@ -58,16 +64,6 @@
                 <NavigationViewItem Content="Guide" Tag="guide">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE787;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="Matches" Tag="matches">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE7FC;" />
-                    </NavigationViewItem.Icon>
-                </NavigationViewItem>
-                <NavigationViewItem Content="Live events" Tag="events">
-                    <NavigationViewItem.Icon>
-                        <FontIcon Glyph="&#xE909;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
                 <NavigationViewItem Content="Movies" Tag="movies">
@@ -80,8 +76,19 @@
                         <FontIcon Glyph="&#xE7F7;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
-                <NavigationViewItemSeparator />
-                <NavigationViewItem Content="My stuff" Tag="favourites">
+                <NavigationViewItemHeader Content="Sports" />
+                <NavigationViewItem Content="Matches" Tag="matches">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE7FC;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItem Content="Live events" Tag="events">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE909;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
+                <NavigationViewItemHeader Content="Library" />
+                <NavigationViewItem Content="My list" Tag="favourites">
                     <NavigationViewItem.Icon>
                         <FontIcon Glyph="&#xE734;" />
                     </NavigationViewItem.Icon>

@@ -13,90 +13,135 @@
         </ResourceDictionary>
     </Page.Resources>
 
-    <!-- Home: what's in the library (click a count to go there), then things to pick up again. -->
+    <!--
+        Home, UHF style: one big featured thing to pick up (or watch now), then shelves that scroll
+        sideways: continue watching, your channels on now, reminders, movies, series, recently watched.
+    -->
     <ScrollViewer>
-        <StackPanel Padding="32,24,32,32" Spacing="28" MaxWidth="1400">
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <Image x:Name="Logo" Width="64" Height="64" />
-                <StackPanel VerticalAlignment="Center" Spacing="2">
-                    <TextBlock Text="Antenna" Style="{StaticResource TitleTextBlockStyle}" />
+        <StackPanel Padding="32,20,16,32" Spacing="30">
+            <Grid ColumnSpacing="16">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel Spacing="10">
+                    <TextBlock x:Name="Greeting" Text="Home" Style="{StaticResource LargeTitleStyle}" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
                         <ProgressRing x:Name="LoadingRing" Width="14" Height="14" IsActive="True" />
-                        <TextBlock x:Name="StatusText" Text="Loading your library…" Opacity="0.7" />
+                        <TextBlock x:Name="StatusText" Text="Loading your library…" Style="{StaticResource MutedTextStyle}" FontSize="14" />
                     </StackPanel>
                 </StackPanel>
-            </StackPanel>
+                <!-- Library size; each opens its section. -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" Margin="0,0,16,0">
+                    <Button Tag="live" Click="Count_Click" Style="{StaticResource PillButtonStyle}" ToolTipService.ToolTip="Open Live TV">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE7F4;" FontSize="14" />
+                            <TextBlock x:Name="LiveCount" Text="–" />
+                        </StackPanel>
+                    </Button>
+                    <Button Tag="movies" Click="Count_Click" Style="{StaticResource PillButtonStyle}" ToolTipService.ToolTip="Open Movies">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE8B2;" FontSize="14" />
+                            <TextBlock x:Name="MovieCount" Text="–" />
+                        </StackPanel>
+                    </Button>
+                    <Button Tag="series" Click="Count_Click" Style="{StaticResource PillButtonStyle}" ToolTipService.ToolTip="Open Series">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="&#xE7F7;" FontSize="14" />
+                            <TextBlock x:Name="SeriesCount" Text="–" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
 
-            <StackPanel Orientation="Horizontal" Spacing="16">
-                <Button Tag="live" Click="Count_Click" Width="196" Padding="20,18" CornerRadius="12"
-                        HorizontalContentAlignment="Stretch" ToolTipService.ToolTip="Open Live TV"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                    <StackPanel Spacing="6">
-                        <FontIcon Glyph="&#xE7F4;" FontSize="20" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                        <TextBlock x:Name="LiveCount" Text="–" FontSize="34" FontWeight="SemiBold" />
-                        <TextBlock Text="Live channels" Opacity="0.7" />
+            <!-- Featured: artwork behind, a fade into the page, and what to do about it. -->
+            <Grid x:Name="Hero" Height="380" Margin="0,0,16,0" CornerRadius="16" Background="{ThemeResource CardFillBrush}"
+                  BorderBrush="{ThemeResource CardStrokeBrush}" BorderThickness="1" Visibility="Collapsed">
+                <Image x:Name="HeroBackdrop" Stretch="UniformToFill" Opacity="0.55" HorizontalAlignment="Right" />
+                <Image x:Name="HeroLogo" Stretch="Uniform" Width="300" Height="170" Margin="0,0,72,0"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" Visibility="Collapsed" />
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="{ThemeResource StageColor}" Offset="0" />
+                            <GradientStop Color="{ThemeResource StageColor}" Offset="0.25" />
+                            <GradientStop Color="{ThemeResource StageClearColor}" Offset="0.75" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <Rectangle>
+                    <Rectangle.Fill>
+                        <LinearGradientBrush StartPoint="0,0.5" EndPoint="0,1">
+                            <GradientStop Color="{ThemeResource StageClearColor}" Offset="0" />
+                            <GradientStop Color="{ThemeResource StageColor}" Offset="1" />
+                        </LinearGradientBrush>
+                    </Rectangle.Fill>
+                </Rectangle>
+                <StackPanel VerticalAlignment="Bottom" Padding="40,0,40,36" Spacing="10" MaxWidth="640" HorizontalAlignment="Left">
+                    <TextBlock x:Name="HeroKicker" FontSize="12" FontWeight="SemiBold" CharacterSpacing="120"
+                               Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                    <TextBlock x:Name="HeroTitle" FontSize="40" FontWeight="Bold" TextWrapping="Wrap" MaxLines="2" TextTrimming="WordEllipsis" />
+                    <TextBlock x:Name="HeroDetails" Style="{StaticResource BodyTextBlockStyle}" Foreground="{ThemeResource MutedTextBrush}"
+                               TextWrapping="Wrap" MaxLines="3" TextTrimming="WordEllipsis" />
+                    <ProgressBar x:Name="HeroProgress" Maximum="100" MaxWidth="320" HorizontalAlignment="Left" Visibility="Collapsed" />
+                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
+                        <Button x:Name="HeroPlay" Style="{StaticResource HeroButtonStyle}" Click="HeroPlay_Click">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <FontIcon Glyph="&#xE768;" FontSize="14" />
+                                <TextBlock x:Name="HeroPlayText" Text="Play" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="HeroMore" Style="{StaticResource PillButtonStyle}" Click="HeroMore_Click" Visibility="Collapsed">
+                            <TextBlock x:Name="HeroMoreText" />
+                        </Button>
                     </StackPanel>
-                </Button>
-                <Button Tag="movies" Click="Count_Click" Width="196" Padding="20,18" CornerRadius="12"
-                        HorizontalContentAlignment="Stretch" ToolTipService.ToolTip="Open Movies"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                    <StackPanel Spacing="6">
-                        <FontIcon Glyph="&#xE8B2;" FontSize="20" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                        <TextBlock x:Name="MovieCount" Text="–" FontSize="34" FontWeight="SemiBold" />
-                        <TextBlock Text="Movies" Opacity="0.7" />
-                    </StackPanel>
-                </Button>
-                <Button Tag="series" Click="Count_Click" Width="196" Padding="20,18" CornerRadius="12"
-                        HorizontalContentAlignment="Stretch" ToolTipService.ToolTip="Open Series"
-                        Background="{ThemeResource CardBackgroundFillColorDefaultBrush}" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
-                    <StackPanel Spacing="6">
-                        <FontIcon Glyph="&#xE7F7;" FontSize="20" HorizontalAlignment="Left" Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
-                        <TextBlock x:Name="SeriesCount" Text="–" FontSize="34" FontWeight="SemiBold" />
-                        <TextBlock Text="Series" Opacity="0.7" />
-                    </StackPanel>
-                </Button>
+                </StackPanel>
+            </Grid>
+
+            <StackPanel x:Name="ContinueSection" Visibility="Collapsed">
+                <TextBlock Text="Continue watching" Style="{StaticResource ShelfTitleStyle}" />
+                <GridView x:Name="ContinueList" Style="{StaticResource ShelfStyle}" ItemClick="Watch_ItemClick"
+                          ItemTemplate="{StaticResource WatchCardTemplate}" />
             </StackPanel>
 
-            <StackPanel x:Name="ComingUpSection" Spacing="8" Visibility="Collapsed">
-                <TextBlock Text="Coming up (your reminders)" Style="{StaticResource SubtitleTextBlockStyle}" />
-                <ListView x:Name="ComingUpList" SelectionMode="None" IsItemClickEnabled="True" ItemClick="ComingUp_ItemClick" MaxHeight="260" />
-            </StackPanel>
-
-            <StackPanel x:Name="ContinueSection" Spacing="8" Visibility="Collapsed">
-                <TextBlock Text="Continue watching" Style="{StaticResource SubtitleTextBlockStyle}" />
-                <GridView x:Name="ContinueList" IsItemClickEnabled="True" SelectionMode="None" ItemClick="Watch_ItemClick"
-                          ItemTemplate="{StaticResource WatchRowTemplate}">
-                    <GridView.ItemContainerStyle>
-                        <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
-                            <Setter Property="Width" Value="360" />
-                            <Setter Property="Padding" Value="8,0" />
-                        </Style>
-                    </GridView.ItemContainerStyle>
-                </GridView>
-            </StackPanel>
-
-            <StackPanel x:Name="OnNowSection" Spacing="8" Visibility="Collapsed">
-                <TextBlock Text="Your channels, on now" Style="{StaticResource SubtitleTextBlockStyle}" />
-                <GridView x:Name="OnNowList" IsItemClickEnabled="True" SelectionMode="None" ItemClick="Channel_ItemClick"
+            <StackPanel x:Name="OnNowSection" Visibility="Collapsed">
+                <TextBlock Text="Your channels, on now" Style="{StaticResource ShelfTitleStyle}" />
+                <GridView x:Name="OnNowList" Style="{StaticResource ShelfStyle}" ItemClick="Channel_ItemClick"
                           RightTapped="Channel_RightTapped" ItemTemplate="{StaticResource ItemTileTemplate}" />
             </StackPanel>
 
-            <StackPanel x:Name="RecentSection" Spacing="8" Visibility="Collapsed">
-                <TextBlock Text="Recently watched" Style="{StaticResource SubtitleTextBlockStyle}" />
-                <GridView x:Name="RecentList" IsItemClickEnabled="True" SelectionMode="None" ItemClick="Watch_ItemClick"
-                          ItemTemplate="{StaticResource WatchRowTemplate}">
-                    <GridView.ItemContainerStyle>
-                        <Style TargetType="GridViewItem" BasedOn="{StaticResource DefaultGridViewItemStyle}">
-                            <Setter Property="Width" Value="360" />
-                            <Setter Property="Padding" Value="8,0" />
-                        </Style>
-                    </GridView.ItemContainerStyle>
-                </GridView>
+            <StackPanel x:Name="ComingUpSection" Visibility="Collapsed" Margin="0,0,16,0">
+                <TextBlock Text="Coming up (your reminders)" Style="{StaticResource ShelfTitleStyle}" />
+                <ListView x:Name="ComingUpList" SelectionMode="None" IsItemClickEnabled="True" ItemClick="ComingUp_ItemClick" MaxHeight="260" />
+            </StackPanel>
+
+            <StackPanel x:Name="MoviesSection" Visibility="Collapsed">
+                <Grid Margin="0,0,16,0">
+                    <TextBlock Text="Movies" Style="{StaticResource ShelfTitleStyle}" />
+                    <HyperlinkButton Tag="movies" Click="Count_Click" Content="See all" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                </Grid>
+                <GridView x:Name="MoviesList" Style="{StaticResource ShelfStyle}" ItemClick="Item_ItemClick"
+                          RightTapped="Movies_RightTapped" ItemTemplate="{StaticResource PosterTileTemplate}" />
+            </StackPanel>
+
+            <StackPanel x:Name="SeriesSection" Visibility="Collapsed">
+                <Grid Margin="0,0,16,0">
+                    <TextBlock Text="Series" Style="{StaticResource ShelfTitleStyle}" />
+                    <HyperlinkButton Tag="series" Click="Count_Click" Content="See all" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                </Grid>
+                <GridView x:Name="SeriesList" Style="{StaticResource ShelfStyle}" ItemClick="Item_ItemClick"
+                          RightTapped="Series_RightTapped" ItemTemplate="{StaticResource PosterTileTemplate}" />
+            </StackPanel>
+
+            <StackPanel x:Name="RecentSection" Visibility="Collapsed">
+                <TextBlock Text="Recently watched" Style="{StaticResource ShelfTitleStyle}" />
+                <GridView x:Name="RecentList" Style="{StaticResource ShelfStyle}" ItemClick="Watch_ItemClick"
+                          ItemTemplate="{StaticResource WatchCardTemplate}" />
             </StackPanel>
 
             <StackPanel x:Name="EmptySection" Spacing="8" Visibility="Collapsed">
-                <TextBlock Text="Nothing here yet" Style="{StaticResource SubtitleTextBlockStyle}" />
-                <TextBlock Opacity="0.7" TextWrapping="Wrap"
+                <TextBlock Text="Nothing here yet" Style="{StaticResource ShelfTitleStyle}" />
+                <TextBlock Style="{StaticResource MutedTextStyle}" FontSize="14" TextWrapping="Wrap"
                            Text="Watch something, or right-click a channel and choose “Add to favourites”, and it will show up here." />
             </StackPanel>
         </StackPanel>

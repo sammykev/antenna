@@ -13,7 +13,7 @@ namespace Antenna.App.Views;
 public sealed partial class SettingsPage : Page
 {
     private static readonly (string Tag, string Label)[] StartPages =
-        [("live", "Live TV"), ("guide", "Guide"), ("favourites", "My stuff"), ("movies", "Movies"), ("series", "Series")];
+        [("live", "Live TV"), ("guide", "Guide"), ("favourites", "My list"), ("movies", "Movies"), ("series", "Series")];
 
     private static readonly (int Hours, string Label)[] RefreshOptions =
         [(0, "Off"), (6, "Every 6 hours"), (12, "Every 12 hours"), (24, "Every day"), (168, "Every week")];
