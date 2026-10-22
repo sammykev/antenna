@@ -3,7 +3,7 @@
 What to build next, in priority order. Tick items off (`- [x]`) as they ship and note the release.
 Working notes for whoever picks this up are at the bottom; read them before changing anything.
 
-Current release: **v0.1.17** (the Android app rebuilt natively in Kotlin). Remaining: Android features (section 6), Store, winget, app-side tests, analyzers for the app project, recently added on Home.
+Current release: **v0.1.18** (Windows redesign in the spirit of UHF: Home hero and shelves, Live TV with a channel preview; imports several times faster). Remaining: Android features (section 6), Store, winget, app-side tests, analyzers for the app project, recently added on Home, the new look on Android.
 
 ---
 
