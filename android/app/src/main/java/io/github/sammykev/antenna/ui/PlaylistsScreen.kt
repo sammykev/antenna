@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import io.github.sammykev.antenna.BuildConfig
 import io.github.sammykev.antenna.Log
+import io.github.sammykev.antenna.Ratings
 import io.github.sammykev.antenna.Services
 import io.github.sammykev.antenna.data.LibraryCounts
 import io.github.sammykev.antenna.data.PlaylistSource
@@ -143,6 +144,7 @@ fun PlaylistsScreen(add: () -> Unit, openSync: () -> Unit) {
                     }
                 }
             }
+            RatingsCard()
             Text("Antenna ${BuildConfig.VERSION_NAME}", color = Muted, style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.align(Alignment.CenterHorizontally).padding(8.dp))
         }
@@ -174,4 +176,41 @@ private fun shareLog(context: android.content.Context) {
     val uri = FileProvider.getUriForFile(context, "${context.packageName}.files", log)
     context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_STREAM, uri)
         .putExtra(Intent.EXTRA_SUBJECT, "Antenna log").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION), "Share the Antenna log"))
+}
+
+/**
+ * Turns on IMDb and Rotten Tomatoes scores (and the recommendations made from them) with a free OMDb key: the
+ * recommendations are films from these playlists, so everything suggested can be played.
+ */
+@Composable
+private fun RatingsCard() {
+    val scope = rememberCoroutineScope()
+    var key by remember { mutableStateOf("") }
+    var saved by remember { mutableStateOf<String?>(null) }
+    var editing by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { saved = withContext(Dispatchers.IO) { Ratings.key } }
+    Column(Modifier.fillMaxWidth().padding(12.dp, 6.dp).clip(RoundedCornerShape(10.dp)).background(Surface).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("IMDb and Rotten Tomatoes ratings", fontWeight = FontWeight.Bold)
+        Text(if (saved == null) "Shows each film's scores and recommends the best rated films in your playlists. Get a free key at omdbapi.com/apikey.aspx (it arrives by email), then enter it here."
+            else Ratings.problem?.let { "OMDb: $it" } ?: "On. Scores are collected a few hundred films a day, so recommendations fill in over the first days.",
+            color = Muted, style = MaterialTheme.typography.bodySmall)
+        if (editing || saved == null) {
+            FormField(key, { key = it }, "OMDb API key")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(enabled = key.isNotBlank(), onClick = {
+                    val k = key.trim()
+                    scope.launch {
+                        withContext(Dispatchers.IO) { Ratings.key = k; Ratings.update() }
+                        saved = k
+                        editing = false
+                    }
+                }) { Text("Save") }
+                if (saved != null) TextButton(onClick = { editing = false }) { Text("Cancel") }
+            }
+        } else Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(onClick = { key = saved ?: ""; editing = true }) { Text("Change key") }
+            TextButton(onClick = { scope.launch { withContext(Dispatchers.IO) { Ratings.key = null }; saved = null } }) { Text("Turn off", color = Muted) }
+        }
+    }
 }

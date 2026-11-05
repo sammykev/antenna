@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Star
@@ -49,11 +50,13 @@ import coil3.compose.AsyncImage
 import io.github.sammykev.antenna.Log
 import io.github.sammykev.antenna.PlayItem
 import io.github.sammykev.antenna.Playback
+import io.github.sammykev.antenna.Ratings
 import io.github.sammykev.antenna.Services
 import io.github.sammykev.antenna.data.Episode
 import io.github.sammykev.antenna.data.MediaDetails
 import io.github.sammykev.antenna.data.MediaItem
 import io.github.sammykev.antenna.data.MediaKind
+import io.github.sammykev.antenna.data.Rating
 import io.github.sammykev.antenna.data.SourceKind
 import io.github.sammykev.antenna.data.WatchRecord
 import io.github.sammykev.antenna.data.XtreamClient
@@ -80,7 +83,14 @@ fun DetailsScreen(sourceId: String, externalId: String, kind: MediaKind, back: (
     var error by remember { mutableStateOf<String?>(null) }
     var favourite by remember { mutableStateOf(false) }
     var resumeTick by remember { mutableIntStateOf(0) }
+    var rating by remember { mutableStateOf<Rating?>(null) }
     val isSeries = kind == MediaKind.Series
+
+    // IMDb and Rotten Tomatoes, when an OMDb key is set (looked up now if the film is new).
+    LaunchedEffect(item) {
+        val it = item ?: return@LaunchedEffect
+        if (!isSeries && Ratings.enabled) rating = withContext(Dispatchers.IO) { runCatching { Ratings.forItem(it) }.getOrNull() }
+    }
 
     LaunchedEffect(Unit) {
         val entry = withContext(Dispatchers.IO) { Services.library.getItem(sourceId, externalId, kind) }
@@ -149,6 +159,7 @@ fun DetailsScreen(sourceId: String, externalId: String, kind: MediaKind, back: (
                         val meta = listOfNotNull(details.released?.split('-')?.first(), details.genre, details.duration,
                             details.rating?.let { "★ $it" }).filter { it.isNotBlank() }
                         Text(if (meta.isEmpty()) item?.group ?: "" else meta.joinToString(" · "), color = Muted, style = MaterialTheme.typography.bodySmall)
+                        rating?.let { RatingBadges(it, modifier = Modifier.padding(top = 8.dp)) }
                     }
                 }
             }
@@ -196,7 +207,8 @@ fun DetailsScreen(sourceId: String, externalId: String, kind: MediaKind, back: (
                     ChipRow(seasons, season, { if (it == 0) "Specials" else "Season $it" }) { season = it }
                 }
             }
-            items(episodes.filter { it.season == season }, key = { it.id }) { ep ->
+            // The index too: some panels list an episode twice, and a repeated key crashes the list.
+            itemsIndexed(episodes.filter { it.season == season }, key = { i, ep -> "$i|${ep.id}" }) { _, ep ->
                 val w = watches[ep.id]
                 val done = w != null && !w.isResumable && (w.lengthMs == 0L || w.positionMs >= w.lengthMs * 0.95)
                 Row(Modifier.fillMaxWidth().clickable { playEpisode(ep) }.padding(horizontal = 16.dp, vertical = 8.dp),

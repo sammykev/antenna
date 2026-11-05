@@ -46,10 +46,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.sammykev.antenna.Playback
+import io.github.sammykev.antenna.Ratings
 import io.github.sammykev.antenna.Services
 import io.github.sammykev.antenna.data.LibraryEntry
 import io.github.sammykev.antenna.data.MediaKind
 import io.github.sammykev.antenna.data.Programme
+import io.github.sammykev.antenna.data.Rating
 import io.github.sammykev.antenna.data.WatchRecord
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -66,6 +68,8 @@ private data class HomeData(
     val onNow: List<Pair<LibraryEntry, Programme?>>,
     val movies: List<LibraryEntry>,
     val series: List<LibraryEntry>,
+    val topRated: List<Pair<LibraryEntry, Rating>> = emptyList(),
+    val because: Pair<String, List<Pair<LibraryEntry, Rating>>>? = null,
 )
 
 /**
@@ -81,9 +85,10 @@ fun HomeScreen(openDetails: (LibraryEntry) -> Unit, openPlaylists: () -> Unit, o
     val state: HomeState = viewModel()
     var data: HomeData? by remember { mutableStateOf(state.data as? HomeData) }
 
-    LaunchedEffect(version) {
-        if (state.loadedFor == version && data != null) return@LaunchedEffect
-        state.loadedFor = version
+    val rated by Ratings.version.collectAsState()
+    LaunchedEffect(version, rated) {
+        if (state.loadedFor == version to rated && data != null) return@LaunchedEffect
+        state.loadedFor = version to rated
         data = withContext(Dispatchers.IO) {
             val lib = Services.library
             val history = lib.getHistory(60)
@@ -95,6 +100,8 @@ fun HomeScreen(openDetails: (LibraryEntry) -> Unit, openPlaylists: () -> Unit, o
                 onNow = lib.getFavourites(MediaKind.Live).take(SHELF).map { e -> e to e.item.epgChannelId?.let { now[e.item.sourceId to it] } },
                 movies = lib.getItems(MediaKind.Movie, limit = SHELF),
                 series = lib.getItems(MediaKind.Series, limit = SHELF),
+                topRated = if (Ratings.enabled) Ratings.topRated(SHELF) else emptyList(),
+                because = if (Ratings.enabled) Ratings.becauseYouWatched(SHELF) else null,
             )
         }
         state.data = data
@@ -154,6 +161,12 @@ fun HomeScreen(openDetails: (LibraryEntry) -> Unit, openPlaylists: () -> Unit, o
                 }
             }
         }
+        d.because?.let { (title, picks) ->
+            item { Shelf("Because you watched $title") { items(picks) { (m, r) -> PosterCard(m, 132.dp, rating = r) { openDetails(m) } } } }
+        }
+        if (d.topRated.isNotEmpty()) item {
+            Shelf("Top rated on IMDb and Rotten Tomatoes") { items(d.topRated) { (m, r) -> PosterCard(m, 132.dp, rating = r) { openDetails(m) } } }
+        }
         if (d.movies.isNotEmpty()) item {
             Shelf("Movies", seeAll = { openTab("movies") }) { items(d.movies) { m -> PosterCard(m, 132.dp) { openDetails(m) } } }
         }
@@ -180,7 +193,8 @@ private fun greeting() = when (LocalTime.now().hour) {
 @Composable
 private fun Hero(kicker: String, title: String, details: String, imageUrl: String?, crop: Boolean, progress: Float = 0f,
                  play: String, onPlay: () -> Unit, more: String? = null, onMore: (() -> Unit)? = null) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).height(400.dp).clip(RoundedCornerShape(20.dp)).background(Surface)) {
+    // A TV screen is wide but short: a lower hero leaves the first shelf in view.
+    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp).height(if (LocalTv.current) 300.dp else 400.dp).clip(RoundedCornerShape(20.dp)).background(Surface)) {
         if (!imageUrl.isNullOrBlank())
             AsyncImage(model = imageUrl, contentDescription = null, contentScale = if (crop) ContentScale.Crop else ContentScale.Fit,
                 alpha = if (crop) 0.7f else 1f,

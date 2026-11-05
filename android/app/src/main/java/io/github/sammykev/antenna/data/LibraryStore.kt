@@ -77,6 +77,14 @@ class LibraryStore(private val path: String, private val protector: SecretProtec
         exec("CREATE INDEX IF NOT EXISTS history_recent ON history(watched_at DESC)")
         exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         exec("CREATE TABLE IF NOT EXISTS group_flags (kind INTEGER NOT NULL, grp TEXT NOT NULL, flag TEXT NOT NULL, PRIMARY KEY (kind, grp, flag))")
+        // IMDb / Rotten Tomatoes scores per film (keyed by cleaned title and year, so every playlist's copy shares one),
+        // and which film each catalogue entry is. found = 0 records "OMDb doesn't know it", so it isn't asked again soon.
+        exec("""
+            CREATE TABLE IF NOT EXISTS ratings (
+                film TEXT PRIMARY KEY, imdb REAL, votes INTEGER, rt INTEGER, meta INTEGER, imdb_id TEXT, genres TEXT,
+                found INTEGER NOT NULL, fetched INTEGER NOT NULL)""")
+        exec("CREATE TABLE IF NOT EXISTS item_films (source_id TEXT NOT NULL, external_id TEXT NOT NULL, film TEXT NOT NULL, PRIMARY KEY (source_id, external_id))")
+        exec("CREATE INDEX IF NOT EXISTS item_films_film ON item_films(film)")
     }
 
     /** Drops [table] if its definition lacks [option]; true when it did (so it needs filling again once recreated). */
@@ -365,6 +373,98 @@ class LibraryStore(private val path: String, private val protector: SecretProtec
         }
     }
 
+    // ---- Ratings ----
+
+    /** Films whose rating is known, ready or not found. */
+    fun getRatedFilms(): Set<String> = synchronized(gate) {
+        db.prepare("SELECT film FROM ratings").use { st -> buildSet { while (st.step()) add(st.getText(0)) } }
+    }
+
+    /** Films OMDb didn't know, looked up before [before] (worth asking again: playlists' spellings change). */
+    fun getStaleMisses(before: Long): Set<String> = synchronized(gate) {
+        db.prepare("SELECT film FROM ratings WHERE found = 0 AND fetched < ?1").use { st -> st.bind(before); buildSet { while (st.step()) add(st.getText(0)) } }
+    }
+
+    fun saveRating(film: String, rating: Rating?) = synchronized(gate) {
+        db.prepare("""
+            INSERT INTO ratings (film, imdb, votes, rt, meta, imdb_id, genres, found, fetched) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            ON CONFLICT(film) DO UPDATE SET imdb = excluded.imdb, votes = excluded.votes, rt = excluded.rt, meta = excluded.meta,
+                imdb_id = excluded.imdb_id, genres = excluded.genres, found = excluded.found, fetched = excluded.fetched""").use {
+            it.bind(film, rating?.imdb, rating?.imdbVotes, rating?.rottenTomatoes, rating?.metascore, rating?.imdbId,
+                rating?.genres?.joinToString(","), if (rating != null) 1 else 0, System.currentTimeMillis())
+            it.step()
+        }
+    }
+
+    fun linkFilms(links: List<Triple<String, String, String>>) = synchronized(gate) {
+        if (links.isEmpty()) return@synchronized
+        transaction {
+            db.prepare("INSERT OR REPLACE INTO item_films (source_id, external_id, film) VALUES (?1, ?2, ?3)").use { st ->
+                for ((source, id, film) in links) {
+                    st.bind(source, id, film)
+                    st.step()
+                    st.reset()
+                }
+            }
+        }
+    }
+
+    /**
+     * Films not yet matched to a rating, the ones people care about first: watched, then favourites, then the
+     * catalogue in its own order.
+     */
+    fun getUnlinkedMovies(limit: Int): List<MediaItem> = readAside { conn, creds ->
+        conn.prepare("""
+            $SELECT_ENTRIES
+            LEFT JOIN history h ON h.source_id = i.source_id AND h.external_id = i.external_id
+            LEFT JOIN favourites fav ON fav.source_id = i.source_id AND fav.external_id = i.external_id AND fav.kind = i.kind
+            WHERE i.kind = ?1 AND $VISIBLE
+              AND NOT EXISTS (SELECT 1 FROM item_films f WHERE f.source_id = i.source_id AND f.external_id = i.external_id)
+            ORDER BY h.watched_at IS NULL, h.watched_at DESC, fav.added IS NULL, s.position, i.sort_index LIMIT ?2""")
+            .use { it.bind(MediaKind.Movie.ordinal, limit); readEntries(it, creds).map { e -> e.item } }
+    }
+
+    /** The rating of the film this entry is, if known. */
+    fun getRating(sourceId: String, externalId: String): Rating? = synchronized(gate) {
+        db.prepare("""
+            SELECT r.imdb, r.votes, r.rt, r.meta, r.imdb_id, r.genres FROM item_films f JOIN ratings r ON r.film = f.film
+            WHERE f.source_id = ?1 AND f.external_id = ?2 AND r.found = 1""").use { st ->
+            st.bind(sourceId, externalId)
+            if (st.step()) readRating(st, 0) else null
+        }
+    }
+
+    /**
+     * The library's films, best rated first (one entry per film however many playlists have it). Obscure films with few
+     * IMDb votes and no Tomatometer are left out, so a 9.4 from 40 votes doesn't top the list.
+     */
+    fun getTopRated(limit: Int): List<Pair<LibraryEntry, Rating>> = readAside { conn, creds ->
+        conn.prepare("""
+            SELECT * FROM (
+                $SELECT_ENTRIES_COLUMNS, r.imdb, r.votes, r.rt, r.meta, r.imdb_id, r.genres,
+                    ROW_NUMBER() OVER (PARTITION BY f.film ORDER BY s.position, i.sort_index) AS copy,
+                    CASE WHEN r.imdb IS NOT NULL AND r.rt IS NOT NULL THEN (r.imdb * 10 + r.rt) / 2.0
+                         WHEN r.imdb IS NOT NULL THEN r.imdb * 10 ELSE r.rt END AS score
+                $SELECT_ENTRIES_FROM
+                JOIN item_films f ON f.source_id = i.source_id AND f.external_id = i.external_id
+                JOIN ratings r ON r.film = f.film AND r.found = 1
+                WHERE i.kind = ?1 AND $VISIBLE AND (r.rt IS NOT NULL OR r.votes >= 5000))
+            WHERE copy = 1 AND score IS NOT NULL ORDER BY score DESC LIMIT ?2""").use { st ->
+            st.bind(MediaKind.Movie.ordinal, limit)
+            // The 16 entry columns, then the rating's.
+            buildList { while (st.step()) add(readEntry(st, creds) to readRating(st, 16)) }
+        }
+    }
+
+    private fun readRating(st: SQLiteStatement, first: Int) = Rating(
+        imdb = if (st.isNull(first)) null else st.getDouble(first),
+        imdbVotes = if (st.isNull(first + 1)) null else st.getInt(first + 1),
+        rottenTomatoes = if (st.isNull(first + 2)) null else st.getInt(first + 2),
+        metascore = if (st.isNull(first + 3)) null else st.getInt(first + 3),
+        imdbId = st.textOrNull(first + 4),
+        genres = st.textOrNull(first + 5)?.split(',')?.filter { it.isNotBlank() }.orEmpty(),
+    )
+
     // ---- Settings ----
 
     fun getSetting(key: String): String? = synchronized(gate) {
@@ -392,13 +492,15 @@ class LibraryStore(private val path: String, private val protector: SecretProtec
     }
 
     private fun readEntries(st: SQLiteStatement, creds: Map<String, Pair<String, String>>): List<LibraryEntry> = buildList {
-        while (st.step()) {
-            val sourceId = st.getText(0)
-            val item = MediaItem(sourceId, st.getText(1), MediaKind.entries[st.getInt(2)], st.getText(3), st.getText(4), st.textOrNull(5),
-                unmask(sourceId, st.textOrNull(6), creds), st.textOrNull(7), st.getInt(8), st.textOrNull(13), st.textOrNull(14), st.textOrNull(15),
-                st.getInt(9))
-            add(LibraryEntry(item, st.getText(10), st.getText(11), st.getText(12)))
-        }
+        while (st.step()) add(readEntry(st, creds))
+    }
+
+    private fun readEntry(st: SQLiteStatement, creds: Map<String, Pair<String, String>>): LibraryEntry {
+        val sourceId = st.getText(0)
+        val item = MediaItem(sourceId, st.getText(1), MediaKind.entries[st.getInt(2)], st.getText(3), st.getText(4), st.textOrNull(5),
+            unmask(sourceId, st.textOrNull(6), creds), st.textOrNull(7), st.getInt(8), st.textOrNull(13), st.textOrNull(14), st.textOrNull(15),
+            st.getInt(9))
+        return LibraryEntry(item, st.getText(10), st.getText(11), st.getText(12))
     }
 
     private fun readProgramme(st: SQLiteStatement, first: Int) = Programme(
@@ -429,10 +531,11 @@ class LibraryStore(private val path: String, private val protector: SecretProtec
         /** Hidden categories never appear (there's no parental lock on the phone yet). */
         private const val VISIBLE = "NOT EXISTS (SELECT 1 FROM group_flags gf WHERE gf.kind = i.kind AND gf.grp = i.grp AND gf.flag = 'hidden')"
 
-        private const val SELECT_ENTRIES = """
+        private const val SELECT_ENTRIES_COLUMNS = """
             SELECT i.source_id, i.external_id, i.kind, i.title, i.grp, i.logo, i.stream_url, i.epg_id, i.catchup_days, i.sort_index,
-                   s.name, s.color, s.icon, i.catchup_mode, i.catchup_source, i.player_options
-            FROM items i JOIN sources s ON s.id = i.source_id"""
+                   s.name, s.color, s.icon, i.catchup_mode, i.catchup_source, i.player_options"""
+        private const val SELECT_ENTRIES_FROM = "FROM items i JOIN sources s ON s.id = i.source_id"
+        private const val SELECT_ENTRIES = "$SELECT_ENTRIES_COLUMNS\n            $SELECT_ENTRIES_FROM"
 
         private const val SELECT_HISTORY = """
             SELECT h.source_id, h.external_id, h.kind, h.title, h.stream_url, h.logo, h.player_options, h.position_ms, h.length_ms, h.watched_at

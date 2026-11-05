@@ -28,6 +28,8 @@ object AutoRefresh {
                     Log.info("Auto refresh: couldn't refresh ${source.name}: ${e.message}")
                 }
             }
+            // A few hundred IMDb / Rotten Tomatoes scores at a time, inside OMDb's daily allowance.
+            if (Ratings.enabled) runCatching { Ratings.update() }.onFailure { Log.error("Ratings update", it) }
         } finally {
             running.set(false)
         }

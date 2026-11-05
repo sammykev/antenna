@@ -38,7 +38,8 @@ class MediaGridState : ViewModel() {
 
 class HomeState : ViewModel() {
     var data by mutableStateOf<Any?>(null)
-    var loadedFor = -1
+    /** The library and ratings versions the data was read for. */
+    var loadedFor: Pair<Int, Int>? = null
 }
 
 class MatchesState : ViewModel() {
