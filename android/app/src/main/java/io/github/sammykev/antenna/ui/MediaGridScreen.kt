@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -130,7 +131,8 @@ fun MediaGridScreen(kind: MediaKind, open: (LibraryEntry) -> Unit) {
             LazyVerticalGrid(GridCells.Adaptive(112.dp), state = gridState, contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 24.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(18.dp),
                 modifier = Modifier.fillMaxSize()) {
-                items(rows, key = { it.first.item.sourceId + "|" + it.first.item.externalId }) { (entry, progress) ->
+                // The index too: playlists can list the same film twice, and a repeated key crashes the grid.
+                itemsIndexed(rows, key = { i, r -> "$i|" + r.first.item.sourceId + "|" + r.first.item.externalId }) { _, (entry, progress) ->
                     PosterCard(entry, width = null, progress = progress) { open(entry) }
                 }
             }
