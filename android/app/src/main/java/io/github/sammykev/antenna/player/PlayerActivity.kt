@@ -1,6 +1,20 @@
 package io.github.sammykev.antenna.player
 
 import android.app.PictureInPictureParams
+import android.media.AudioManager
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.BrightnessMedium
+import androidx.compose.material.icons.filled.ClosedCaption
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
+import androidx.compose.ui.graphics.vector.ImageVector
+import io.github.sammykev.antenna.ui.Muted
+import kotlin.math.abs
+import kotlin.math.roundToInt
 import android.content.Context
 import android.content.pm.ActivityInfo
 import android.content.res.Configuration
@@ -11,10 +25,11 @@ import android.os.Bundle
 import android.util.Rational
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import android.view.KeyEvent
+import android.view.MotionEvent
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -86,6 +101,11 @@ import io.github.sammykev.antenna.ui.Accent
 import io.github.sammykev.antenna.ui.AntennaTheme
 import io.github.sammykev.antenna.ui.ThinProgress
 import io.github.sammykev.antenna.ui.hhmm
+import io.github.sammykev.antenna.ui.isTv
+import io.github.sammykev.antenna.ui.focusRing
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.foundation.shape.CircleShape
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -390,7 +410,7 @@ class PlayerActivity : ComponentActivity() {
         while (true) {
             delay(1000)
             ticks++
-            if (controls && System.currentTimeMillis() > hideAt && guide == null && seeking == null && !failedHard && !castPicker) controls = false
+            if (controls && System.currentTimeMillis() > hideAt && guide == null && seeking == null && !failedHard && !castPicker && !tracksOpen) { controls = false; zapping = false }
             if (ticks % 15 == 0 && playing) saveProgress()
             if (ticks % 2 == 0) checkLiveEdge()
             if (ticks % 30 == 0) refreshNowNext()
@@ -507,6 +527,110 @@ class PlayerActivity : ComponentActivity() {
         updatePipParams()
     }
 
+    // ---- Remote control ----
+
+    /** Controls the remote lands on when they appear. */
+    private val playFocus = FocusRequester()
+    /** True after a key press (a TV remote, or a keyboard), false after a touch: decides whether the controls take focus. */
+    private var keyInput by mutableStateOf(false)
+    /** Up and down are changing channel: the controls show the new channel but the arrows keep zapping until OK. */
+    private var zapping = false
+    private val tv by lazy { isTv() }
+    /** Keys handled here on the way down, so their key-up doesn't also reach a button. */
+    private val consumed = mutableSetOf<Int>()
+
+    private fun togglePlay() {
+        val current = item
+        when {
+            failedHard || !playing && player.playerState in listOf(org.videolan.libvlc.interfaces.IMedia.State.Stopped,
+                org.videolan.libvlc.interfaces.IMedia.State.Ended, org.videolan.libvlc.interfaces.IMedia.State.Error) -> { attempts = 0; play(current) }
+            else -> {
+                // Resuming after a pause on purpose: count lag from here, don't jump.
+                if (!playing) drift.reset()
+                player.pause()
+            }
+        }
+        showControls()
+    }
+
+    private fun openGuide() {
+        val channel = item?.item ?: return
+        val epg = channel.epgChannelId ?: return
+        lifecycleScope.launch {
+            val t = Instant.now()
+            guide = withContext(Dispatchers.IO) { Services.library.getProgrammes(channel.sourceId, epg, t, t.plus(Duration.ofHours(24))) }
+            showControls(60_000)
+        }
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        keyInput = false
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val code = event.keyCode
+        if (event.action == KeyEvent.ACTION_UP && consumed.remove(code)) return true
+        if (event.action != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
+        keyInput = true
+        // Dialogs (no channel broadcasting, cast picker) take the remote themselves.
+        if (noneBroadcasting != null || castPicker || tracksOpen || inPip) return super.dispatchKeyEvent(event)
+        if (remoteKey(code)) {
+            consumed += code
+            return true
+        }
+        // Moving around the controls keeps them up.
+        if (controls) hideAt = System.currentTimeMillis() + 5000
+        return super.dispatchKeyEvent(event)
+    }
+
+    /**
+     * The remote, as on a TV box: OK shows the controls, up/down (and channel up/down) change channel, left/right skip
+     * in films, Back closes the guide, then the controls, then the player. Media keys work whatever is showing.
+     */
+    private fun remoteKey(code: Int): Boolean {
+        val live = item?.isLive != false
+        when (code) {
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> togglePlay()
+            KeyEvent.KEYCODE_MEDIA_PLAY -> if (!playing) togglePlay() else showControls()
+            KeyEvent.KEYCODE_MEDIA_PAUSE -> if (playing) togglePlay() else showControls()
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> skip(30_000)
+            KeyEvent.KEYCODE_MEDIA_REWIND -> skip(-10_000)
+            KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_MEDIA_NEXT -> zap(1)
+            KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> zap(-1)
+            KeyEvent.KEYCODE_GUIDE -> if (live) openGuide() else showControls()
+            KeyEvent.KEYCODE_INFO -> showControls()
+            KeyEvent.KEYCODE_BACK -> when {
+                guide != null -> { guide = null; showControls() }
+                // On a phone Back leaves the player straight away, as it always has.
+                tv && controls -> { controls = false; zapping = false }
+                else -> return false
+            }
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
+                if (!(zapping && controls) && controls) return false
+                if (live && Playback.queue.size > 1) zap(if (code == KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1) else showControls()
+            }
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                if (controls) { zapping = false; return false }
+                if (live) showControls() else skip(if (code == KeyEvent.KEYCODE_DPAD_RIGHT) 30_000 else -10_000)
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                if (controls && !zapping) return false
+                zapping = false
+                showControls()
+                runCatching { playFocus.requestFocus() }
+            }
+            else -> return false
+        }
+        return true
+    }
+
+    private fun zap(delta: Int) {
+        if (Playback.queue.size < 2) return
+        step(delta)
+        zapping = true
+    }
+
     // ---- UI ----
 
     private fun hideSystemBars() {
@@ -528,13 +652,21 @@ class PlayerActivity : ComponentActivity() {
             AndroidView({ videoLayout }, Modifier.fillMaxSize())
             // Taps and swipes over the video.
             Box(Modifier.fillMaxSize()
-                .pointerInput(Unit) { detectTapGestures { if (controls && guide == null) controls = false else showControls() } }
                 .pointerInput(Unit) {
-                    var dx = 0f
-                    detectHorizontalDragGestures(onDragStart = { dx = 0f }, onDragEnd = {
-                        if (dx < -150) step(1) else if (dx > 150) step(-1)
-                    }) { _, amount -> dx += amount }
-                })
+                    detectTapGestures(
+                        onTap = { if (controls && guide == null) controls = false else showControls() },
+                        // Films: double-tap the left or right of the picture to skip back or forward 10 seconds.
+                        onDoubleTap = { o ->
+                            when {
+                                item?.isLive != false -> showControls()
+                                o.x < size.width / 3f -> skip(-10_000)
+                                o.x > size.width * 2 / 3f -> skip(10_000)
+                                else -> togglePlay()
+                            }
+                        })
+                }
+                .pointerInput(Unit) { swipes(this) })
+            gesture?.let { (icon, text, level) -> GestureBadge(icon, text, level) }
             status?.takeIf { !inPip }?.let {
                 Text(it, color = Color.White, modifier = Modifier.align(Alignment.Center)
                     .background(Color(0x99000000), RoundedCornerShape(8.dp)).padding(16.dp, 8.dp))
@@ -542,6 +674,139 @@ class PlayerActivity : ComponentActivity() {
             if (controls && !inPip) Controls()
         }
         if (castPicker) CastPicker()
+        if (tracksOpen) TracksDialog()
+    }
+
+    // ---- Swipes: brightness (left), volume (right), seeking or changing channel (sideways) ----
+
+    /** What a swipe is changing, shown in the middle while it lasts: icon, text and a 0..1 level (or null). */
+    private var gesture by mutableStateOf<Triple<ImageVector, String, Float?>?>(null)
+    private var gestureHide: Job? = null
+    private val audio by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+
+    private suspend fun swipes(scope: androidx.compose.ui.input.pointer.PointerInputScope) = with(scope) {
+        var axis = 0 // 0 not decided yet, 1 sideways, 2 up and down
+        var dx = 0f
+        var dy = 0f
+        var left = false
+        var startLevel = 0f
+        var seekTo: Long? = null
+        fun end() {
+            when (axis) {
+                1 -> if (item?.isLive != false) {
+                    if (dx < -150) step(1) else if (dx > 150) step(-1)
+                } else seekTo?.let { player.time = it; showControls() }
+            }
+            gestureHide?.cancel()
+            gestureHide = lifecycleScope.launch { delay(700); gesture = null }
+        }
+        detectDragGestures(
+            onDragStart = { o ->
+                axis = 0; dx = 0f; dy = 0f; seekTo = null
+                left = o.x < size.width / 2f
+                startLevel = if (left) brightness() else audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / maxVolume()
+            },
+            onDragEnd = ::end,
+            onDragCancel = ::end,
+        ) { change, amount ->
+            change.consume()
+            dx += amount.x
+            dy += amount.y
+            if (axis == 0 && (abs(dx) > 30 || abs(dy) > 30)) axis = if (abs(dx) > abs(dy)) 1 else 2
+            gestureHide?.cancel()
+            when (axis) {
+                1 -> if (item?.isLive == false && player.length > 0) {
+                    // A full sideways swipe moves two minutes.
+                    val from = player.time
+                    val target = (from + dx / size.width * 120_000).toLong().coerceIn(0, player.length - 1000)
+                    seekTo = target
+                    val delta = target - from
+                    gesture = Triple(if (delta < 0) Icons.Default.FastRewind else Icons.Default.FastForward,
+                        "${clock(target)} / ${clock(player.length)}  (${if (delta < 0) "−" else "+"}${clock(abs(delta))})", null)
+                }
+                2 -> {
+                    val level = (startLevel - dy / (size.height * 0.8f)).coerceIn(0f, 1f)
+                    if (left) {
+                        setBrightness(level)
+                        gesture = Triple(Icons.Default.BrightnessMedium, "Brightness ${(level * 100).toInt()}%", level)
+                    } else {
+                        val v = (level * maxVolume()).roundToInt()
+                        audio.setStreamVolume(AudioManager.STREAM_MUSIC, v, 0)
+                        gesture = Triple(if (v == 0) Icons.AutoMirrored.Filled.VolumeOff else Icons.AutoMirrored.Filled.VolumeUp,
+                            "Volume ${(v * 100f / maxVolume()).toInt()}%", v.toFloat() / maxVolume())
+                    }
+                }
+            }
+        }
+    }
+
+    private fun maxVolume() = audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)
+
+    /** The player's own brightness, or the phone's until it's been changed here. */
+    private fun brightness(): Float {
+        val own = window.attributes.screenBrightness
+        if (own >= 0) return own
+        return runCatching { android.provider.Settings.System.getInt(contentResolver, android.provider.Settings.System.SCREEN_BRIGHTNESS) / 255f }.getOrDefault(0.5f)
+    }
+
+    /** Only while playing: the phone's own setting is untouched and comes back when the player closes. */
+    private fun setBrightness(level: Float) {
+        window.attributes = window.attributes.apply { screenBrightness = level.coerceIn(0.01f, 1f) }
+    }
+
+    @Composable
+    private fun GestureBadge(icon: ImageVector, text: String, level: Float?) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+            Column(Modifier.padding(top = 48.dp).background(Color(0xB3000000), RoundedCornerShape(12.dp)).padding(horizontal = 18.dp, vertical = 12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(icon, null, tint = Color.White)
+                    Text(text, color = Color.White, fontWeight = FontWeight.SemiBold)
+                }
+                if (level != null) ThinProgress(level, Modifier.width(160.dp))
+            }
+        }
+    }
+
+    // ---- Subtitles and audio ----
+
+    private var tracksOpen by mutableStateOf(false)
+
+    /** The stream's own subtitle and audio tracks (from libVLC), and a subtitle delay for ones that are out of sync. */
+    @Composable
+    private fun TracksDialog() {
+        val subs = androidx.compose.runtime.remember { player.spuTracks.orEmpty().toList() }
+        val audios = androidx.compose.runtime.remember { player.audioTracks.orEmpty().toList() }
+        var sub by androidx.compose.runtime.remember { mutableIntStateOf(player.spuTrack) }
+        var sound by androidx.compose.runtime.remember { mutableIntStateOf(player.audioTrack) }
+        var delayMs by androidx.compose.runtime.remember { mutableLongStateOf(player.spuDelay / 1000) }
+        AlertDialog(onDismissRequest = { tracksOpen = false }, title = { Text("Subtitles and audio") },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    Text("Subtitles", fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
+                    if (subs.isEmpty()) Text("This stream has no subtitles.", color = Muted)
+                    subs.forEach { t ->
+                        TextButton(onClick = { player.setSpuTrack(t.id); sub = t.id }) {
+                            Text((if (t.id == sub) "✓  " else "     ") + (if (t.id < 0) "Off" else t.name))
+                        }
+                    }
+                    if (subs.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Timing", modifier = Modifier.weight(1f))
+                        TextButton(onClick = { delayMs -= 250; player.setSpuDelay(delayMs * 1000) }) { Text("−0.25 s") }
+                        Text("%+.2f s".format(delayMs / 1000f))
+                        TextButton(onClick = { delayMs += 250; player.setSpuDelay(delayMs * 1000) }) { Text("+0.25 s") }
+                    }
+                    if (audios.size > 2) {
+                        Text("Audio", fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
+                        audios.filter { it.id >= 0 }.forEach { t ->
+                            TextButton(onClick = { player.setAudioTrack(t.id); sound = t.id }) {
+                                Text((if (t.id == sound) "✓  " else "     ") + t.name)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { tracksOpen = false }) { Text("Done") } })
     }
 
     @Composable
@@ -563,6 +828,9 @@ class PlayerActivity : ComponentActivity() {
                     lifecycleScope.launch(Dispatchers.IO) { Services.library.setFavourite(it, favourite); Services.notifyChanged() }
                     showControls()
                 }) { Icon(if (favourite) Icons.Default.Star else Icons.Default.StarBorder, "Favourite", tint = Color.White) }
+                if (current != null) IconButton(onClick = { tracksOpen = true; showControls(60_000) }) {
+                    Icon(Icons.Default.ClosedCaption, "Subtitles and audio", tint = Color.White)
+                }
                 TextButton(onClick = {
                     scale = (scale + 1) % scales.size
                     player.videoScale = scales[scale].second
@@ -571,16 +839,12 @@ class PlayerActivity : ComponentActivity() {
                     Icon(Icons.Default.AspectRatio, null, tint = Color.White)
                     Text(" ${scales[scale].first}", color = Color.White)
                 }
-                if (current?.isLive == true && current.item?.epgChannelId != null) IconButton(onClick = {
-                    val channel = current.item
-                    lifecycleScope.launch {
-                        val t = Instant.now()
-                        guide = withContext(Dispatchers.IO) { Services.library.getProgrammes(channel.sourceId, channel.epgChannelId!!, t, t.plus(Duration.ofHours(24))) }
-                        showControls(60_000)
-                    }
-                }) { Icon(Icons.Default.EventNote, "Guide", tint = Color.White) }
-                if (Build.VERSION.SDK_INT >= 26) IconButton(onClick = { enterPip() }) { Icon(Icons.Default.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
-                IconButton(onClick = { castPicker = true; showControls(60_000) }) {
+                if (current?.isLive == true && current.item?.epgChannelId != null) IconButton(onClick = ::openGuide) {
+                    Icon(Icons.Default.EventNote, "Guide", tint = Color.White)
+                }
+                // A TV has neither: it is the big screen, and its own Home button handles picture-in-picture.
+                if (!tv && Build.VERSION.SDK_INT >= 26) IconButton(onClick = { enterPip() }) { Icon(Icons.Default.PictureInPictureAlt, "Picture in picture", tint = Color.White) }
+                if (!tv) IconButton(onClick = { castPicker = true; showControls(60_000) }) {
                     Icon(if (casting != null) Icons.Default.CastConnected else Icons.Default.Cast, "Cast", tint = if (casting != null) Accent else Color.White)
                 }
             }
@@ -589,18 +853,8 @@ class PlayerActivity : ComponentActivity() {
             Row(Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (Playback.queue.size > 1) BigButton(Icons.Default.SkipPrevious, "Previous") { step(-1) }
                 if (current?.isLive == false) BigButton(Icons.Default.Replay10, "Back 10 seconds") { skip(-10_000) }
-                BigButton(when { failedHard -> Icons.Default.Refresh; playing -> Icons.Default.Pause; else -> Icons.Default.PlayArrow }, "Play or pause", 56) {
-                    when {
-                        failedHard || !playing && player.playerState in listOf(org.videolan.libvlc.interfaces.IMedia.State.Stopped,
-                            org.videolan.libvlc.interfaces.IMedia.State.Ended, org.videolan.libvlc.interfaces.IMedia.State.Error) -> { attempts = 0; play(current) }
-                        else -> {
-                            // Resuming after a pause on purpose: count lag from here, don't jump.
-                            if (!playing) drift.reset()
-                            player.pause()
-                        }
-                    }
-                    showControls()
-                }
+                BigButton(when { failedHard -> Icons.Default.Refresh; playing -> Icons.Default.Pause; else -> Icons.Default.PlayArrow }, "Play or pause", 56,
+                    Modifier.focusRequester(playFocus)) { togglePlay() }
                 if (current?.isLive == false) BigButton(Icons.Default.Forward30, "Forward 30 seconds") { skip(30_000) }
                 if (Playback.queue.size > 1) BigButton(Icons.Default.SkipNext, "Next") { step(1) }
             }
@@ -647,12 +901,16 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
         }
-        LaunchedEffect(Unit) { hideSystemBars() }
+        LaunchedEffect(Unit) {
+            hideSystemBars()
+            // Shown from the remote: put it on play/pause, so OK pauses and the arrows move from there.
+            if (keyInput && !zapping) runCatching { playFocus.requestFocus() }
+        }
     }
 
     @Composable
-    private fun BigButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, size: Int = 40, onClick: () -> Unit) {
-        IconButton(onClick = onClick, modifier = Modifier.size((size + 16).dp)) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(size.dp)) }
+    private fun BigButton(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, size: Int = 40, modifier: Modifier = Modifier, onClick: () -> Unit) {
+        IconButton(onClick = onClick, modifier = modifier.size((size + 16).dp).focusRing(CircleShape)) { Icon(icon, label, tint = Color.White, modifier = Modifier.size(size.dp)) }
     }
 
     @Composable
