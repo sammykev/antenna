@@ -1,6 +1,12 @@
 package io.github.sammykev.antenna.ui
 
+import androidx.compose.material.ripple.RippleAlpha
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LocalRippleConfiguration
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RippleConfiguration
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
@@ -22,8 +28,17 @@ val Gold = Color(0xFFFFC531)
 private val base = Typography()
 
 /** Dark, whatever the phone's theme: it's a video player. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AntennaTheme(content: @Composable () -> Unit) = MaterialTheme(
+fun AntennaTheme(content: @Composable () -> Unit) {
+    val tv = LocalContext.current.isTv()
+    // On a TV, buttons, chips and rows under the remote's focus are lit clearly (a phone's focus tint is barely visible).
+    val ripple = if (tv) RippleConfiguration(Color.White, RippleAlpha(0.16f, 0.28f, 0.12f, 0.24f)) else RippleConfiguration()
+    CompositionLocalProvider(LocalTv provides tv, LocalRippleConfiguration provides ripple) { Themed(content) }
+}
+
+@Composable
+private fun Themed(content: @Composable () -> Unit) = MaterialTheme(
     colorScheme = darkColorScheme(
         primary = Accent, onPrimary = Color.White, background = Background, surface = Background, surfaceVariant = Surface,
         surfaceContainer = Surface, surfaceContainerHigh = SurfaceHigh, surfaceContainerLow = Background,

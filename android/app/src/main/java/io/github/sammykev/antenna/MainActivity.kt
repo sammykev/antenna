@@ -6,6 +6,9 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,6 +22,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +54,7 @@ import io.github.sammykev.antenna.ui.DetailsScreen
 import io.github.sammykev.antenna.ui.GuideSearchScreen
 import io.github.sammykev.antenna.ui.HomeScreen
 import io.github.sammykev.antenna.ui.LiveTvScreen
+import io.github.sammykev.antenna.ui.LocalTv
 import io.github.sammykev.antenna.ui.MatchesScreen
 import io.github.sammykev.antenna.ui.MediaGridScreen
 import io.github.sammykev.antenna.ui.PlaylistsScreen
@@ -142,13 +148,22 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val tv = LocalTv.current
         Scaffold(bottomBar = {
-            if (tabs.any { it.route == route }) NavigationBar {
+            if (!tv && tabs.any { it.route == route }) NavigationBar {
                 for (tab in tabs) NavigationBarItem(selected = route == tab.route, onClick = { nav.switchTab(tab.route) },
                     icon = { Icon(tab.icon, null) }, label = { Text(tab.label) })
             }
         }) { padding ->
-            NavHost(nav, startDestination = "home", modifier = Modifier.padding(padding).fillMaxSize()) {
+          // A TV gets the menu down the left (as on Windows), and room around the edges that TVs can cut off.
+          Row(Modifier.padding(padding).fillMaxSize().then(if (tv) Modifier.padding(vertical = 18.dp) else Modifier)) {
+            if (tv && tabs.any { it.route == route }) NavigationRail(Modifier.padding(start = 24.dp)) {
+                Spacer(Modifier.weight(1f))
+                for (tab in tabs) NavigationRailItem(selected = route == tab.route, onClick = { nav.switchTab(tab.route) },
+                    icon = { Icon(tab.icon, null) }, label = { Text(tab.label) }, modifier = Modifier.padding(vertical = 4.dp))
+                Spacer(Modifier.weight(1f))
+            }
+            NavHost(nav, startDestination = "home", modifier = Modifier.weight(1f).fillMaxHeight().then(if (tv) Modifier.padding(end = 32.dp) else Modifier)) {
                 composable("home") {
                     HomeScreen(openDetails = { nav.navigate(details(it.item.kind, it.item.sourceId, it.item.externalId)) },
                         openPlaylists = { nav.navigate("playlists") }, openGuideSearch = { nav.navigate("guide") },
@@ -165,9 +180,11 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("matches") { MatchesScreen() }
                 composable("playlists") { PlaylistsScreen(add = { nav.navigate("add") }, openSync = { nav.navigate("sync") }) }
-                composable("add") { AddPlaylistScreen(back = { nav.popBackStack() }, done = { nav.switchTab("home") }) }
+                // Back to Home to see what loaded. Not switchTab: Home's saved stack is this very form, and it would come back.
+                composable("add") { AddPlaylistScreen(back = { nav.popBackStack() }, done = { nav.popBackStack("home", inclusive = false) }) }
                 composable("sync") { SyncScreen(back = { nav.popBackStack() }) }
             }
+          }
         }
 
         update?.let { u -> UpdateDialog(u) { update = null } }
@@ -193,7 +210,13 @@ class MainActivity : ComponentActivity() {
             if (!Updater.canInstall(this@MainActivity)) {
                 // One-time switch: Android asks the user to let Antenna install updates.
                 pendingUpdate = u
-                startActivity(Updater.allowInstallsIntent(this@MainActivity))
+                try {
+                    startActivity(Updater.allowInstallsIntent(this@MainActivity))
+                } catch (e: android.content.ActivityNotFoundException) {
+                    // Some TVs don't have the per-app screen; the switch is in their Settings instead.
+                    pendingUpdate = null
+                    error = "Let Antenna install updates first: Settings → Device Preferences → Security & restrictions → Unknown sources → Antenna. Then try again."
+                }
                 return
             }
             pendingUpdate = null
@@ -233,7 +256,7 @@ class MainActivity : ComponentActivity() {
             },
             dismissButton = {
                 if (progress == null) TextButton(onClick = close) { Text("Later") }
-                if (error != null) TextButton(onClick = { close(); startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.url))) }) { Text("Download in browser") }
+                if (error != null) TextButton(onClick = { close(); runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.url))) } }) { Text("Download in browser") }
             })
     }
 

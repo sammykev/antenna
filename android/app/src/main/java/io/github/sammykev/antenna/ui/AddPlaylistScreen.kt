@@ -136,20 +136,17 @@ fun AddPlaylistScreen(back: () -> Unit, done: () -> Unit) {
                     SegmentedButton(type == i, { type = i }, SegmentedButtonDefaults.itemShape(i, 3)) { Text(label) }
                 }
             }
-            OutlinedTextField(name, { name = it }, label = { Text("Name (e.g. My provider)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            FormField(name, { name = it }, "Name (e.g. My provider)")
             if (type == 1) {
                 OutlinedButton(onClick = { pick.launch(arrayOf("*/*")) }) { Text(if (file == null) "Choose M3U file…" else "File chosen ✓") }
             } else {
-                OutlinedTextField(location, { location = it }, label = { Text(if (type == 2) "Server (e.g. http://example.com:8080)" else "M3U link (http://…)") },
-                    singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
+                FormField(location, { location = it }, if (type == 2) "Server (e.g. http://example.com:8080)" else "M3U link (http://…)", keyboardType = KeyboardType.Uri)
             }
             if (type == 2) {
-                OutlinedTextField(user, { user = it }, label = { Text("Username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(pass, { pass = it }, label = { Text("Password") }, singleLine = true, visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password), modifier = Modifier.fillMaxWidth())
+                FormField(user, { user = it }, "Username")
+                FormField(pass, { pass = it }, "Password", keyboardType = KeyboardType.Password, password = true)
             }
-            OutlinedTextField(epg, { epg = it }, label = { Text("Guide (XMLTV) link, optional") }, singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), modifier = Modifier.fillMaxWidth())
+            FormField(epg, { epg = it }, "Guide (XMLTV) link, optional", keyboardType = KeyboardType.Uri)
             error?.let { Text(it, color = Live) }
             Button(onClick = ::save, enabled = !busy, modifier = Modifier.fillMaxWidth()) { Text("Add and load") }
             if (busy) {

@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.sammykev.antenna.sync.MobileSync
@@ -83,8 +84,7 @@ fun SyncScreen(back: () -> Unit) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("Keeps playlists, favourites and where you stopped films and episodes the same here and in Antenna on your PC, through one encrypted file in your Google Drive or OneDrive.", color = Muted)
             Text("On the PC: Settings → Sync with your phone, choose a folder inside Google Drive or OneDrive, enter a passphrase and Sync now. Then here: enter the same passphrase and choose that file (Antenna sync.antenna).", color = Muted)
-            OutlinedTextField(pass, { pass = it }, label = { Text("Sync passphrase (the same on every device)") }, singleLine = true,
-                visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            FormField(pass, { pass = it }, "Sync passphrase (the same on every device)", keyboardType = KeyboardType.Password, password = true)
             Button(onClick = { if (savePass()) open.launch(arrayOf("*/*")) }, modifier = Modifier.fillMaxWidth()) { Text("Use the file from my PC…") }
             FilledTonalButton(onClick = { if (savePass()) create.launch("Antenna sync.antenna") }, modifier = Modifier.fillMaxWidth()) { Text("Create a new sync file…") }
             Text(if (hasFile) "Sync file: ${MobileSync.fileName(context)}" else "No sync file chosen yet.", fontWeight = FontWeight.Bold)

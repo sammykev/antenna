@@ -1,6 +1,30 @@
 package io.github.sammykev.antenna.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -39,6 +63,25 @@ import coil3.compose.AsyncImage
 /** A search box that sits at the top of a list. */
 @Composable
 fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String, modifier: Modifier = Modifier) {
+    // On a TV, moving over the box mustn't pop the keyboard up: it's a button until OK is pressed on it.
+    var editing by remember { mutableStateOf(false) }
+    var edited by remember { mutableStateOf(false) }
+    val button = remember { FocusRequester() }
+    if (LocalTv.current && !editing) {
+        // Back on the box after typing, so the remote carries on from here.
+        LaunchedEffect(Unit) { if (edited) runCatching { button.requestFocus() } }
+        Row(modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).clip(RoundedCornerShape(24.dp)).background(Surface)
+            .focusRequester(button).focusRing(RoundedCornerShape(24.dp)).clickable { editing = true; edited = true }.padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Icon(Icons.Default.Search, null, tint = Muted)
+            Text(value.ifEmpty { placeholder }, color = if (value.isEmpty()) Muted else Color.White, maxLines = 1)
+        }
+        return
+    }
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(editing) { if (editing) runCatching { focus.requestFocus() } }
     OutlinedTextField(
         value = value, onValueChange = onChange, singleLine = true,
         placeholder = { Text(placeholder) },
@@ -47,8 +90,56 @@ fun SearchField(value: String, onChange: (String) -> Unit, placeholder: String, 
         shape = RoundedCornerShape(24.dp),
         colors = TextFieldDefaults.colors(unfocusedContainerColor = Surface, focusedContainerColor = Surface,
             unfocusedIndicatorColor = Color.Transparent),
-        modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { keyboard?.hide(); editing = false }),
+        modifier = modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).focusRequester(focus)
+            .onFocusChanged { if (focused && !it.isFocused) editing = false; focused = it.isFocused }
+            .leaveWithRemote(editing) { editing = false },
     )
+}
+
+/**
+ * A form's text box. On a TV it's a button showing the label and what's typed until OK is pressed on it: Android
+ * otherwise opens the keyboard as soon as the remote passes over a box, and the arrows can't get out of it.
+ */
+@Composable
+fun FormField(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier,
+              keyboardType: KeyboardType = KeyboardType.Text, password: Boolean = false) {
+    var editing by remember { mutableStateOf(false) }
+    var edited by remember { mutableStateOf(false) }
+    val button = remember { FocusRequester() }
+    val field = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val shape = RoundedCornerShape(4.dp)
+    if (LocalTv.current && !editing) {
+        LaunchedEffect(Unit) { if (edited) runCatching { button.requestFocus() } }
+        Column(modifier.fillMaxWidth().clip(shape).border(1.dp, Muted, shape).focusRequester(button).focusRing(shape)
+            .clickable { editing = true; edited = true }.padding(horizontal = 16.dp, vertical = 10.dp)) {
+            Text(label, color = Muted, style = MaterialTheme.typography.bodySmall)
+            Text(if (value.isEmpty()) "Press OK to type" else if (password) "•".repeat(value.length) else value,
+                color = if (value.isEmpty()) Muted else Color.White, maxLines = 1)
+        }
+        return
+    }
+    var focused by remember { mutableStateOf(false) }
+    LaunchedEffect(editing) { if (editing) runCatching { field.requestFocus() } }
+    OutlinedTextField(value, onChange, label = { Text(label) }, singleLine = true,
+        visualTransformation = if (password) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { keyboard?.hide(); editing = false }),
+        modifier = modifier.fillMaxWidth().focusRequester(field)
+            .onFocusChanged { if (focused && !it.isFocused) editing = false; focused = it.isFocused }
+            .leaveWithRemote(editing) { editing = false })
+}
+
+/** While typing on a TV: Back (once the keyboard is down) or up/down returns to the box, so the remote can move on. */
+@Composable
+private fun Modifier.leaveWithRemote(editing: Boolean, leave: () -> Unit): Modifier {
+    val tv = LocalTv.current
+    BackHandler(enabled = tv && editing, onBack = leave)
+    return if (!tv) this else onPreviewKeyEvent {
+        if (it.type == KeyEventType.KeyDown && (it.key == Key.DirectionDown || it.key == Key.DirectionUp)) { leave(); true } else false
+    }
 }
 
 /** A row of category chips; the selected one is kept in view. */

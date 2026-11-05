@@ -2,6 +2,7 @@ package io.github.sammykev.antenna.ui
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -177,32 +178,50 @@ fun LiveTvScreen(openGuideSearch: () -> Unit) {
             }) { Icon(if (previewOn) Icons.Default.Visibility else Icons.Default.VisibilityOff, if (previewOn) "Turn the preview off" else "Turn the preview on") }
             IconButton(onClick = openGuideSearch) { Icon(Icons.Default.EventNote, "Search the guide") }
         }
-        previewing?.let { entry ->
-            PreviewPanel(preview, entry, previewNow, previewNext) {
-                val index = rows.indexOfFirst { it.first.item == entry.item }
-                if (index >= 0) watch(index) else {
-                    preview.stop()
-                    Playback.playItems(context, listOf(entry.item), 0)
+        val previewPart: @Composable () -> Unit = {
+            previewing?.let { entry ->
+                PreviewPanel(preview, entry, previewNow, previewNext) {
+                    val index = rows.indexOfFirst { it.first.item == entry.item }
+                    if (index >= 0) watch(index) else {
+                        preview.stop()
+                        Playback.playItems(context, listOf(entry.item), 0)
+                    }
                 }
             }
         }
-        SearchField(query, { query = it }, "Search channels")
-        if (chips.isNotEmpty()) ChipRow(chips, chip, { it.name }) {
-            chip = it
-            prefs.edit().putString("live.group", it.name).apply()
+        val listPart: @Composable () -> Unit = {
+            SearchField(query, { query = it }, "Search channels")
+            if (chips.isNotEmpty()) ChipRow(chips, chip, { it.name }) {
+                chip = it
+                prefs.edit().putString("live.group", it.name).apply()
+            }
+            Box(Modifier.fillMaxSize()) {
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
+                    // The index too: M3U playlists can list the same stream twice, and a repeated key crashes the list.
+                    itemsIndexed(rows, key = { i, r -> "$i|" + r.first.item.sourceId + "|" + r.first.item.externalId }) { index, (entry, now) ->
+                        ChannelRow(entry, now, selected = previewing?.item == entry.item) { select(index) }
+                    }
+                }
+                if (rows.isEmpty() && !loading) EmptyText(when {
+                    search.isNotBlank() -> "No channels match “$search”."
+                    chips.size > 1 -> "Nothing in this category."
+                    else -> "Add a playlist on the Playlists tab to get started."
+                })
+                if (loading && rows.isEmpty()) CircularProgressIndicator(Modifier.align(Alignment.TopCenter).padding(24.dp))
+            }
         }
-        Box(Modifier.fillMaxSize()) {
-            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
-                itemsIndexed(rows, key = { _, r -> r.first.item.sourceId + "|" + r.first.item.externalId }) { index, (entry, now) ->
-                    ChannelRow(entry, now, selected = previewing?.item == entry.item) { select(index) }
+        if (LocalTv.current) {
+            // A TV is wide: channels on the left, the preview beside them (as on Windows).
+            Row(Modifier.fillMaxSize()) {
+                Column(Modifier.weight(1f).fillMaxHeight()) { listPart() }
+                Column(Modifier.weight(1f).fillMaxHeight()) {
+                    if (previewing == null) EmptyText("Press OK on a channel to preview it here, and OK again to watch it full screen.")
+                    previewPart()
                 }
             }
-            if (rows.isEmpty() && !loading) EmptyText(when {
-                search.isNotBlank() -> "No channels match “$search”."
-                chips.size > 1 -> "Nothing in this category."
-                else -> "Add a playlist on the Playlists tab to get started."
-            })
-            if (loading && rows.isEmpty()) CircularProgressIndicator(Modifier.align(Alignment.TopCenter).padding(24.dp))
+        } else {
+            previewPart()
+            listPart()
         }
     }
 }

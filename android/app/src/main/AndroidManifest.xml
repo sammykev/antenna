@@ -15,12 +15,18 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
+    <!-- The same app runs on phones and Android TV: no touchscreen needed, and it shows in the TV's launcher. -->
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.wifi" android:required="false" />
+
     <!-- Most IPTV panels serve playlists and streams over plain http. -->
     <application
         android:name=".AntennaApp"
         android:label="${appLabel}"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
+        android:banner="@drawable/banner"
         android:theme="@style/Theme.Antenna"
         android:allowBackup="true"
         android:supportsRtl="true"
@@ -35,6 +41,7 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
 

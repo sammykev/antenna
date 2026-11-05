@@ -45,8 +45,8 @@ android {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
             manifestPlaceholders["appLabel"] = "Antenna (debug)"
-            // Phones and Android Studio's emulator.
-            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64") }
+            // Phones, and Android Studio's phone (x86_64) and TV (x86) emulators.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }
         }
         release {
             // One APK for every phone (64- and 32-bit ARM); no emulator libraries, they only add size.

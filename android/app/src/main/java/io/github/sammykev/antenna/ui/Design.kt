@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +49,7 @@ import coil3.compose.AsyncImage
 import io.github.sammykev.antenna.data.LibraryEntry
 import io.github.sammykev.antenna.data.MediaKind
 import io.github.sammykev.antenna.data.Programme
+import io.github.sammykev.antenna.data.Rating
 import io.github.sammykev.antenna.data.WatchRecord
 
 val CardShape = RoundedCornerShape(12.dp)
@@ -71,8 +73,11 @@ fun LargeHeader(title: String, subtitle: String? = null, actions: @Composable Ro
 fun Modifier.pressable(onClick: () -> Unit): Modifier = composed {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.96f else 1f, tween(120), label = "press")
+    // On a TV the card under the remote's focus grows and gets a ring, as the Windows cards lift under the mouse.
+    val focused by interaction.collectIsFocusedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.96f else if (focused) 1.06f else 1f, tween(120), label = "press")
     graphicsLayer { scaleX = scale; scaleY = scale }
+        .then(if (focused) Modifier.border(3.dp, Color.White, CardShape) else Modifier)
         .clickable(interactionSource = interaction, indication = null, onClick = onClick)
 }
 
@@ -90,7 +95,7 @@ fun Shelf(title: String, seeAll: (() -> Unit)? = null, content: LazyListScope.()
 
 /** Movie / series poster (2:3) with the title underneath. */
 @Composable
-fun PosterCard(entry: LibraryEntry, width: Dp?, progress: Float = 0f, onClick: () -> Unit) {
+fun PosterCard(entry: LibraryEntry, width: Dp?, progress: Float = 0f, rating: Rating? = null, onClick: () -> Unit) {
     val size = if (width != null) Modifier.width(width) else Modifier.fillMaxWidth()
     Column(size.pressable(onClick)) {
         Box(Modifier.fillMaxWidth().aspectRatio(2f / 3f).clip(CardShape).background(Surface)) {
@@ -101,8 +106,31 @@ fun PosterCard(entry: LibraryEntry, width: Dp?, progress: Float = 0f, onClick: (
         }
         Text(entry.item.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.SemiBold,
             style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 6.dp, start = 2.dp))
-        Text(entry.item.group.ifEmpty { entry.sourceName }, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        if (rating != null) RatingBadges(rating, small = true, modifier = Modifier.padding(top = 4.dp, start = 2.dp))
+        else Text(entry.item.group.ifEmpty { entry.sourceName }, color = Muted, maxLines = 1, overflow = TextOverflow.Ellipsis,
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(start = 2.dp))
+    }
+}
+
+/** IMDb's yellow and Rotten Tomatoes' red (fresh, 60% and up) or green (rotten), as people know them. */
+@Composable
+fun RatingBadges(rating: Rating, small: Boolean = false, modifier: Modifier = Modifier) {
+    val style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.labelLarge
+    val pad = if (small) Modifier.padding(horizontal = 5.dp, vertical = 1.dp) else Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        rating.imdb?.let {
+            Text("IMDb ${"%.1f".format(it)}", color = Color.Black, style = style, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5C518)).then(pad))
+        }
+        rating.rottenTomatoes?.let {
+            val fresh = it >= 60
+            Text("${if (fresh) "🍅" else "🟢"} $it%", color = Color.White, style = style, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(if (fresh) Color(0xFFFA320A) else Color(0xFF0AC855)).then(pad))
+        }
+        if (!small) rating.metascore?.let {
+            Text("Metacritic $it", color = Color.White, style = style, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(if (it >= 61) Color(0xFF00A64F) else if (it >= 40) Color(0xFFE8A200) else Color(0xFFE5243B)).then(pad))
+        }
     }
 }
 
