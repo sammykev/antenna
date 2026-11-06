@@ -147,9 +147,24 @@
                 <Button Click="Back_Click" ToolTipService.ToolTip="Back" RequestedTheme="Dark">
                     <FontIcon Glyph="&#xE72B;" />
                 </Button>
-                <Button x:Name="PlayPauseButton" Grid.Column="1" Click="PlayPause_Click" ToolTipService.ToolTip="Play/Pause (Space)" RequestedTheme="Dark">
-                    <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE769;" />
-                </Button>
+                <!-- Films and episodes: 10 seconds back and forward either side of play (as ← and →). -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" RequestedTheme="Dark">
+                    <Button x:Name="SkipBackButton" Click="SkipBack_Click" ToolTipService.ToolTip="Back 10 seconds (←)" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <FontIcon Glyph="&#xE7A7;" />
+                            <TextBlock Text="10" FontSize="12" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="PlayPauseButton" Click="PlayPause_Click" ToolTipService.ToolTip="Play/Pause (Space)">
+                        <FontIcon x:Name="PlayPauseIcon" Glyph="&#xE769;" />
+                    </Button>
+                    <Button x:Name="SkipForwardButton" Click="SkipForward_Click" ToolTipService.ToolTip="Forward 10 seconds (→)" Visibility="Collapsed">
+                        <StackPanel Orientation="Horizontal" Spacing="4">
+                            <TextBlock Text="10" FontSize="12" VerticalAlignment="Center" />
+                            <FontIcon Glyph="&#xE7A6;" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
                 <StackPanel x:Name="ZapButtons" Grid.Column="2" Orientation="Horizontal" Spacing="4" RequestedTheme="Dark" Visibility="Collapsed">
                     <Button Click="ChannelDown_Click" ToolTipService.ToolTip="Previous channel (Page Down)">
                         <FontIcon Glyph="&#xE70D;" />

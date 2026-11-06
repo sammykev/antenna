@@ -203,6 +203,7 @@ public sealed partial class PlayerPage : Page
         ZapButtons.Visibility = request.CanZap ? Visibility.Visible : Visibility.Collapsed;
         RecordButton.Visibility = request.IsLive ? Visibility.Visible : Visibility.Collapsed;
         SpeedButton.Visibility = request.IsLive ? Visibility.Collapsed : Visibility.Visible;
+        SkipBackButton.Visibility = SkipForwardButton.Visibility = request.IsLive ? Visibility.Collapsed : Visibility.Visible;
         SeekRow.Visibility = Visibility.Collapsed;
         StatusPanel.Visibility = Visibility.Collapsed;
         ResumePanel.Visibility = Visibility.Collapsed;
@@ -672,6 +673,8 @@ public sealed partial class PlayerPage : Page
 
     private void TogglePause_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, TogglePause);
     private void ToggleFullScreen_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, ToggleFullScreen);
+    private void SkipBack_Click(object sender, RoutedEventArgs e) => SeekBy(TimeSpan.FromSeconds(-10));
+    private void SkipForward_Click(object sender, RoutedEventArgs e) => SeekBy(TimeSpan.FromSeconds(10));
     private void SeekBack_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () => SeekBy(TimeSpan.FromSeconds(-10)));
     private void SeekForward_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, () => SeekBy(TimeSpan.FromSeconds(10)));
     private void ToggleMute_Invoked(KeyboardAccelerator sender, KeyboardAcceleratorInvokedEventArgs args) => Handle(args, ToggleMute);

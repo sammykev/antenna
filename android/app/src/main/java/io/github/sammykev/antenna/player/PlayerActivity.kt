@@ -50,7 +50,7 @@ import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Cast
 import androidx.compose.material.icons.filled.CastConnected
 import androidx.compose.material.icons.filled.EventNote
-import androidx.compose.material.icons.filled.Forward30
+import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PictureInPictureAlt
 import androidx.compose.material.icons.filled.PlayArrow
@@ -594,7 +594,7 @@ class PlayerActivity : ComponentActivity() {
             KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_HEADSETHOOK -> togglePlay()
             KeyEvent.KEYCODE_MEDIA_PLAY -> if (!playing) togglePlay() else showControls()
             KeyEvent.KEYCODE_MEDIA_PAUSE -> if (playing) togglePlay() else showControls()
-            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> skip(30_000)
+            KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> skip(10_000)
             KeyEvent.KEYCODE_MEDIA_REWIND -> skip(-10_000)
             KeyEvent.KEYCODE_CHANNEL_UP, KeyEvent.KEYCODE_MEDIA_NEXT -> zap(1)
             KeyEvent.KEYCODE_CHANNEL_DOWN, KeyEvent.KEYCODE_MEDIA_PREVIOUS -> zap(-1)
@@ -612,7 +612,7 @@ class PlayerActivity : ComponentActivity() {
             }
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 if (controls) { zapping = false; return false }
-                if (live) showControls() else skip(if (code == KeyEvent.KEYCODE_DPAD_RIGHT) 30_000 else -10_000)
+                if (live) showControls() else skip(if (code == KeyEvent.KEYCODE_DPAD_RIGHT) 10_000 else -10_000)
             }
             KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
                 if (controls && !zapping) return false
@@ -855,7 +855,7 @@ class PlayerActivity : ComponentActivity() {
                 if (current?.isLive == false) BigButton(Icons.Default.Replay10, "Back 10 seconds") { skip(-10_000) }
                 BigButton(when { failedHard -> Icons.Default.Refresh; playing -> Icons.Default.Pause; else -> Icons.Default.PlayArrow }, "Play or pause", 56,
                     Modifier.focusRequester(playFocus)) { togglePlay() }
-                if (current?.isLive == false) BigButton(Icons.Default.Forward30, "Forward 30 seconds") { skip(30_000) }
+                if (current?.isLive == false) BigButton(Icons.Default.Forward10, "Forward 10 seconds") { skip(10_000) }
                 if (Playback.queue.size > 1) BigButton(Icons.Default.SkipNext, "Next") { step(1) }
             }
 
