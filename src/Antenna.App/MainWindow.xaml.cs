@@ -35,6 +35,7 @@ public sealed partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        SetUpAutoPane();
         AppWindow.Resize(new Windows.Graphics.SizeInt32(1360, 860));
         AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "Antenna.ico"));
         ExtendsContentIntoTitleBar = true;

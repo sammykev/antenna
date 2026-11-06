@@ -36,7 +36,7 @@
             IsBackEnabled="{x:Bind ContentFrame.CanGoBack, Mode=OneWay}"
             BackRequested="NavView_BackRequested"
             ItemInvoked="NavView_ItemInvoked"
-            PaneDisplayMode="Left"
+            PaneDisplayMode="LeftCompact"
             OpenPaneLength="256">
 
             <NavigationView.AutoSuggestBox>
