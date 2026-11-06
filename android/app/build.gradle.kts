@@ -96,6 +96,8 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.3.0")
     implementation("org.videolan.android:libvlc-all:3.6.5")
     implementation("androidx.sqlite:sqlite-bundled:2.6.2")
+    // Drawing the QR code the TV shows for signing in from a phone.
+    implementation("com.google.zxing:core:3.5.3")
 
     testImplementation("junit:junit:4.13.2")
     // The desktop build of the same SQLite, so the library store runs in plain JVM unit tests.

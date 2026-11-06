@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import io.github.sammykev.antenna.Playback
 import io.github.sammykev.antenna.Ratings
+import io.github.sammykev.antenna.pair.PairPanel
 import io.github.sammykev.antenna.Services
 import io.github.sammykev.antenna.data.LibraryEntry
 import io.github.sammykev.antenna.data.MediaKind
@@ -223,5 +224,7 @@ private fun Welcome(openPlaylists: () -> Unit) {
         Text("Welcome to Antenna", style = MaterialTheme.typography.titleLarge)
         Text("Add an M3U playlist or Xtream Codes login to start watching. Your channels, films and series will show up here.", color = Muted)
         Button(onClick = openPlaylists) { Text("Add a playlist") }
+        // On a TV, the easy way: scan a code with the phone instead of typing logins with the remote.
+        if (LocalTv.current) PairPanel(received = {}, modifier = Modifier.padding(top = 12.dp))
     }
 }

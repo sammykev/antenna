@@ -42,6 +42,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import io.github.sammykev.antenna.Log
 import io.github.sammykev.antenna.Services
+import io.github.sammykev.antenna.pair.PairPanel
 import io.github.sammykev.antenna.data.PlaylistSource
 import io.github.sammykev.antenna.data.SourceKind
 import kotlinx.coroutines.Dispatchers
@@ -131,6 +132,10 @@ fun AddPlaylistScreen(back: () -> Unit, done: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         TopAppBar(windowInsets = WindowInsets(0, 0, 0, 0), title = { Text("Add playlist") }, navigationIcon = { IconButton(onClick = back) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } })
         Column(Modifier.verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (LocalTv.current) {
+                PairPanel(received = done)
+                Text("Or type it in with the remote:", color = Muted, modifier = Modifier.padding(top = 8.dp))
+            }
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
                 listOf("M3U link", "M3U file", "Xtream Codes").forEachIndexed { i, label ->
                     SegmentedButton(type == i, { type = i }, SegmentedButtonDefaults.itemShape(i, 3)) { Text(label) }

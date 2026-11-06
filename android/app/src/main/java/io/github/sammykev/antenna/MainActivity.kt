@@ -46,6 +46,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import io.github.sammykev.antenna.alerts.ScoreAlertScheduler
+import io.github.sammykev.antenna.pair.PairRequest
+import io.github.sammykev.antenna.pair.SendToTvDialog
 import io.github.sammykev.antenna.data.MediaKind
 import io.github.sammykev.antenna.sync.MobileSync
 import io.github.sammykev.antenna.ui.AddPlaylistScreen
@@ -82,6 +84,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private var openMatches by mutableStateOf(false)
+    /** A TV's code scanned with this phone: offer to send it the playlists. */
+    private var pairRequest by mutableStateOf<PairRequest?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -117,6 +121,11 @@ class MainActivity : ComponentActivity() {
 
     /** A tapped score notification: Watch opens the channel, anything else the Matches page. */
     private fun handleIntent(intent: Intent?) {
+        PairRequest.from(intent?.data)?.let {
+            pairRequest = it
+            intent?.data = null
+            return
+        }
         val watch = intent?.getStringExtra(WATCH_EXTRA)
         val fixture = intent?.getStringExtra(FIXTURE_EXTRA)
         if (watch == null && fixture == null) return
@@ -188,6 +197,7 @@ class MainActivity : ComponentActivity() {
         }
 
         update?.let { u -> UpdateDialog(u) { update = null } }
+        pairRequest?.let { r -> SendToTvDialog(r) { pairRequest = null } }
     }
 
     /** Set while Android's "allow installs" screen is open, so the update carries on when the user comes back. */
