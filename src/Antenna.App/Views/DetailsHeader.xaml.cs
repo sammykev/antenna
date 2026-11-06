@@ -1,6 +1,8 @@
+using System.Globalization;
 using Antenna.App.Services;
 using Antenna.App.ViewModels;
 using Antenna.Core;
+using Antenna.Core.Metadata;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 
@@ -37,6 +39,32 @@ public sealed partial class DetailsHeader : UserControl
         if (details?.BackdropUrl is { } backdrop && await ImageCache.GetAsync(backdrop) is { } backdropPath)
             Backdrop.Source = Ui.FromFile(backdropPath, 400);
     }
+
+    /// <summary>IMDb's yellow, Rotten Tomatoes' red (fresh, 60% and up) or green (rotten) and Metacritic, as people know them.</summary>
+    internal void ShowRating(FilmRating? rating)
+    {
+        RatingsPanel.Children.Clear();
+        if (rating?.Imdb is { } imdb)
+            RatingsPanel.Children.Add(Badge($"IMDb {imdb.ToString("0.0", CultureInfo.CurrentCulture)}", "#F5C518", dark: true));
+        if (rating?.RottenTomatoes is { } rt)
+            RatingsPanel.Children.Add(Badge($"{(rt >= 60 ? "🍅" : "🟢")} {rt}%", rt >= 60 ? "#FA320A" : "#0AC855"));
+        if (rating?.Metascore is { } meta)
+            RatingsPanel.Children.Add(Badge($"Metacritic {meta}", meta >= 61 ? "#00A64F" : meta >= 40 ? "#E8A200" : "#E5243B"));
+        RatingsPanel.Visibility = RatingsPanel.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static Border Badge(string text, string colour, bool dark = false) => new()
+    {
+        Background = Ui.Brush(colour),
+        CornerRadius = new CornerRadius(4),
+        Padding = new Thickness(8, 3, 8, 3),
+        Child = new TextBlock
+        {
+            Text = text,
+            FontWeight = Microsoft.UI.Text.FontWeights.Bold,
+            Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(dark ? Microsoft.UI.Colors.Black : Microsoft.UI.Colors.White),
+        },
+    };
 
     public void ClearActions() => Actions.Children.Clear();
 

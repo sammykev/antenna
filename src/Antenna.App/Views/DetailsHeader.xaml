@@ -27,6 +27,7 @@
             <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Bottom">
                 <TextBlock x:Name="TitleText" Style="{StaticResource TitleLargeTextBlockStyle}" TextWrapping="Wrap" />
                 <TextBlock x:Name="FactsText" Opacity="0.75" TextWrapping="Wrap" />
+                <StackPanel x:Name="RatingsPanel" Orientation="Horizontal" Spacing="8" Visibility="Collapsed" />
                 <TextBlock x:Name="PlotText" TextWrapping="Wrap" MaxWidth="820" MaxLines="6" TextTrimming="WordEllipsis" HorizontalAlignment="Left" />
                 <TextBlock x:Name="CreditsText" Opacity="0.7" TextWrapping="Wrap" MaxWidth="820" HorizontalAlignment="Left" Style="{StaticResource CaptionTextBlockStyle}" />
                 <StackPanel x:Name="Actions" Orientation="Horizontal" Spacing="8" Margin="0,6,0,0" />

@@ -115,6 +115,19 @@
                 <ListView x:Name="ComingUpList" SelectionMode="None" IsItemClickEnabled="True" ItemClick="ComingUp_ItemClick" MaxHeight="260" />
             </StackPanel>
 
+            <!-- Recommendations from IMDb and Rotten Tomatoes scores (Settings → Ratings): only films in your playlists. -->
+            <StackPanel x:Name="BecauseSection" Visibility="Collapsed">
+                <TextBlock x:Name="BecauseTitle" Style="{StaticResource ShelfTitleStyle}" />
+                <GridView x:Name="BecauseList" Style="{StaticResource ShelfStyle}" ItemClick="Item_ItemClick"
+                          RightTapped="Because_RightTapped" ItemTemplate="{StaticResource RatedPosterTileTemplate}" />
+            </StackPanel>
+
+            <StackPanel x:Name="TopRatedSection" Visibility="Collapsed">
+                <TextBlock Text="Top rated on IMDb and Rotten Tomatoes" Style="{StaticResource ShelfTitleStyle}" />
+                <GridView x:Name="TopRatedList" Style="{StaticResource ShelfStyle}" ItemClick="Item_ItemClick"
+                          RightTapped="TopRated_RightTapped" ItemTemplate="{StaticResource RatedPosterTileTemplate}" />
+            </StackPanel>
+
             <StackPanel x:Name="MoviesSection" Visibility="Collapsed">
                 <Grid Margin="0,0,16,0">
                     <TextBlock Text="Movies" Style="{StaticResource ShelfTitleStyle}" />

@@ -121,6 +121,7 @@ public sealed partial class LibraryStore : IDisposable
         AddColumnIfMissing("items", "catchup_source", "TEXT");
         AddColumnIfMissing("items", "player_options", "TEXT");
         MigrateUserData();
+        MigrateRatings();
     }
 
     private bool DropIfMissingPrefix(string table) => DropIfMissing(table, "prefix");
@@ -663,27 +664,30 @@ public sealed partial class LibraryStore : IDisposable
         using var r = cmd.ExecuteReader();
         var list = new List<LibraryEntry>();
         while (r.Read())
-        {
-            var sourceId = r.GetString(0);
-            var item = new MediaItem
-            {
-                SourceId = sourceId,
-                ExternalId = r.GetString(1),
-                Kind = (MediaKind)r.GetInt32(2),
-                Title = r.GetString(3),
-                Group = r.GetString(4),
-                LogoUrl = r.IsDBNull(5) ? null : r.GetString(5),
-                StreamUrl = r.IsDBNull(6) ? null : Unmask(credentials, sourceId, r.GetString(6)),
-                EpgChannelId = r.IsDBNull(7) ? null : r.GetString(7),
-                CatchupDays = r.GetInt32(8),
-                SortIndex = r.GetInt32(9),
-                CatchupMode = r.IsDBNull(13) ? null : r.GetString(13),
-                CatchupSource = r.IsDBNull(14) ? null : r.GetString(14),
-                PlayerOptions = r.IsDBNull(15) ? null : r.GetString(15),
-            };
-            list.Add(new LibraryEntry(item, r.GetString(10), r.GetString(11), r.GetString(12)));
-        }
+            list.Add(ReadEntry(r, credentials));
         return list;
+    }
+
+    private static LibraryEntry ReadEntry(SqliteDataReader r, Dictionary<string, (string User, string Pass)> credentials)
+    {
+        var sourceId = r.GetString(0);
+        var item = new MediaItem
+        {
+            SourceId = sourceId,
+            ExternalId = r.GetString(1),
+            Kind = (MediaKind)r.GetInt32(2),
+            Title = r.GetString(3),
+            Group = r.GetString(4),
+            LogoUrl = r.IsDBNull(5) ? null : r.GetString(5),
+            StreamUrl = r.IsDBNull(6) ? null : Unmask(credentials, sourceId, r.GetString(6)),
+            EpgChannelId = r.IsDBNull(7) ? null : r.GetString(7),
+            CatchupDays = r.GetInt32(8),
+            SortIndex = r.GetInt32(9),
+            CatchupMode = r.IsDBNull(13) ? null : r.GetString(13),
+            CatchupSource = r.IsDBNull(14) ? null : r.GetString(14),
+            PlayerOptions = r.IsDBNull(15) ? null : r.GetString(15),
+        };
+        return new LibraryEntry(item, r.GetString(10), r.GetString(11), r.GetString(12));
     }
 
     private void DeleteItems(string sourceId, SqliteTransaction tx, MediaKind? kind = null)

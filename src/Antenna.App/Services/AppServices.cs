@@ -2,6 +2,7 @@ using System.Net;
 using Antenna.Core;
 using Antenna.Core.Epg;
 using Antenna.Core.Library;
+using Antenna.Core.Metadata;
 using Antenna.Core.Playlists;
 
 namespace Antenna.App.Services;
@@ -16,6 +17,9 @@ public static class AppServices
     public static PlaylistImporter Importer { get; } = new(Http);
 
     public static EpgImporter Guide { get; } = new(Http, Library);
+
+    /// <summary>IMDb and Rotten Tomatoes scores and the recommendations made from them (Settings → Ratings).</summary>
+    public static RatingsService Ratings { get; } = new(Library, Http, Log.Info);
 
     public static SourceRefresher Refresher { get; } = CreateRefresher();
 

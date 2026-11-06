@@ -53,5 +53,14 @@ internal static class AutoRefresh
         {
             _running = false;
         }
+        // A few hundred IMDb / Rotten Tomatoes scores at a time, inside OMDb's daily allowance.
+        try
+        {
+            await Task.Run(() => AppServices.Ratings.UpdateAsync());
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "ratings update");
+        }
     }
 }

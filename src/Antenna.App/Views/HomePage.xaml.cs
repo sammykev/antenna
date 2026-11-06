@@ -20,6 +20,8 @@ public sealed partial class HomePage : Page
     private List<ItemViewModel> _onNow = [];
     private List<ItemViewModel> _movies = [];
     private List<ItemViewModel> _series = [];
+    private List<ItemViewModel> _because = [];
+    private List<ItemViewModel> _topRated = [];
     private Action? _heroPlay;
     private Action? _heroMore;
     private bool _loaded;
@@ -65,16 +67,25 @@ public sealed partial class HomePage : Page
             _movies = (await Task.Run(() => AppServices.Library.GetItems(MediaKind.Movie, limit: ShelfLimit))).Select(x => new ItemViewModel(x)).ToList();
             _series = (await Task.Run(() => AppServices.Library.GetItems(MediaKind.Series, limit: ShelfLimit))).Select(x => new ItemViewModel(x)).ToList();
             var reminders = await Task.Run(AppServices.Library.GetReminders);
+            var ratings = AppServices.Ratings;
+            var (because, topRated) = ratings.Enabled
+                ? await Task.Run(() => (ratings.BecauseYouWatched(ShelfLimit), ratings.TopRated(ShelfLimit)))
+                : (null, []);
+            _because = because?.Picks.Select(p => new ItemViewModel(p.Entry) { Rating = p.Rating }).ToList() ?? [];
+            _topRated = topRated.Select(p => new ItemViewModel(p.Entry) { Rating = p.Rating }).ToList();
+            BecauseTitle.Text = because is { } b ? $"Because you watched {b.Title}" : "";
 
             ShowHero(resumable.FirstOrDefault(), _onNow.FirstOrDefault(c => c.Now is not null), _movies.FirstOrDefault());
             Show(ContinueSection, ContinueList, resumable);
             Show(OnNowSection, OnNowList, _onNow);
             Show(ComingUpSection, ComingUpList, reminders.Take(RowLimit).Select(r => new ReminderRow(r)).ToList());
+            Show(BecauseSection, BecauseList, _because);
+            Show(TopRatedSection, TopRatedList, _topRated);
             Show(MoviesSection, MoviesList, _movies);
             Show(SeriesSection, SeriesList, _series);
             Show(RecentSection, RecentList, recent);
             EmptySection.Visibility = counts.Playlists > 0 && resumable.Count == 0 && _onNow.Count == 0 && recent.Count == 0
-                                      && reminders.Count == 0 && _movies.Count == 0 && _series.Count == 0
+                                      && reminders.Count == 0 && _movies.Count == 0 && _topRated.Count == 0 && _series.Count == 0
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         }
@@ -259,4 +270,8 @@ public sealed partial class HomePage : Page
     private void Movies_RightTapped(object sender, RightTappedRoutedEventArgs e) => ItemMenu.OnRightTapped(sender, e, _movies);
 
     private void Series_RightTapped(object sender, RightTappedRoutedEventArgs e) => ItemMenu.OnRightTapped(sender, e, _series);
+
+    private void Because_RightTapped(object sender, RightTappedRoutedEventArgs e) => ItemMenu.OnRightTapped(sender, e, _because);
+
+    private void TopRated_RightTapped(object sender, RightTappedRoutedEventArgs e) => ItemMenu.OnRightTapped(sender, e, _topRated);
 }

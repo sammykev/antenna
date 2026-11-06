@@ -47,6 +47,8 @@ public sealed partial class SettingsPage : Page
         RefreshChoice.SelectedIndex = refreshIndex >= 0 ? refreshIndex : 3;
         ApiKeyBox.Text = AppSettings.OpenSubtitlesApiKey ?? "";
         TmdbKeyBox.Text = AppSettings.TmdbApiKey ?? "";
+        OmdbKeyBox.Text = AppServices.Ratings.Key ?? "";
+        ShowRatingsState();
         SubsLangBox.Text = AppSettings.SubtitleLanguages;
         SubsUserBox.Text = AppSettings.OpenSubtitlesUser ?? "";
         SubsPassBox.Password = AppSettings.OpenSubtitlesPassword ?? "";
@@ -312,6 +314,37 @@ public sealed partial class SettingsPage : Page
     // ---- Subtitles / recordings ----
 
     private void Tmdb_LostFocus(object sender, RoutedEventArgs e) => AppSettings.TmdbApiKey = TmdbKeyBox.Text;
+
+    /// <summary>Saves the OMDb key and starts collecting scores straight away.</summary>
+    private async void Omdb_LostFocus(object sender, RoutedEventArgs e)
+    {
+        var ratings = AppServices.Ratings;
+        var key = OmdbKeyBox.Text.Trim();
+        if (key == (ratings.Key ?? ""))
+            return;
+        ratings.Key = key;
+        ShowRatingsState();
+        if (!ratings.Enabled)
+            return;
+        OmdbStatus.Text = "Collecting scores…";
+        try
+        {
+            await Task.Run(() => ratings.UpdateAsync());
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "ratings update");
+        }
+        ShowRatingsState();
+    }
+
+    private void ShowRatingsState()
+    {
+        var ratings = AppServices.Ratings;
+        OmdbStatus.Text = !ratings.Enabled ? "Off."
+            : ratings.Problem is { } problem ? $"OMDb: {problem}"
+            : "On. Scores are collected in the background.";
+    }
 
     private void Subtitles_LostFocus(object sender, RoutedEventArgs e)
     {

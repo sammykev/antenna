@@ -29,7 +29,9 @@ public sealed partial class DetailsPage : Page
         _entry = entry;
         var item = entry.Item;
         Header.Show(item, null);
+        Header.ShowRating(null);
         BuildActions();
+        _ = ShowRatingAsync(entry);
 
         var source = AppServices.Library.GetSources().FirstOrDefault(s => s.Id == item.SourceId);
         Header.IsLoading = true;
@@ -52,6 +54,23 @@ public sealed partial class DetailsPage : Page
         finally
         {
             Header.IsLoading = false;
+        }
+    }
+
+    /// <summary>IMDb and Rotten Tomatoes, when an OMDb key is set (looked up now if the film is new).</summary>
+    private async Task ShowRatingAsync(LibraryEntry entry)
+    {
+        if (!AppServices.Ratings.Enabled)
+            return;
+        try
+        {
+            var rating = await Task.Run(() => AppServices.Ratings.ForItemAsync(entry.Item));
+            if (ReferenceEquals(_entry, entry))
+                Header.ShowRating(rating);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "film rating");
         }
     }
 

@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Runtime.CompilerServices;
 using Antenna.App.Services;
 using Antenna.Core;
+using Antenna.Core.Metadata;
 using Microsoft.UI;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -147,6 +148,17 @@ public sealed class ItemViewModel : Observable
 
     /// <summary>1-based position in the list it was shown in, used as the channel number.</summary>
     public int Number { get; set; }
+
+    /// <summary>IMDb and Rotten Tomatoes scores, on the recommendation shelves.</summary>
+    internal FilmRating? Rating { get; init; }
+
+    public string ImdbText => Rating?.Imdb is { } i ? $"IMDb {i.ToString("0.0", CultureInfo.CurrentCulture)}" : "";
+    public Microsoft.UI.Xaml.Visibility ImdbVisibility => Rating?.Imdb is null ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+
+    /// <summary>Rotten Tomatoes' red tomato when fresh (60% and up), its green splat when rotten.</summary>
+    public string TomatoText => Rating?.RottenTomatoes is { } rt ? $"{(rt >= 60 ? "🍅" : "🟢")} {rt}%" : "";
+    public Microsoft.UI.Xaml.Visibility TomatoVisibility => Rating?.RottenTomatoes is null ? Microsoft.UI.Xaml.Visibility.Collapsed : Microsoft.UI.Xaml.Visibility.Visible;
+    public SolidColorBrush TomatoBrush => Ui.Brush(Rating?.RottenTomatoes >= 60 ? "#FA320A" : "#0AC855");
 
     public string NumberText => Item.Kind == MediaKind.Live && Number > 0 ? Number.ToString(CultureInfo.InvariantCulture) : "";
 

@@ -52,6 +52,29 @@
         </StackPanel>
     </DataTemplate>
 
+    <!-- A poster with its IMDb (yellow) and Rotten Tomatoes scores underneath: the recommendation shelves. -->
+    <DataTemplate x:Key="RatedPosterTileTemplate" x:DataType="vm:ItemViewModel">
+        <StackPanel Width="164" Spacing="8" views:Lift.On="True">
+            <Grid Height="246" CornerRadius="{StaticResource CardRadius}" Background="{ThemeResource CardFillBrush}">
+                <TextBlock Text="{x:Bind Initials}" Visibility="{x:Bind Logo.FallbackVisibility, Mode=OneWay}" FontSize="34" FontWeight="SemiBold" Opacity="0.3"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                <Image Source="{x:Bind Logo.Source, Mode=OneWay}" Stretch="UniformToFill" />
+                <Border Height="3" VerticalAlignment="Bottom" Background="{x:Bind SourceBrush}" Opacity="0.9" />
+            </Grid>
+            <StackPanel Spacing="4" Padding="2,0">
+                <TextBlock Text="{x:Bind Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Title}" />
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Border Visibility="{x:Bind ImdbVisibility}" Background="#F5C518" CornerRadius="4" Padding="5,1">
+                        <TextBlock Text="{x:Bind ImdbText}" Foreground="Black" FontSize="12" FontWeight="Bold" />
+                    </Border>
+                    <Border Visibility="{x:Bind TomatoVisibility}" Background="{x:Bind TomatoBrush}" CornerRadius="4" Padding="5,1">
+                        <TextBlock Text="{x:Bind TomatoText}" Foreground="White" FontSize="12" FontWeight="Bold" />
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+        </StackPanel>
+    </DataTemplate>
+
     <!-- Continue watching: a wide card with the artwork, a fade, the title on it and progress along the bottom. -->
     <DataTemplate x:Key="WatchCardTemplate" x:DataType="vm:WatchViewModel">
         <Grid Width="304" Height="171" CornerRadius="{StaticResource CardRadius}" Background="{ThemeResource CardFillBrush}"

@@ -56,4 +56,12 @@ public static partial class TitleCleaner
         s = Spaces().Replace(s, " ").Trim(' ', '-', ':', '|');
         return (s, year);
     }
+
+    /// <summary>One key per film whatever the playlist calls it: "the matrix|1999" (the same as the Android app's).</summary>
+    public static string Key(string name)
+    {
+        var (title, year) = Parse(name);
+        return string.Join(' ', Library.TextMatch.Fold(title).Split(' ', StringSplitOptions.RemoveEmptyEntries)) + "|" +
+               (year?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "");
+    }
 }
